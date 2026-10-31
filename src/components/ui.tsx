@@ -1,3 +1,4 @@
+import { CheckCircle2, ChevronRight, Lock, Moon, RefreshCw, Sun, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { Status } from '../hooks/useProgress'
 
@@ -11,12 +12,13 @@ export function ProgressBar({ pct, label }: { pct: number; label?: string }) {
 }
 
 export function PhaseBadge({ status, score }: { status: Status; score?: number | null }) {
-  const m = {
-    locked: ['🔒', 'Locked', 'bg-slate-500/15 text-slate-500'],
-    in_progress: ['🔄', 'In progress', 'bg-sky-500/15 text-sky-500'],
-    completed: ['✅', score != null ? `Completed · ${score}%` : 'Completed', 'bg-emerald-500/15 text-emerald-500'],
-  }[status]
-  return <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-sans text-xs font-medium ${m[2]}`}>{m[0]} {m[1]}</span>
+  const m: Record<Status, [LucideIcon, string, string]> = {
+    locked: [Lock, 'Locked', 'bg-slate-500/15 text-slate-500'],
+    in_progress: [RefreshCw, 'In progress', 'bg-sky-500/15 text-sky-500'],
+    completed: [CheckCircle2, score != null ? `Completed · ${score}%` : 'Completed', 'bg-emerald-500/15 text-emerald-500'],
+  }
+  const [Icon, label, cls] = m[status]
+  return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-sans text-xs font-medium ${cls}`}><Icon size={13} aria-hidden />{label}</span>
 }
 
 export function Accordion({ title, meta, children, defaultOpen = false }: { title: ReactNode; meta?: ReactNode; children: ReactNode; defaultOpen?: boolean }) {
@@ -25,7 +27,7 @@ export function Accordion({ title, meta, children, defaultOpen = false }: { titl
     <div className="my-3 rounded-lg border border-slate-200 dark:border-white/10">
       <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
         className="flex min-h-[44px] w-full items-center gap-3 px-4 py-3 text-left font-sans font-semibold hover:bg-slate-100 dark:hover:bg-white/5">
-        <span className={`inline-block transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden>▸</span>
+        <ChevronRight size={16} aria-hidden className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
         <span className="flex-1">{title}</span>
         {meta}
       </button>
@@ -43,7 +45,7 @@ export function ThemeToggle() {
   return (
     <button type="button" onClick={() => setDark(!dark)} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
       className="grid h-11 w-11 place-items-center rounded-md hover:bg-slate-200 dark:hover:bg-white/10">
-      {dark ? '☀️' : '🌙'}
+      {dark ? <Sun size={20} aria-hidden /> : <Moon size={20} aria-hidden />}
     </button>
   )
 }

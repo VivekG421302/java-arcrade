@@ -1,3 +1,4 @@
+import { CheckCircle2, XCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
@@ -64,7 +65,7 @@ export default function TestRunner({ phaseId }: { phaseId: number }) {
             const ok = grade(q, ans[i])
             return (
               <li key={i} className="rounded-lg border border-slate-200 p-4 dark:border-white/10">
-                <p className="font-sans font-semibold">{ok ? '✅' : '❌'} {i + 1}. {q.q}</p>
+                <p className="font-sans font-semibold">{ok ? <CheckCircle2 size={18} aria-label="Correct" className="mr-1.5 inline text-emerald-500" /> : <XCircle size={18} aria-label="Incorrect" className="mr-1.5 inline text-red-500" />}{i + 1}. {q.q}</p>
                 {q.type === 'code' && <CodeBlock code={q.code} lang={q.lang} />}
                 <p className="mt-1 text-sm">Your answer: <span className="font-mono">{q.type === 'mcq' ? (ans[i] === undefined ? '—' : q.opts[ans[i] as number]) : String(ans[i] || '—')}</span></p>
                 {!ok && <p className="text-sm text-emerald-500">Correct: {q.type === 'mcq' ? q.opts[q.answer] : q.accept.slice(0, 3).join(' / ')}</p>}

@@ -1,7 +1,7 @@
 # Java Mastery Platform
 
 A phase-gated learning app that renders `content/roadmap.md` (Part 1 roadmap, Part 2 LeetCode bank, Part 3 anti-patterns, Part 4 production scenarios).
-React 18 + Vite + TypeScript, Tailwind, React Router, Supabase (auth + progress), Prism (VS Code Dark+ tokens), Framer Motion, react-markdown.
+React 18 + Vite + TypeScript, Tailwind, React Router, Supabase (auth + progress), Prism (VS Code Dark+ tokens), Framer Motion, lucide-react (icons), react-markdown.
 
 ## Setup
 ```bash

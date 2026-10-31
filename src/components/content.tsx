@@ -1,3 +1,4 @@
+import { Check, CheckCircle2, Copy, XCircle } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -23,9 +24,9 @@ export function CodeBlock({ code, lang = 'text', accent }: { code: string; lang?
       <div className="flex items-center justify-between border-b border-white/10 pl-3 pr-1 font-sans text-xs uppercase tracking-wide text-slate-400">
         <span>{lang}</span>
         <button type="button" aria-label="Copy code to clipboard"
-          className="min-h-[44px] min-w-[44px] rounded px-3 hover:bg-white/10 md:min-h-[32px]"
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded px-3 hover:bg-white/10 md:min-h-[32px]"
           onClick={() => { navigator.clipboard?.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>
-          {copied ? 'Copied ✓' : 'Copy'}
+          {copied ? <><Check size={14} aria-hidden /> Copied</> : <><Copy size={14} aria-hidden /> Copy</>}
         </button>
       </div>
       <div className="flex overflow-x-auto font-mono leading-6">
@@ -82,17 +83,17 @@ export function Inline({ md }: { md: string }) {
   )
 }
 
-/** Toggle tabs: [❌ Anti-Pattern | ✅ Fix] */
+/** Toggle tabs: [Anti-Pattern | Fix] */
 export function DiffView({ bad, good, lang }: { bad: string; good: string; lang: string }) {
   const [tab, setTab] = useState<'bad' | 'good'>('bad')
-  const tabs = [['bad', '❌ Anti-Pattern'], ['good', '✅ Fix']] as const
+  const tabs = [['bad', XCircle, 'Anti-Pattern'], ['good', CheckCircle2, 'Fix']] as const
   return (
     <div>
       <div role="tablist" aria-label="Code version" className="flex gap-2 font-sans">
-        {tabs.map(([k, label]) => (
+        {tabs.map(([k, Icon, label]) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-            className={`min-h-[44px] rounded-md px-4 text-sm font-medium ${tab === k ? (k === 'bad' ? 'bg-red-500/15 text-red-500' : 'bg-emerald-500/15 text-emerald-500') : 'hover:bg-slate-200 dark:hover:bg-white/10'}`}>
-            {label}
+            className={`inline-flex min-h-[44px] items-center gap-2 rounded-md px-4 text-sm font-medium ${tab === k ? (k === 'bad' ? 'bg-red-500/15 text-red-500' : 'bg-emerald-500/15 text-emerald-500') : 'hover:bg-slate-200 dark:hover:bg-white/10'}`}>
+            <Icon size={16} aria-hidden />{label}
           </button>
         ))}
       </div>

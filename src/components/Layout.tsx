@@ -1,3 +1,4 @@
+import { CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, Menu, RefreshCw } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom'
 import { content, PHASES } from '../lib/content'
@@ -5,7 +6,8 @@ import { useAuth } from '../hooks/useAuth'
 import { useProgress } from '../hooks/useProgress'
 import { ThemeToggle } from './ui'
 
-const statusIcon = { locked: '🔒', in_progress: '🔄', completed: '✅' }
+const statusIcon = { locked: Lock, in_progress: RefreshCw, completed: CheckCircle2 }
+const statusColor = { locked: 'text-slate-400', in_progress: 'text-sky-500', completed: 'text-emerald-500' }
 const link = 'flex min-h-[44px] items-center gap-2 border-l-2 px-4 py-2 text-sm'
 const active = 'border-sky-500 bg-sky-500/10 font-medium text-sky-600 dark:text-sky-400'
 const idle = 'border-transparent hover:bg-slate-200/70 dark:hover:bg-white/5'
@@ -48,12 +50,12 @@ function TopBar({ onMenu, onToc }: { onMenu: () => void; onToc: () => void }) {
   const phase = PHASES.find((p) => p.id === current)
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-slate-200 bg-white/90 px-2 backdrop-blur dark:border-white/10 dark:bg-[#0f1115]/90 md:px-4">
-      <button type="button" onClick={onMenu} aria-label="Open navigation" className="grid h-11 w-11 place-items-center rounded-md hover:bg-slate-200 dark:hover:bg-white/10 md:hidden">☰</button>
-      <Link to="/" className="font-semibold tracking-tight">☕ Java Mastery</Link>
+      <button type="button" onClick={onMenu} aria-label="Open navigation" className="grid h-11 w-11 place-items-center rounded-md hover:bg-slate-200 dark:hover:bg-white/10 md:hidden"><Menu size={20} aria-hidden /></button>
+      <Link to="/" className="inline-flex items-center gap-2 font-semibold tracking-tight"><Coffee size={18} aria-hidden /> Java Mastery</Link>
       {phase && <span className="ml-3 hidden truncate text-sm text-slate-500 sm:block">Now: Phase {phase.id} · {phase.title}</span>}
       <div className="ml-auto flex items-center gap-1">
-        <span title="Day streak" className="rounded-full bg-orange-500/15 px-2.5 py-1 text-xs font-medium text-orange-500">🔥 {streak}</span>
-        <button type="button" onClick={onToc} aria-label="Toggle table of contents" className="hidden h-11 w-11 place-items-center rounded-md hover:bg-slate-200 dark:hover:bg-white/10 xl:grid">≣</button>
+        <span title="Day streak" className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2.5 py-1 text-xs font-medium text-orange-500"><Flame size={14} aria-hidden /> {streak}</span>
+        <button type="button" onClick={onToc} aria-label="Toggle table of contents" className="hidden h-11 w-11 place-items-center rounded-md hover:bg-slate-200 dark:hover:bg-white/10 xl:grid"><ListTree size={20} aria-hidden /></button>
         <ThemeToggle />
         {user ? (
           <button type="button" onClick={signOut} title={`${user.email} — sign out`} aria-label="Sign out"
@@ -89,15 +91,15 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
               <div key={p.id}>
                 {st === 'locked' ? (
                   <span className={`${link} cursor-not-allowed border-transparent text-slate-400 opacity-60`} aria-disabled="true" title={`Complete Phase ${p.id - 1} test to unlock`}>
-                    <span aria-hidden>🔒</span> Phase {p.id}: {p.title}
+                    <Lock size={16} aria-hidden /> Phase {p.id}: {p.title}
                   </span>
                 ) : (
                   <div className="flex">
                     <NavLink to={`/phase/${p.id}`} end className={({ isActive }) => `${link} flex-1 ${isActive && !loc.hash ? active : idle}`}>
-                      <span aria-hidden>{statusIcon[st]}</span><span>Phase {p.id}: {p.title}</span>
+                      {(() => { const I = statusIcon[st]; return <I size={16} aria-hidden className={`shrink-0 ${statusColor[st]}`} /> })()}<span>Phase {p.id}: {p.title}</span>
                     </NavLink>
-                    <button type="button" aria-expanded={isOpen} aria-label={`Toggle Phase ${p.id} sections`} className="w-11 text-slate-500"
-                      onClick={() => setExpanded(isOpen ? expanded.filter((x) => x !== p.id) : [...expanded, p.id])}>{isOpen ? '▾' : '▸'}</button>
+                    <button type="button" aria-expanded={isOpen} aria-label={`Toggle Phase ${p.id} sections`} className="grid w-11 place-items-center text-slate-500"
+                      onClick={() => setExpanded(isOpen ? expanded.filter((x) => x !== p.id) : [...expanded, p.id])}>{isOpen ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}</button>
                   </div>
                 )}
                 {isOpen && (
