@@ -32,7 +32,7 @@ function ReminderToggle() {
   }
   const label = blocked ? 'Notifications are blocked in your browser settings' : on ? 'Daily 12:00 reminder on (click to turn off)' : 'Remind me daily at 12:00'
   return (
-    <button type="button" onClick={toggle} disabled={blocked} aria-pressed={on} aria-label={label} title={label}
+    <button type="button" onClick={toggle} disabled={blocked} aria-pressed={on} aria-label={label} data-tip={label} data-tip-end=""
       className={`grid h-11 w-11 place-items-center rounded-md hover:bg-slate-200 disabled:opacity-40 dark:hover:bg-white/10 ${on ? 'text-sky-500' : ''}`}>
       {on ? <Bell size={20} aria-hidden /> : <BellOff size={20} aria-hidden />}
     </button>
@@ -84,21 +84,21 @@ function TopBar({ onMenu, onToc, tocAvailable }: { onMenu: () => void; onToc: ()
   const btn = 'grid h-11 w-11 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-slate-100'
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-1 bg-white/90 px-2 backdrop-blur dark:bg-[#0f1115]/90 md:px-4">
-      <button type="button" onClick={onMenu} aria-label="Open navigation" className={btn}><Menu size={20} aria-hidden /></button>
-      <Link to="/" aria-label="Home" className={btn}><Coffee size={18} aria-hidden /></Link>
+      <button type="button" onClick={onMenu} aria-label="Open navigation" data-tip="Menu" data-tip-start="" className={btn}><Menu size={20} aria-hidden /></button>
+      <Link to="/" aria-label="Home" data-tip="Home" className={btn}><Coffee size={18} aria-hidden /></Link>
       <div className="ml-auto flex items-center gap-1">
-        {tocAvailable && <button type="button" onClick={onToc} aria-label="Contents of this phase" className={btn}><ListTree size={20} aria-hidden /></button>}
-        <button type="button" onClick={() => setMore(!more)} aria-expanded={more} aria-label="Settings" className={btn}><MoreHorizontal size={20} aria-hidden /></button>
+        {tocAvailable && <button type="button" onClick={onToc} aria-label="Contents of this phase" data-tip="Contents" className={btn}><ListTree size={20} aria-hidden /></button>}
+        <button type="button" onClick={() => setMore(!more)} aria-expanded={more} aria-label="Settings" data-tip="Settings" data-tip-end="" className={btn}><MoreHorizontal size={20} aria-hidden /></button>
       </div>
       {more && (
         <div className="absolute right-2 top-14 flex items-center gap-1 rounded-lg bg-white p-1 shadow-lg ring-1 ring-slate-200 dark:bg-[#171a21] dark:ring-white/10">
-          <span title="Day streak" className="inline-flex items-center gap-1 px-2 text-sm text-slate-500"><Flame size={14} aria-hidden /> {streak}</span>
+          <span data-tip="Day streak" data-tip-end="" className="relative inline-flex items-center gap-1 px-2 text-sm text-slate-500"><Flame size={14} aria-hidden /> {streak}</span>
           <ReminderToggle />
           <ThemeToggle />
           {user ? (
-            <button type="button" onClick={signOut} title={`${user.email} — sign out`} aria-label="Sign out" className={btn}><LogOut size={18} aria-hidden /></button>
+            <button type="button" onClick={signOut} data-tip="Sign out" data-tip-end="" aria-label="Sign out" className={btn}><LogOut size={18} aria-hidden /></button>
           ) : enabled ? (
-            <button type="button" onClick={() => { setModal(true); setMore(false) }} aria-label="Sign in" title="Sign in" className={btn}><LogIn size={18} aria-hidden /></button>
+            <button type="button" onClick={() => { setModal(true); setMore(false) }} aria-label="Sign in" data-tip="Sign in" data-tip-end="" className={btn}><LogIn size={18} aria-hidden /></button>
           ) : null}
         </div>
       )}
@@ -128,7 +128,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
             return (
               <div key={p.id}>
                 {st === 'locked' ? (
-                  <span className={`${link} cursor-not-allowed border-transparent text-slate-400 opacity-60`} aria-disabled="true" title={`Complete Phase ${p.id - 1} test to unlock`}>
+                  <span className={`${link} cursor-not-allowed border-transparent text-slate-400 opacity-60`} aria-disabled="true" data-tip={`Complete Phase ${p.id - 1} test to unlock`} data-tip-start="">
                     <Lock size={16} aria-hidden /> Phase {p.id}: {p.title}
                   </span>
                 ) : (
@@ -136,7 +136,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
                     <NavLink to={`/phase/${p.id}`} end className={({ isActive }) => `${link} flex-1 ${isActive && !loc.hash ? active : idle}`}>
                       {(() => { const I = statusIcon[st]; return <I size={16} aria-hidden className={`shrink-0 ${statusColor[st]}`} /> })()}<span>Phase {p.id}: {p.title}</span>
                     </NavLink>
-                    <button type="button" aria-expanded={isOpen} aria-label={`Toggle Phase ${p.id} sections`} className="grid w-11 place-items-center text-slate-500"
+                    <button type="button" aria-expanded={isOpen} aria-label={`Toggle Phase ${p.id} sections`} data-tip={isOpen ? "Collapse sections" : "Show sections"} data-tip-end="" className="grid w-11 place-items-center text-slate-500"
                       onClick={() => setExpanded(isOpen ? expanded.filter((x) => x !== p.id) : [...expanded, p.id])}>{isOpen ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}</button>
                   </div>
                 )}
@@ -157,7 +157,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           <h2 className={heading}>Part 2 · Question Bank</h2>
           <div className="flex">
             <NavLink to="/questions" end className={({ isActive }) => `${link} flex-1 ${isActive && !loc.search ? active : idle}`}>All {content.questions.length} questions</NavLink>
-            <button type="button" aria-expanded={qOpen} aria-label="Toggle question categories" className="grid w-11 place-items-center text-slate-500" onClick={() => setQOpen(!qOpen)}>{qOpen ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}</button>
+            <button type="button" aria-expanded={qOpen} aria-label="Toggle question categories" data-tip={qOpen ? 'Collapse' : 'Categories'} data-tip-end="" className="grid w-11 place-items-center text-slate-500" onClick={() => setQOpen(!qOpen)}>{qOpen ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}</button>
           </div>
           {qOpen && cats.map((c) => (
             <Link key={c} to={{ pathname: '/questions', search: `?cat=${encodeURIComponent(c)}` }}

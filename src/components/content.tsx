@@ -23,7 +23,7 @@ export function CodeBlock({ code, lang = 'text', accent }: { code: string; lang?
     <div className={`my-5 overflow-hidden rounded-lg border border-white/10 bg-[#1e1e1e] text-[13px] text-[#d4d4d4] shadow-sm ${ring}`}>
       <div className="flex items-center justify-between border-b border-white/10 pl-3 pr-1 font-sans text-xs uppercase tracking-wide text-slate-400">
         <span>{lang}</span>
-        <button type="button" aria-label="Copy code to clipboard"
+        <button type="button" aria-label="Copy code to clipboard" data-tip="Copy code" data-tip-end=""
           className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded px-3 hover:bg-white/10 md:min-h-[32px]"
           onClick={() => { navigator.clipboard?.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>
           {copied ? <><Check size={14} aria-hidden /> Copied</> : <><Copy size={14} aria-hidden /> Copy</>}
