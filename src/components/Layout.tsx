@@ -1,10 +1,32 @@
-import { CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, Menu, RefreshCw } from 'lucide-react'
+import { Bell, BellOff, CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, Menu, RefreshCw } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom'
 import { content, PHASES } from '../lib/content'
 import { useAuth } from '../hooks/useAuth'
 import { useProgress } from '../hooks/useProgress'
 import { ThemeToggle } from './ui'
+import { disableReminders, enableReminders, reminderBlocked, reminderEnabled, reminderSupported, startLocalScheduler, subscribePush } from '../lib/reminder'
+
+function ReminderToggle() {
+  const { user } = useAuth()
+  const { current } = useProgress()
+  const [on, setOn] = useState(reminderEnabled)
+  const body = `Midday check-in: update your progress and continue Phase ${current}.`
+  useEffect(() => (on ? startLocalScheduler(() => body) : undefined), [on, body])
+  useEffect(() => { if (on && user) void subscribePush(user.id).catch(() => false) }, [on, user])
+  if (!reminderSupported()) return null
+  const blocked = reminderBlocked()
+  const toggle = async () => {
+    if (on) { await disableReminders(); setOn(false) } else setOn(await enableReminders(user?.id))
+  }
+  const label = blocked ? 'Notifications are blocked in your browser settings' : on ? 'Daily 12:00 reminder on (click to turn off)' : 'Remind me daily at 12:00'
+  return (
+    <button type="button" onClick={toggle} disabled={blocked} aria-pressed={on} aria-label={label} title={label}
+      className={`grid h-11 w-11 place-items-center rounded-md hover:bg-slate-200 disabled:opacity-40 dark:hover:bg-white/10 ${on ? 'text-sky-500' : ''}`}>
+      {on ? <Bell size={20} aria-hidden /> : <BellOff size={20} aria-hidden />}
+    </button>
+  )
+}
 
 const statusIcon = { locked: Lock, in_progress: RefreshCw, completed: CheckCircle2 }
 const statusColor = { locked: 'text-slate-400', in_progress: 'text-sky-500', completed: 'text-emerald-500' }
@@ -56,6 +78,7 @@ function TopBar({ onMenu, onToc }: { onMenu: () => void; onToc: () => void }) {
       <div className="ml-auto flex items-center gap-1">
         <span title="Day streak" className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2.5 py-1 text-xs font-medium text-orange-500"><Flame size={14} aria-hidden /> {streak}</span>
         <button type="button" onClick={onToc} aria-label="Toggle table of contents" className="hidden h-11 w-11 place-items-center rounded-md hover:bg-slate-200 dark:hover:bg-white/10 xl:grid"><ListTree size={20} aria-hidden /></button>
+        <ReminderToggle />
         <ThemeToggle />
         {user ? (
           <button type="button" onClick={signOut} title={`${user.email} — sign out`} aria-label="Sign out"

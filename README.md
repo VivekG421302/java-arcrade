@@ -25,3 +25,20 @@ npm run dev                 # regenerates src/content.json from the markdown, th
 - Components are consolidated into fewer files (`components/Layout.tsx`, `content.tsx`, `ui.tsx`, `TestRunner.tsx`) rather than one file each.
 - The Question Bank uses "Show more" paging (40 at a time) instead of a virtualized list; 100 rows is light enough.
 - The right-hand TOC lists the sections of the current phase (toggle in the top bar, xl screens).
+
+## PWA and favicon
+Installable (manifest + `public/sw.js`, offline shell cache, icons in `public/icons`, `public/favicon.svg`). The service worker only registers in production builds (`npm run build && npm run preview`). `vercel.json` rewrites deep links to `index.html`.
+
+## Daily 12:00 reminder
+Click the bell in the top bar to allow notifications. Three layers, so it works in as many situations as possible:
+1. **App open**: a timer checks every minute and on tab focus; notifies once per day at or after 12:00 local time.
+2. **Installed Chromium PWA**: Periodic Background Sync wakes the worker now and then and sends the reminder if it is past noon. Browsers decide the timing, so this is best-effort.
+3. **Server push (the reliable one, works with the app closed)**: needs a one-time setup:
+   ```bash
+   npx web-push generate-vapid-keys                       # put the public key in .env as VITE_VAPID_PUBLIC_KEY
+   supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com CRON_SECRET=$(openssl rand -hex 16)
+   supabase functions deploy daily-reminder --no-verify-jwt
+   ```
+   Then run `supabase/reminder-cron.sql` (fill in the project ref and secret). The function runs every 30 minutes and notifies each subscription at 12:00 in that device's own timezone (IST included). Server push requires being signed in, because subscriptions are stored per user. Duplicates are avoided with a shared notification tag.
+
+On iPhone/iPad, notifications only work after you "Add to Home Screen" (iOS 16.4+).

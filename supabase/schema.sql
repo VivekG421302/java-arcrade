@@ -43,3 +43,16 @@ begin
 end; $$ language plpgsql security definer;
 create or replace trigger on_auth_user_created after insert on auth.users
   for each row execute function handle_new_user();
+
+-- Web Push subscriptions for the daily 12:00 reminder (one row per browser/device)
+create table if not exists push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users on delete cascade not null,
+  endpoint text unique not null,
+  p256dh text not null,
+  auth text not null,
+  tz text not null default 'UTC',
+  created_at timestamptz default now()
+);
+alter table push_subscriptions enable row level security;
+create policy "own subscriptions" on push_subscriptions for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
