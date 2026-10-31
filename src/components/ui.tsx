@@ -24,14 +24,14 @@ export function PhaseBadge({ status, score }: { status: Status; score?: number |
 export function Accordion({ title, meta, children, defaultOpen = false }: { title: ReactNode; meta?: ReactNode; children: ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="my-3 rounded-lg border border-slate-200 dark:border-white/10">
+    <div className="my-3 rounded-lg bg-slate-50 dark:bg-white/[0.03]">
       <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
         className="flex min-h-[44px] w-full items-center gap-3 px-4 py-3 text-left font-sans font-semibold hover:bg-slate-100 dark:hover:bg-white/5">
         <ChevronRight size={16} aria-hidden className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
         <span className="flex-1">{title}</span>
         {meta}
       </button>
-      {open && <div className="border-t border-slate-200 px-4 py-3 dark:border-white/10">{children}</div>}
+      {open && <div className="px-4 pb-4 pt-1">{children}</div>}
     </div>
   )
 }

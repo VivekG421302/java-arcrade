@@ -33,7 +33,7 @@ export default function PhaseView() {
         <div className="mt-4"><ProgressBar pct={pct} label="Sections read" /><p className="mt-1 text-xs text-slate-500">{pct}% of sections read</p></div>
       </header>
       {phase.sections.map((s) => (
-        <section key={s.id} id={s.id} className="scroll-mt-20 border-t border-slate-200 py-6 first:border-0 dark:border-white/10">
+        <section key={s.id} id={s.id} className="scroll-mt-20 py-6">
           <h2 className="text-2xl font-semibold">{s.title}</h2>
           <Markdown md={s.md} />
           <button type="button" aria-pressed={isRead(s.id)} onClick={() => toggleRead(s.id)}
@@ -42,10 +42,9 @@ export default function PhaseView() {
           </button>
         </section>
       ))}
-      <footer className="mt-10 rounded-xl border border-sky-500/40 bg-sky-500/5 p-6">
-        <h2 className="text-lg font-semibold">Phase {phase.id} test</h2>
-        <p className="mt-1 text-sm text-slate-500">5 questions · 80% to pass · 3 attempts per session, then a 24-hour lock.</p>
-        <Link to={`/phase/${phase.id}/test`} className="mt-4 inline-flex min-h-[44px] items-center rounded-md bg-sky-600 px-5 font-medium text-white">{st === 'completed' ? 'Retake test' : 'Take the test'}</Link>
+      <footer className="mt-10 border-t border-slate-200/70 pt-6 dark:border-white/10">
+        <Link to={`/phase/${phase.id}/test`} className="inline-flex min-h-[44px] items-center rounded-md bg-sky-600 px-5 font-medium text-white">{st === 'completed' ? 'Retake Phase test' : 'Take Phase test'}</Link>
+        <p className="mt-2 text-xs text-slate-400">5 questions · 80% to pass · 3 attempts per session</p>
       </footer>
     </article>
   )

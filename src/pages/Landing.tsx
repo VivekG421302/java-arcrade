@@ -8,43 +8,44 @@ export default function Landing() {
   const { statusOf, row, readPct } = useProgress()
   const { enabled } = useAuth()
   const parts = [
-    ['/questions', 'Question Bank', `${content.questions.length} LeetCode problems with Java-mapped complexity targets`],
-    ['/anti-patterns', 'Code Review Anti-Patterns', `${content.antiPatterns.length + content.antiMatrix.length} bug-prone snippets and fixes`],
-    ['/scenarios', 'Production Scenarios', `${content.scenarios.length + content.scenarioMatrix.length} on-call incidents with triage steps`],
-  ]
+    ['/questions', 'Question Bank', content.questions.length],
+    ['/anti-patterns', 'Code Review Anti-Patterns', content.antiPatterns.length + content.antiMatrix.length],
+    ['/scenarios', 'Production Scenarios', content.scenarios.length + content.scenarioMatrix.length],
+  ] as const
   return (
     <div>
       <h1 className="text-3xl font-bold tracking-tight">Java Developer Mastery Roadmap</h1>
-      <p className="mt-2 max-w-[65ch] font-serif text-lg text-slate-600 dark:text-slate-400">Six phases, each gated by a test. Score 80% or higher to unlock the next one.</p>
-      {!enabled && <p className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">Guest mode: progress is saved in this browser only. Add Supabase env vars to enable sign-in and sync.</p>}
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+      <p className="mt-2 font-serif text-slate-500">Six phases. Score 80% on each test to unlock the next.</p>
+      {!enabled && <p className="mt-2 text-xs text-slate-400">Guest mode: progress is saved in this browser.</p>}
+      <ul className="mt-8 divide-y divide-slate-200/70 dark:divide-white/10">
         {PHASES.map((p) => {
           const st = statusOf(p.id)
-          const body = (
+          const score = row(p.id)?.test_score
+          const inner = (
             <>
-              <div className="flex items-start justify-between gap-2">
-                <h2 className="font-semibold">Phase {p.id}: {p.title}</h2>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">Phase {p.id}: {p.title}</p>
+                {st === 'in_progress' && <div className="mt-2 max-w-xs"><ProgressBar pct={readPct(p)} label={`Phase ${p.id} read progress`} /></div>}
               </div>
-              <div className="mt-2"><PhaseBadge status={st} score={row(p.id)?.test_score != null ? Math.round(row(p.id)!.test_score!) : null} /></div>
-              <p className="mt-3 text-sm text-slate-500">{p.sections.length} sections</p>
-              {st === 'in_progress' && <div className="mt-3"><ProgressBar pct={readPct(p)} label={`Phase ${p.id} read progress`} /></div>}
+              <PhaseBadge status={st} score={score != null ? Math.round(score) : null} />
             </>
           )
-          return st === 'locked' ? (
-            <div key={p.id} title={`Complete Phase ${p.id - 1} test to unlock`} className="rounded-xl border border-slate-200 p-5 opacity-50 dark:border-white/10">{body}</div>
-          ) : (
-            <Link key={p.id} to={`/phase/${p.id}`} className={`rounded-xl border p-5 transition hover:-translate-y-0.5 hover:shadow-lg ${st === 'completed' ? 'border-emerald-500/50' : 'border-sky-500/50'}`}>{body}</Link>
+          return (
+            <li key={p.id}>
+              {st === 'locked' ? (
+                <div title={`Complete Phase ${p.id - 1} test to unlock`} className="flex items-center gap-4 py-4 opacity-45">{inner}</div>
+              ) : (
+                <Link to={`/phase/${p.id}`} className="flex items-center gap-4 py-4 hover:text-sky-500">{inner}</Link>
+              )}
+            </li>
           )
         })}
-      </div>
-      <h2 className="mb-3 mt-10 text-xl font-semibold">Practice material</h2>
-      <div className="grid gap-4 sm:grid-cols-3">
-        {parts.map(([to, t, d]) => (
-          <Link key={to} to={to} className="rounded-xl border border-slate-200 p-4 hover:border-sky-500 dark:border-white/10">
-            <h3 className="font-semibold">{t}</h3><p className="mt-1 text-sm text-slate-500">{d}</p>
-          </Link>
+      </ul>
+      <ul className="mt-10 space-y-1">
+        {parts.map(([to, t, n]) => (
+          <li key={to}><Link to={to} className="flex min-h-[44px] items-baseline justify-between py-2 hover:text-sky-500"><span className="font-medium">{t}</span><span className="text-sm text-slate-400">{n}</span></Link></li>
         ))}
-      </div>
+      </ul>
     </div>
   )
 }
