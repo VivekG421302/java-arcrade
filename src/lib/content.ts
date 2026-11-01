@@ -5,7 +5,7 @@ export type Phase = { id: number; title: string; sections: Section[] }
 export type TestCase = { input: string; output: string }
 export type LcQuestion = {
   n: number; title: string; lc: number; difficulty: string; target: string; category: string
-  statement: string; tests: TestCase[]; approach: string; code: string; defs?: string
+  statement: string; tests: TestCase[]; approach: string; code: string; defs?: string; starter: string
 }
 export type AntiPattern = { n: number; title: string; lang: string; bad: string; good: string; why: string }
 export type AntiRow = { n: number; domain: string; pattern: string; severity: string; cause: string; fix: string }

@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AuthProvider } from './hooks/useAuth'
 import { ProgressProvider } from './hooks/useProgress'
+import { IdeProvider } from './hooks/useIde'
 import './index.css'
 
 if (localStorage.getItem('theme') === 'light') document.documentElement.classList.remove('dark')
@@ -17,7 +18,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <AuthProvider>
         <ProgressProvider>
-          <App />
+          <IdeProvider>
+            <App />
+          </IdeProvider>
         </ProgressProvider>
       </AuthProvider>
     </BrowserRouter>
