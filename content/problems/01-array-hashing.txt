@@ -1,0 +1,292 @@
+=== 1
+S: Given an integer array `nums` and an integer `target`, return the indices of the two different elements whose values add up to `target`. Exactly one valid pair exists, and you may return the indices in any order.
+T: `nums = [2,7,11,15], target = 9` => `[0,1]`
+T: `nums = [3,2,4], target = 6` => `[1,2]`
+T: `nums = [3,3], target = 6` => `[0,1]`
+A: Store each value's index in a `HashMap` as you scan. For the current number, look up `target - nums[i]`; if it was seen earlier, you have the pair. One pass, constant-time lookups.
+C: A(new Solution().twoSum(new int[]{2,7,11,15},9)).equals("[0,1]") && A(new Solution().twoSum(new int[]{3,2,4},6)).equals("[1,2]") && A(new Solution().twoSum(new int[]{3,3},6)).equals("[0,1]")
+```java
+import java.util.*;
+
+class Solution {
+    public int[] twoSum(int[] nums, int target) {
+        Map<Integer, Integer> seen = new HashMap<>(); // value -> index
+        for (int i = 0; i < nums.length; i++) {
+            Integer j = seen.get(target - nums[i]);
+            if (j != null) return new int[]{j, i};
+            seen.put(nums[i], i);
+        }
+        throw new IllegalArgumentException("no solution");
+    }
+}
+```
+=== 2
+S: Return `true` if any value appears at least twice in the array, otherwise `false`.
+T: `nums = [1,2,3,1]` => `true`
+T: `nums = [1,2,3,4]` => `false`
+T: `nums = [1,1,1,3,3,4,3,2,4,2]` => `true`
+A: `HashSet.add` returns `false` when the element is already present, so the first failed add is a duplicate. Sorting would give O(1) extra space at O(N log N) time.
+C: new Solution().containsDuplicate(new int[]{1,2,3,1}) && !new Solution().containsDuplicate(new int[]{1,2,3,4}) && new Solution().containsDuplicate(new int[]{1,1,1,3,3,4,3,2,4,2})
+```java
+import java.util.*;
+
+class Solution {
+    public boolean containsDuplicate(int[] nums) {
+        Set<Integer> seen = new HashSet<>();
+        for (int n : nums) {
+            if (!seen.add(n)) return true; // add() is false if already present
+        }
+        return false;
+    }
+}
+```
+=== 3
+S: Given two strings `s` and `t` of lowercase letters, return `true` if `t` is a rearrangement of the letters of `s`.
+T: `s = "anagram", t = "nagaram"` => `true`
+T: `s = "rat", t = "car"` => `false`
+T: `s = "a", t = "ab"` => `false`
+A: Count letters of `s` up and letters of `t` down in one `int[26]`. If the lengths match and every count ends at zero, they are anagrams. Constant space because the alphabet is fixed.
+C: new Solution().isAnagram("anagram","nagaram") && !new Solution().isAnagram("rat","car") && !new Solution().isAnagram("a","ab")
+```java
+class Solution {
+    public boolean isAnagram(String s, String t) {
+        if (s.length() != t.length()) return false;
+        int[] count = new int[26];
+        for (int i = 0; i < s.length(); i++) {
+            count[s.charAt(i) - 'a']++;
+            count[t.charAt(i) - 'a']--;
+        }
+        for (int c : count) if (c != 0) return false;
+        return true;
+    }
+}
+```
+=== 4
+S: Group the strings in `strs` so that every group contains words that are anagrams of each other. Groups and the words inside them may be returned in any order.
+T: `strs = ["eat","tea","tan","ate","nat","bat"]` => `[["bat"],["nat","tan"],["ate","eat","tea"]]`
+T: `strs = [""]` => `[[""]]`
+T: `strs = ["a"]` => `[["a"]]`
+A: Anagrams share the same letter-count signature. Build that signature (26 counts) as the map key, then append each word to its bucket. Sorting each word also works but costs O(K log K) per word.
+C: new Solution().groupAnagrams(new String[]{"eat","tea","tan","ate","nat","bat"}).stream().map(List::size).sorted().collect(Collectors.toList()).toString().equals("[1, 2, 3]") && new Solution().groupAnagrams(new String[]{""}).size()==1
+```java
+import java.util.*;
+
+class Solution {
+    public List<List<String>> groupAnagrams(String[] strs) {
+        Map<String, List<String>> groups = new HashMap<>();
+        for (String word : strs) {
+            int[] count = new int[26];
+            for (char ch : word.toCharArray()) count[ch - 'a']++;
+            String key = Arrays.toString(count); // e.g. "[1, 0, 0, 0, 1, ...]"
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(word);
+        }
+        return new ArrayList<>(groups.values());
+    }
+}
+```
+=== 5
+S: Given an integer array `nums` and an integer `k`, return the `k` values that occur most often. The answer may be returned in any order, and it is guaranteed to be unique.
+T: `nums = [1,1,1,2,2,3], k = 2` => `[1,2]`
+T: `nums = [1], k = 1` => `[1]`
+T: `nums = [4,4,4,5,5,6,6,6,6], k = 1` => `[6]`
+A: Count frequencies in a map, then bucket values by frequency (index = count, at most N). Walk the buckets from the highest frequency down until you have `k` values. That is O(N) with no sorting; a min-heap of size `k` is the O(N log K) alternative.
+C: S(Arrays.stream(new Solution().topKFrequent(new int[]{1,1,1,2,2,3},2)).sorted().boxed().collect(Collectors.toList())).equals("[1,2]") && A(new Solution().topKFrequent(new int[]{1},1)).equals("[1]") && A(new Solution().topKFrequent(new int[]{4,4,4,5,5,6,6,6,6},1)).equals("[6]")
+```java
+import java.util.*;
+
+class Solution {
+    @SuppressWarnings("unchecked")
+    public int[] topKFrequent(int[] nums, int k) {
+        Map<Integer, Integer> freq = new HashMap<>();
+        for (int n : nums) freq.merge(n, 1, Integer::sum);
+
+        List<Integer>[] bucket = new List[nums.length + 1]; // index = frequency
+        for (Map.Entry<Integer, Integer> e : freq.entrySet()) {
+            int f = e.getValue();
+            if (bucket[f] == null) bucket[f] = new ArrayList<>();
+            bucket[f].add(e.getKey());
+        }
+
+        int[] result = new int[k];
+        int idx = 0;
+        for (int f = bucket.length - 1; f > 0 && idx < k; f--) {
+            if (bucket[f] == null) continue;
+            for (int n : bucket[f]) if (idx < k) result[idx++] = n;
+        }
+        return result;
+    }
+}
+```
+=== 6
+S: Return an array `answer` where `answer[i]` is the product of every element of `nums` except `nums[i]`. Do not use division and run in O(N).
+T: `nums = [1,2,3,4]` => `[24,12,8,6]`
+T: `nums = [-1,1,0,-3,3]` => `[0,0,9,0,0]`
+T: `nums = [2,3]` => `[3,2]`
+A: Two passes. First fill `answer[i]` with the product of everything to the left of `i`. Then sweep right-to-left, multiplying by a running product of everything to the right. The output array is the only storage, so auxiliary space is O(1).
+C: A(new Solution().productExceptSelf(new int[]{1,2,3,4})).equals("[24,12,8,6]") && A(new Solution().productExceptSelf(new int[]{-1,1,0,-3,3})).equals("[0,0,9,0,0]") && A(new Solution().productExceptSelf(new int[]{2,3})).equals("[3,2]")
+```java
+class Solution {
+    public int[] productExceptSelf(int[] nums) {
+        int n = nums.length;
+        int[] answer = new int[n];
+
+        answer[0] = 1;
+        for (int i = 1; i < n; i++) answer[i] = answer[i - 1] * nums[i - 1]; // prefix products
+
+        int suffix = 1;
+        for (int i = n - 1; i >= 0; i--) {
+            answer[i] *= suffix;   // multiply by product of everything to the right
+            suffix *= nums[i];
+        }
+        return answer;
+    }
+}
+```
+=== 7
+S: Decide whether a partially filled 9x9 Sudoku board is valid. Only filled cells are checked: no digit may repeat in a row, a column, or any of the nine 3x3 boxes. Empty cells are `'.'`. The board does not need to be solvable.
+T: `The standard sample board (first row "53..7....")` => `true`
+T: `The same board but the first row is "83..7...." (two 8s in column 0)` => `false`
+A: Walk all 81 cells once and record each digit with its row, column and box in a `HashSet` of encoded strings. A failed `add` means a repeat. The board size is fixed, so time and space are O(1).
+C: { String[] r = {"53..7....","6..195...",".98....6.","8...6...3","4..8.3..1","7...2...6",".6....28.","...419..5","....8..79"}; char[][] b = new char[9][]; for (int i = 0; i < 9; i++) b[i] = r[i].toCharArray(); boolean ok = new Solution().isValidSudoku(b); b[0][0] = '8'; return ok && !new Solution().isValidSudoku(b); }
+```java
+import java.util.*;
+
+class Solution {
+    public boolean isValidSudoku(char[][] board) {
+        Set<String> seen = new HashSet<>();
+        for (int r = 0; r < 9; r++) {
+            for (int c = 0; c < 9; c++) {
+                char ch = board[r][c];
+                if (ch == '.') continue;
+                if (!seen.add(ch + " in row " + r)
+                        || !seen.add(ch + " in col " + c)
+                        || !seen.add(ch + " in box " + r / 3 + "-" + c / 3)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+}
+```
+=== 8
+S: Design `encode` and `decode` so a list of strings can be turned into one string and recovered exactly. The strings may contain any characters, including your delimiter.
+T: `["lint","code","love","you"]` => `encoded "4#lint4#code4#love3#you", decoded back to the same list`
+T: `["", "a#b"]` => `encoded "0#3#a#b", decoded back to ["", "a#b"]`
+A: Prefix every string with its length and a `#`. When decoding, read the number up to the next `#`, then take exactly that many characters. Because you always skip by length, a `#` inside the data is harmless.
+C: { Codec c = new Codec(); List<String> in = Arrays.asList("lint","code","love","you","","a#b"); return c.decode(c.encode(in)).equals(in) && c.encode(Arrays.asList("", "a#b")).equals("0#3#a#b"); }
+```java
+import java.util.*;
+
+class Codec {
+    public String encode(List<String> strs) {
+        StringBuilder sb = new StringBuilder();
+        for (String s : strs) sb.append(s.length()).append('#').append(s);
+        return sb.toString();
+    }
+
+    public List<String> decode(String s) {
+        List<String> out = new ArrayList<>();
+        int i = 0;
+        while (i < s.length()) {
+            int hash = s.indexOf('#', i);                      // end of the length prefix
+            int len = Integer.parseInt(s.substring(i, hash));
+            out.add(s.substring(hash + 1, hash + 1 + len));    // take exactly len chars
+            i = hash + 1 + len;
+        }
+        return out;
+    }
+}
+```
+=== 9
+S: Return the length of the longest run of consecutive integers (such as 4,5,6,7) that can be formed from the values of `nums`, in any order. It must run in O(N).
+T: `nums = [100,4,200,1,3,2]` => `4`
+T: `nums = [0,3,7,2,5,8,4,6,0,1]` => `9`
+T: `nums = []` => `0`
+A: Put every value in a `HashSet`. Only start counting from numbers that have no predecessor (`n - 1` absent); from there walk upward while `n + 1` exists. Each element is visited a constant number of times.
+C: new Solution().longestConsecutive(new int[]{100,4,200,1,3,2})==4 && new Solution().longestConsecutive(new int[]{0,3,7,2,5,8,4,6,0,1})==9 && new Solution().longestConsecutive(new int[]{})==0
+```java
+import java.util.*;
+
+class Solution {
+    public int longestConsecutive(int[] nums) {
+        Set<Integer> set = new HashSet<>();
+        for (int n : nums) set.add(n);
+
+        int best = 0;
+        for (int n : set) {
+            if (set.contains(n - 1)) continue;   // not the start of a run
+            int len = 1;
+            while (set.contains(n + len)) len++;
+            best = Math.max(best, len);
+        }
+        return best;
+    }
+}
+```
+=== 10
+S: Count the contiguous, non-empty subarrays of `nums` whose elements sum to `k`. Values can be negative, so a sliding window will not work.
+T: `nums = [1,1,1], k = 2` => `2`
+T: `nums = [1,2,3], k = 3` => `2`
+T: `nums = [1,-1,0], k = 0` => `3`
+A: Keep a running prefix sum and a map of how many times each prefix sum has occurred. A subarray ending here sums to `k` exactly when an earlier prefix equals `sum - k`, so add that count to the answer. Seed the map with `0 -> 1`.
+C: new Solution().subarraySum(new int[]{1,1,1},2)==2 && new Solution().subarraySum(new int[]{1,2,3},3)==2 && new Solution().subarraySum(new int[]{1,-1,0},0)==3
+```java
+import java.util.*;
+
+class Solution {
+    public int subarraySum(int[] nums, int k) {
+        Map<Integer, Integer> prefixCount = new HashMap<>();
+        prefixCount.put(0, 1);               // empty prefix
+        int sum = 0, count = 0;
+        for (int n : nums) {
+            sum += n;
+            count += prefixCount.getOrDefault(sum - k, 0);
+            prefixCount.merge(sum, 1, Integer::sum);
+        }
+        return count;
+    }
+}
+```
+=== 11
+S: Sort an array containing only 0, 1 and 2 in place (red, white, blue) in one pass, without using a library sort.
+T: `nums = [2,0,2,1,1,0]` => `[0,0,1,1,2,2]`
+T: `nums = [2,0,1]` => `[0,1,2]`
+T: `nums = [1]` => `[1]`
+A: Dutch National Flag: keep `lo` (next spot for 0), `hi` (next spot for 2) and a scanner `i`. Swap 0s to the front and 2s to the back; do not advance `i` after swapping with `hi`, because the swapped-in value is unchecked.
+C: { int[] a = {2,0,2,1,1,0}; new Solution().sortColors(a); int[] b = {2,0,1}; new Solution().sortColors(b); return A(a).equals("[0,0,1,1,2,2]") && A(b).equals("[0,1,2]"); }
+```java
+class Solution {
+    public void sortColors(int[] nums) {
+        int lo = 0, i = 0, hi = nums.length - 1;
+        while (i <= hi) {
+            if (nums[i] == 0) swap(nums, i++, lo++);
+            else if (nums[i] == 2) swap(nums, i, hi--); // re-check nums[i] next loop
+            else i++;
+        }
+    }
+
+    private void swap(int[] a, int x, int y) {
+        int t = a[x]; a[x] = a[y]; a[y] = t;
+    }
+}
+```
+=== 12
+S: Return the element that appears more than N/2 times in the array. A majority element is guaranteed to exist.
+T: `nums = [3,2,3]` => `3`
+T: `nums = [2,2,1,1,1,2,2]` => `2`
+T: `nums = [7]` => `7`
+A: Boyer-Moore voting: keep a candidate and a counter. Matching values increment it, others decrement it, and at zero the next value becomes the candidate. A true majority outvotes everything else combined, so it survives. O(1) space.
+C: new Solution().majorityElement(new int[]{3,2,3})==3 && new Solution().majorityElement(new int[]{2,2,1,1,1,2,2})==2 && new Solution().majorityElement(new int[]{7})==7
+```java
+class Solution {
+    public int majorityElement(int[] nums) {
+        int candidate = 0, votes = 0;
+        for (int n : nums) {
+            if (votes == 0) candidate = n;
+            votes += (n == candidate) ? 1 : -1;
+        }
+        return candidate;
+    }
+}
+```

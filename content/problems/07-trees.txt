@@ -1,0 +1,358 @@
+=== 54
+S: Invert a binary tree (swap the left and right child of every node) and return its root.
+T: `root = [4,2,7,1,3,6,9]` => `[4,7,2,9,6,3,1]`
+T: `root = [2,1,3]` => `[2,3,1]`
+T: `root = []` => `[]`
+A: Recursively invert both subtrees and swap them. Every node is visited once; the call stack depth equals the tree height.
+C: TS(new Solution().invertTree(T(4,2,7,1,3,6,9))).equals("[4,7,2,9,6,3,1]") && TS(new Solution().invertTree(T(2,1,3))).equals("[2,3,1]") && TS(new Solution().invertTree(null)).equals("[]")
+```java
+class Solution {
+    public TreeNode invertTree(TreeNode root) {
+        if (root == null) return null;
+        TreeNode left = invertTree(root.left);
+        TreeNode right = invertTree(root.right);
+        root.left = right;
+        root.right = left;
+        return root;
+    }
+}
+```
+=== 55
+S: Return the maximum depth of a binary tree: the number of nodes on the longest path from the root down to a leaf.
+T: `root = [3,9,20,null,null,15,7]` => `3`
+T: `root = [1,null,2]` => `2`
+T: `root = []` => `0`
+A: The depth of a node is 1 plus the larger depth of its two subtrees; an empty tree has depth 0.
+C: new Solution().maxDepth(T(3,9,20,null,null,15,7))==3 && new Solution().maxDepth(T(1,null,2))==2 && new Solution().maxDepth(null)==0
+```java
+class Solution {
+    public int maxDepth(TreeNode root) {
+        if (root == null) return 0;
+        return 1 + Math.max(maxDepth(root.left), maxDepth(root.right));
+    }
+}
+```
+=== 56
+S: Return the diameter of a binary tree: the number of edges on the longest path between any two nodes. The path may or may not pass through the root.
+T: `root = [1,2,3,4,5]` => `3`
+T: `root = [1,2]` => `1`
+A: For each node, the longest path through it is `height(left) + height(right)`. Compute heights bottom-up in one DFS and update a global best as you go.
+C: new Solution().diameterOfBinaryTree(T(1,2,3,4,5))==3 && new Solution().diameterOfBinaryTree(T(1,2))==1 && new Solution().diameterOfBinaryTree(T(1))==0
+```java
+class Solution {
+    private int best = 0;
+
+    public int diameterOfBinaryTree(TreeNode root) {
+        height(root);
+        return best;
+    }
+
+    private int height(TreeNode node) {
+        if (node == null) return 0;
+        int left = height(node.left), right = height(node.right);
+        best = Math.max(best, left + right);   // path bending at this node
+        return 1 + Math.max(left, right);
+    }
+}
+```
+=== 57
+S: Return whether a binary tree is height-balanced: for every node, the heights of its left and right subtrees differ by at most 1.
+T: `root = [3,9,20,null,null,15,7]` => `true`
+T: `root = [1,2,2,3,3,null,null,4,4]` => `false`
+T: `root = []` => `true`
+A: Compute heights bottom-up and return -1 as soon as any subtree is unbalanced, so each node is processed once instead of recomputing heights at every level.
+C: new Solution().isBalanced(T(3,9,20,null,null,15,7)) && !new Solution().isBalanced(T(1,2,2,3,3,null,null,4,4)) && new Solution().isBalanced(null)
+```java
+class Solution {
+    public boolean isBalanced(TreeNode root) {
+        return height(root) != -1;
+    }
+
+    // returns the height, or -1 if the subtree is unbalanced
+    private int height(TreeNode node) {
+        if (node == null) return 0;
+        int left = height(node.left);
+        if (left == -1) return -1;
+        int right = height(node.right);
+        if (right == -1 || Math.abs(left - right) > 1) return -1;
+        return 1 + Math.max(left, right);
+    }
+}
+```
+=== 58
+S: Return whether two binary trees are identical: same shape and same node values.
+T: `p = [1,2,3], q = [1,2,3]` => `true`
+T: `p = [1,2], q = [1,null,2]` => `false`
+T: `p = [1,2,1], q = [1,1,2]` => `false`
+A: Compare roots, then recurse on both left children and both right children. Two null nodes match; a null against a non-null does not.
+C: new Solution().isSameTree(T(1,2,3),T(1,2,3)) && !new Solution().isSameTree(T(1,2),T(1,null,2)) && !new Solution().isSameTree(T(1,2,1),T(1,1,2))
+```java
+class Solution {
+    public boolean isSameTree(TreeNode p, TreeNode q) {
+        if (p == null && q == null) return true;
+        if (p == null || q == null || p.val != q.val) return false;
+        return isSameTree(p.left, q.left) && isSameTree(p.right, q.right);
+    }
+}
+```
+=== 59
+S: Return whether `subRoot` appears as a subtree of `root`: some node of `root` has exactly the same structure and values as `subRoot` (including all of that node's descendants).
+T: `root = [3,4,5,1,2], subRoot = [4,1,2]` => `true`
+T: `root = [3,4,5,1,2,null,null,null,null,0], subRoot = [4,1,2]` => `false`
+A: For every node in `root`, check whether the tree rooted there is identical to `subRoot` using a same-tree comparison. Worst case O(N · M).
+C: new Solution().isSubtree(T(3,4,5,1,2),T(4,1,2)) && !new Solution().isSubtree(T(3,4,5,1,2,null,null,null,null,0),T(4,1,2))
+```java
+class Solution {
+    public boolean isSubtree(TreeNode root, TreeNode subRoot) {
+        if (root == null) return false;
+        return same(root, subRoot) || isSubtree(root.left, subRoot) || isSubtree(root.right, subRoot);
+    }
+
+    private boolean same(TreeNode a, TreeNode b) {
+        if (a == null && b == null) return true;
+        if (a == null || b == null || a.val != b.val) return false;
+        return same(a.left, b.left) && same(a.right, b.right);
+    }
+}
+```
+=== 60
+S: In a binary search tree, return the lowest common ancestor of two given nodes: the deepest node that has both as descendants (a node counts as a descendant of itself).
+T: `root = [6,2,8,0,4,7,9,null,null,3,5], p = 2, q = 8` => `6`
+T: `root = [6,2,8,0,4,7,9,null,null,3,5], p = 2, q = 4` => `2`
+A: Use the BST ordering. If both values are smaller than the current node, go left; if both are larger, go right; otherwise the current node is where the paths split, so it is the LCA. Iterative, O(H).
+C: { TreeNode root = T(6,2,8,0,4,7,9,null,null,3,5); TreeNode two = root.left, eight = root.right, four = root.left.right; return new Solution().lowestCommonAncestor(root,two,eight)==root && new Solution().lowestCommonAncestor(root,two,four)==two; }
+```java
+class Solution {
+    public TreeNode lowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {
+        TreeNode node = root;
+        while (node != null) {
+            if (p.val < node.val && q.val < node.val) node = node.left;
+            else if (p.val > node.val && q.val > node.val) node = node.right;
+            else return node;                    // split point (or one of them)
+        }
+        return null;
+    }
+}
+```
+=== 61
+S: Return the level-order traversal of a binary tree: a list of lists, where each inner list holds one level's values from left to right.
+T: `root = [3,9,20,null,null,15,7]` => `[[3],[9,20],[15,7]]`
+T: `root = [1]` => `[[1]]`
+T: `root = []` => `[]`
+A: Breadth-first search with a queue. Process exactly `queue.size()` nodes per round so each round is one level, adding children for the next round.
+C: S(new Solution().levelOrder(T(3,9,20,null,null,15,7))).equals("[[3],[9,20],[15,7]]") && S(new Solution().levelOrder(T(1))).equals("[[1]]") && S(new Solution().levelOrder(null)).equals("[]")
+```java
+import java.util.*;
+
+class Solution {
+    public List<List<Integer>> levelOrder(TreeNode root) {
+        List<List<Integer>> result = new ArrayList<>();
+        if (root == null) return result;
+        Queue<TreeNode> queue = new ArrayDeque<>();
+        queue.offer(root);
+        while (!queue.isEmpty()) {
+            int size = queue.size();                 // nodes on this level
+            List<Integer> level = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                TreeNode node = queue.poll();
+                level.add(node.val);
+                if (node.left != null) queue.offer(node.left);
+                if (node.right != null) queue.offer(node.right);
+            }
+            result.add(level);
+        }
+        return result;
+    }
+}
+```
+=== 62
+S: Imagine standing on the right side of a binary tree. Return the values of the nodes you can see, from top to bottom.
+T: `root = [1,2,3,null,5,null,4]` => `[1,3,4]`
+T: `root = [1,null,3]` => `[1,3]`
+T: `root = []` => `[]`
+A: Level-order BFS; the last node of each level is the one visible from the right. A DFS visiting the right child first and recording the first node at each depth also works.
+C: S(new Solution().rightSideView(T(1,2,3,null,5,null,4))).equals("[1,3,4]") && S(new Solution().rightSideView(T(1,null,3))).equals("[1,3]") && S(new Solution().rightSideView(null)).equals("[]")
+```java
+import java.util.*;
+
+class Solution {
+    public List<Integer> rightSideView(TreeNode root) {
+        List<Integer> view = new ArrayList<>();
+        if (root == null) return view;
+        Queue<TreeNode> queue = new ArrayDeque<>();
+        queue.offer(root);
+        while (!queue.isEmpty()) {
+            int size = queue.size();
+            for (int i = 0; i < size; i++) {
+                TreeNode node = queue.poll();
+                if (i == size - 1) view.add(node.val);   // last node on this level
+                if (node.left != null) queue.offer(node.left);
+                if (node.right != null) queue.offer(node.right);
+            }
+        }
+        return view;
+    }
+}
+```
+=== 63
+S: A node `X` is "good" if no node on the path from the root to `X` has a value greater than `X`. Return the number of good nodes in the tree.
+T: `root = [3,1,4,3,null,1,5]` => `4`
+T: `root = [3,3,null,4,2]` => `3`
+T: `root = [1]` => `1`
+A: DFS carrying the maximum value seen on the path so far. A node is good when its value is at least that maximum; then pass the updated maximum to its children.
+C: new Solution().goodNodes(T(3,1,4,3,null,1,5))==4 && new Solution().goodNodes(T(3,3,null,4,2))==3 && new Solution().goodNodes(T(1))==1
+```java
+class Solution {
+    public int goodNodes(TreeNode root) {
+        return dfs(root, Integer.MIN_VALUE);
+    }
+
+    private int dfs(TreeNode node, int maxSoFar) {
+        if (node == null) return 0;
+        int good = node.val >= maxSoFar ? 1 : 0;
+        int newMax = Math.max(maxSoFar, node.val);
+        return good + dfs(node.left, newMax) + dfs(node.right, newMax);
+    }
+}
+```
+=== 64
+S: Return whether a binary tree is a valid binary search tree: for every node, all values in its left subtree are smaller and all values in its right subtree are larger (strictly).
+T: `root = [2,1,3]` => `true`
+T: `root = [5,1,4,null,null,3,6]` => `false`
+T: `root = [5,4,6,null,null,3,7]` => `false`
+A: Pass down an allowed `(min, max)` range. Each node must lie strictly inside it; going left tightens the max, going right tightens the min. Checking only direct children is not enough (see the third case). Use `long` bounds so `Integer.MIN_VALUE` and `MAX_VALUE` nodes work.
+C: new Solution().isValidBST(T(2,1,3)) && !new Solution().isValidBST(T(5,1,4,null,null,3,6)) && !new Solution().isValidBST(T(5,4,6,null,null,3,7)) && new Solution().isValidBST(T(Integer.MAX_VALUE))
+```java
+class Solution {
+    public boolean isValidBST(TreeNode root) {
+        return valid(root, Long.MIN_VALUE, Long.MAX_VALUE);
+    }
+
+    private boolean valid(TreeNode node, long min, long max) {
+        if (node == null) return true;
+        if (node.val <= min || node.val >= max) return false;
+        return valid(node.left, min, node.val) && valid(node.right, node.val, max);
+    }
+}
+```
+=== 65
+S: Return the `k`-th smallest value (1-indexed) in a binary search tree.
+T: `root = [3,1,4,null,2], k = 1` => `1`
+T: `root = [5,3,6,2,4,null,null,1], k = 3` => `3`
+A: In-order traversal of a BST visits values in ascending order. Walk it iteratively with a stack and stop at the `k`-th node, which costs O(H + K).
+C: new Solution().kthSmallest(T(3,1,4,null,2),1)==1 && new Solution().kthSmallest(T(5,3,6,2,4,null,null,1),3)==3 && new Solution().kthSmallest(T(5,3,6,2,4,null,null,1),6)==6
+```java
+import java.util.*;
+
+class Solution {
+    public int kthSmallest(TreeNode root, int k) {
+        Deque<TreeNode> stack = new ArrayDeque<>();
+        TreeNode node = root;
+        while (node != null || !stack.isEmpty()) {
+            while (node != null) {            // go as far left as possible
+                stack.push(node);
+                node = node.left;
+            }
+            node = stack.pop();
+            if (--k == 0) return node.val;    // the k-th in-order node
+            node = node.right;
+        }
+        throw new IllegalArgumentException("k is larger than the tree size");
+    }
+}
+```
+=== 66
+S: Given the preorder and inorder traversals of a binary tree with unique values, rebuild and return the tree.
+T: `preorder = [3,9,20,15,7], inorder = [9,3,15,20,7]` => `[3,9,20,null,null,15,7]`
+T: `preorder = [-1], inorder = [-1]` => `[-1]`
+A: The first preorder value is the root. Its position in the inorder array splits left and right subtrees. A map from value to inorder index gives O(1) splits, and a moving preorder pointer picks each next root.
+C: TS(new Solution().buildTree(new int[]{3,9,20,15,7},new int[]{9,3,15,20,7})).equals("[3,9,20,null,null,15,7]") && TS(new Solution().buildTree(new int[]{-1},new int[]{-1})).equals("[-1]")
+```java
+import java.util.*;
+
+class Solution {
+    private int pre = 0;
+    private Map<Integer, Integer> inIndex = new HashMap<>();
+
+    public TreeNode buildTree(int[] preorder, int[] inorder) {
+        pre = 0;
+        for (int i = 0; i < inorder.length; i++) inIndex.put(inorder[i], i);
+        return build(preorder, 0, inorder.length - 1);
+    }
+
+    private TreeNode build(int[] preorder, int lo, int hi) {
+        if (lo > hi) return null;
+        TreeNode root = new TreeNode(preorder[pre++]);
+        int mid = inIndex.get(root.val);                 // split point in inorder
+        root.left = build(preorder, lo, mid - 1);
+        root.right = build(preorder, mid + 1, hi);
+        return root;
+    }
+}
+```
+=== 67
+S: A path in a binary tree is any sequence of connected nodes, going through each node at most once, and it need not pass through the root. Return the maximum sum of node values over all non-empty paths.
+T: `root = [1,2,3]` => `6`
+T: `root = [-10,9,20,null,null,15,7]` => `42`
+T: `root = [-3]` => `-3`
+A: For each node compute the best downward path starting there (`node + max(0, bestLeft, bestRight)`). The best path bending at the node is `node + max(0, left) + max(0, right)`; track the global maximum. Negative branches are ignored.
+C: new Solution().maxPathSum(T(1,2,3))==6 && new Solution().maxPathSum(T(-10,9,20,null,null,15,7))==42 && new Solution().maxPathSum(T(-3))==-3
+```java
+class Solution {
+    private int best;
+
+    public int maxPathSum(TreeNode root) {
+        best = Integer.MIN_VALUE;
+        gain(root);
+        return best;
+    }
+
+    // best sum of a downward path that starts at this node
+    private int gain(TreeNode node) {
+        if (node == null) return 0;
+        int left = Math.max(0, gain(node.left));     // drop negative branches
+        int right = Math.max(0, gain(node.right));
+        best = Math.max(best, node.val + left + right); // path bending here
+        return node.val + Math.max(left, right);
+    }
+}
+```
+=== 68
+S: Design `serialize` and `deserialize` for a binary tree: convert the tree to a string and rebuild exactly the same tree from that string. You choose the format.
+T: `root = [1,2,3,null,null,4,5]` => `serialized "1,2,#,#,3,4,#,#,5,#,#" and restored to [1,2,3,null,null,4,5]`
+T: `root = []` => `serialized "#" and restored to []`
+A: Pre-order DFS, writing `#` for null children. Because pre-order plus explicit nulls is unambiguous, deserialization consumes the tokens in the same order and rebuilds recursively.
+C: { TreeCodec c = new TreeCodec(); String s = c.serialize(T(1,2,3,null,null,4,5)); return s.equals("1,2,#,#,3,4,#,#,5,#,#") && TS(c.deserialize(s)).equals("[1,2,3,null,null,4,5]") && c.serialize(null).equals("#") && c.deserialize("#") == null; }
+```java
+import java.util.*;
+
+class TreeCodec {
+    public String serialize(TreeNode root) {
+        StringBuilder sb = new StringBuilder();
+        write(root, sb);
+        return sb.toString();
+    }
+
+    private void write(TreeNode node, StringBuilder sb) {
+        if (sb.length() > 0) sb.append(',');
+        if (node == null) { sb.append('#'); return; }
+        sb.append(node.val);
+        write(node.left, sb);
+        write(node.right, sb);
+    }
+
+    public TreeNode deserialize(String data) {
+        Queue<String> tokens = new ArrayDeque<>(Arrays.asList(data.split(",")));
+        return read(tokens);
+    }
+
+    private TreeNode read(Queue<String> tokens) {
+        String t = tokens.poll();
+        if (t.equals("#")) return null;
+        TreeNode node = new TreeNode(Integer.parseInt(t));
+        node.left = read(tokens);
+        node.right = read(tokens);
+        return node;
+    }
+}
+```

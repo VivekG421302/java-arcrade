@@ -1,5 +1,6 @@
 // Parses content/roadmap.md -> src/content.json
 import fs from 'node:fs'
+import { loadProblems } from './problems.mjs'
 
 const src = process.argv[2] || 'content/roadmap.md'
 const md = fs.readFileSync(src, 'utf8').replace(/\r/g, '')
@@ -53,6 +54,23 @@ for (const line of part(2).split('\n')) {
   if (c) cat = c[1]
   const q = line.match(/^(\d+)\. \*\*(.+?)\*\* \(LC #(\d+)\) - (\w+) \| Target: (.*)$/)
   if (q) questions.push({ n: +q[1], title: q[2], lc: +q[3], difficulty: q[4], target: q[5], category: cat })
+}
+
+// ---- merge problem statements, test cases and Java solutions into the questions
+const DEFS = {
+  ListNode: 'public class ListNode {\n    int val;\n    ListNode next;\n    ListNode(int val) { this.val = val; }\n}',
+  TreeNode: 'public class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int val) { this.val = val; }\n}',
+}
+const problems = new Map(loadProblems().map((p) => [p.n, p]))
+for (const q of questions) {
+  const p = problems.get(q.n)
+  if (!p || !p.statement || !p.code || !p.tests.length) throw new Error(`Missing problem content for question ${q.n} (${q.title})`)
+  q.statement = p.statement
+  q.tests = p.tests
+  q.approach = p.approach
+  q.code = p.code
+  const need = Object.keys(DEFS).find((k) => new RegExp(`\\b${k}\\b`).test(p.code) && !new RegExp(`class ${k}\\b`).test(p.code))
+  if (need) q.defs = DEFS[need]
 }
 
 // ---- table rows helper

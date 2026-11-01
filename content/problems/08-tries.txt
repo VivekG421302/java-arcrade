@@ -1,0 +1,133 @@
+=== 69
+S: Implement a Trie (prefix tree) with `insert(word)`, `search(word)` (exact match) and `startsWith(prefix)`. All input is lowercase letters.
+T: `insert("apple"), search("apple"), search("app")` => `true, false`
+T: `startsWith("app"), insert("app"), search("app")` => `true, true`
+A: Each node holds 26 child links and an `isWord` flag. Every operation walks one node per character, so it costs O(L) for a word of length L.
+C: { Trie t = new Trie(); t.insert("apple"); boolean a = t.search("apple") && !t.search("app") && t.startsWith("app") && !t.startsWith("b"); t.insert("app"); return a && t.search("app"); }
+```java
+class Trie {
+    private static class Node {
+        Node[] next = new Node[26];
+        boolean isWord;
+    }
+
+    private final Node root = new Node();
+
+    public void insert(String word) {
+        Node cur = root;
+        for (char c : word.toCharArray()) {
+            if (cur.next[c - 'a'] == null) cur.next[c - 'a'] = new Node();
+            cur = cur.next[c - 'a'];
+        }
+        cur.isWord = true;
+    }
+
+    public boolean search(String word) {
+        Node n = find(word);
+        return n != null && n.isWord;
+    }
+
+    public boolean startsWith(String prefix) {
+        return find(prefix) != null;
+    }
+
+    private Node find(String s) {
+        Node cur = root;
+        for (char c : s.toCharArray()) {
+            cur = cur.next[c - 'a'];
+            if (cur == null) return null;
+        }
+        return cur;
+    }
+}
+```
+=== 70
+S: Design a data structure supporting `addWord(word)` and `search(pattern)`, where the pattern may contain `.` that matches any single letter.
+T: `addWord("bad"), addWord("dad"), addWord("mad"), search("pad")` => `false`
+T: `search("bad"), search(".ad"), search("b..")` => `true, true, true`
+A: Store words in a trie. For a normal letter follow one child; for `.` try every child recursively (DFS). Worst case grows with the number of wildcards, but ordinary lookups stay O(L).
+C: { WordDictionary d = new WordDictionary(); d.addWord("bad"); d.addWord("dad"); d.addWord("mad"); return !d.search("pad") && d.search("bad") && d.search(".ad") && d.search("b..") && !d.search("b.") && !d.search("..."+"d"); }
+```java
+class WordDictionary {
+    private static class Node {
+        Node[] next = new Node[26];
+        boolean isWord;
+    }
+
+    private final Node root = new Node();
+
+    public void addWord(String word) {
+        Node cur = root;
+        for (char c : word.toCharArray()) {
+            if (cur.next[c - 'a'] == null) cur.next[c - 'a'] = new Node();
+            cur = cur.next[c - 'a'];
+        }
+        cur.isWord = true;
+    }
+
+    public boolean search(String pattern) {
+        return dfs(pattern, 0, root);
+    }
+
+    private boolean dfs(String p, int i, Node node) {
+        if (node == null) return false;
+        if (i == p.length()) return node.isWord;
+        char c = p.charAt(i);
+        if (c != '.') return dfs(p, i + 1, node.next[c - 'a']);
+        for (Node child : node.next) {              // wildcard: try every branch
+            if (dfs(p, i + 1, child)) return true;
+        }
+        return false;
+    }
+}
+```
+=== 71
+S: Given a grid of letters and a list of words, return every word that can be traced in the grid through horizontally or vertically adjacent cells, using each cell at most once per word.
+T: `board = [["o","a","a","n"],["e","t","a","e"],["i","h","k","r"],["i","f","l","v"]], words = ["oath","pea","eat","rain"]` => `["eat","oath"]`
+T: `board = [["a","b"],["c","d"]], words = ["abcb"]` => `[]`
+A: Put all words in a trie, then DFS from every cell while walking the trie. A branch with no matching trie child is abandoned immediately, which prunes most of the search. Clear a word from its node once found to avoid duplicates.
+C: { String[] rows = {"oaan","etae","ihkr","iflv"}; char[][] b = new char[4][]; for (int i = 0; i < 4; i++) b[i] = rows[i].toCharArray(); List<String> r = new Solution().findWords(b, new String[]{"oath","pea","eat","rain"}); Collections.sort(r); char[][] c = {{'a','b'},{'c','d'}}; return r.toString().equals("[eat, oath]") && new Solution().findWords(c, new String[]{"abcb"}).isEmpty(); }
+```java
+import java.util.*;
+
+class Solution {
+    private static class Node {
+        Node[] next = new Node[26];
+        String word;                       // set at the end of a word
+    }
+
+    public List<String> findWords(char[][] board, String[] words) {
+        Node root = new Node();
+        for (String w : words) {
+            Node cur = root;
+            for (char c : w.toCharArray()) {
+                if (cur.next[c - 'a'] == null) cur.next[c - 'a'] = new Node();
+                cur = cur.next[c - 'a'];
+            }
+            cur.word = w;
+        }
+        List<String> found = new ArrayList<>();
+        for (int r = 0; r < board.length; r++)
+            for (int c = 0; c < board[0].length; c++)
+                dfs(board, r, c, root, found);
+        return found;
+    }
+
+    private void dfs(char[][] b, int r, int c, Node parent, List<String> found) {
+        if (r < 0 || c < 0 || r >= b.length || c >= b[0].length) return;
+        char ch = b[r][c];
+        if (ch == '#' || parent.next[ch - 'a'] == null) return;   // visited or no such prefix
+        Node node = parent.next[ch - 'a'];
+        if (node.word != null) {
+            found.add(node.word);
+            node.word = null;              // do not report it twice
+        }
+        b[r][c] = '#';                      // mark visited
+        dfs(b, r + 1, c, node, found);
+        dfs(b, r - 1, c, node, found);
+        dfs(b, r, c + 1, node, found);
+        dfs(b, r, c - 1, node, found);
+        b[r][c] = ch;                       // backtrack
+    }
+}
+```

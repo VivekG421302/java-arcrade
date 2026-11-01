@@ -1,0 +1,361 @@
+=== 79
+S: The grid contains `'1'` (land) and `'0'` (water). Return the number of islands, where an island is a group of land cells connected horizontally or vertically.
+T: `grid = [["1","1","1","1","0"],["1","1","0","1","0"],["1","1","0","0","0"],["0","0","0","0","0"]]` => `1`
+T: `grid = [["1","1","0","0","0"],["1","1","0","0","0"],["0","0","1","0","0"],["0","0","0","1","1"]]` => `3`
+A: Scan every cell. When you find unvisited land, count one island and flood-fill (DFS or BFS) all connected land, sinking it to `'0'` so it is not counted again. Each cell is visited at most twice.
+C: new Solution().numIslands(G("11110","11010","11000","00000"))==1 && new Solution().numIslands(G("11000","11000","00100","00011"))==3 && new Solution().numIslands(G("0"))==0
+```java
+class Solution {
+    public int numIslands(char[][] grid) {
+        int count = 0;
+        for (int r = 0; r < grid.length; r++) {
+            for (int c = 0; c < grid[0].length; c++) {
+                if (grid[r][c] == '1') {
+                    count++;
+                    sink(grid, r, c);
+                }
+            }
+        }
+        return count;
+    }
+
+    private void sink(char[][] g, int r, int c) {
+        if (r < 0 || c < 0 || r >= g.length || c >= g[0].length || g[r][c] != '1') return;
+        g[r][c] = '0';                                   // mark visited
+        sink(g, r + 1, c);
+        sink(g, r - 1, c);
+        sink(g, r, c + 1);
+        sink(g, r, c - 1);
+    }
+}
+```
+=== 80
+S: Given a reference to a node of a connected undirected graph, return a deep copy of the whole graph. Each node has an integer value and a list of neighbours.
+T: `adjList = [[2,4],[1,3],[2,4],[1,3]]` => `a new graph with the same shape and values (no shared nodes)`
+T: `adjList = [[]]` => `[[]]`
+A: DFS (or BFS) with a map from original node to its clone. If a node was already cloned, return the existing clone; this also breaks cycles. Otherwise create the clone, register it, then clone each neighbour.
+C: { Solution.Node a = new Solution.Node(1), b = new Solution.Node(2), c = new Solution.Node(3), d = new Solution.Node(4); a.neighbors.add(b); a.neighbors.add(d); b.neighbors.add(a); b.neighbors.add(c); c.neighbors.add(b); c.neighbors.add(d); d.neighbors.add(c); d.neighbors.add(a); Solution.Node r = new Solution().cloneGraph(a); return r != a && r.val == 1 && r.neighbors.get(0).val == 2 && r.neighbors.get(1).val == 4 && r.neighbors.get(0) != b && r.neighbors.get(0).neighbors.get(0) == r && new Solution().cloneGraph(null) == null; }
+```java
+import java.util.*;
+
+class Solution {
+    static class Node {
+        int val;
+        List<Node> neighbors = new ArrayList<>();
+        Node(int val) { this.val = val; }
+    }
+
+    public Node cloneGraph(Node node) {
+        return clone(node, new HashMap<>());
+    }
+
+    private Node clone(Node node, Map<Node, Node> copies) {
+        if (node == null) return null;
+        if (copies.containsKey(node)) return copies.get(node);   // already cloned (cycle)
+        Node copy = new Node(node.val);
+        copies.put(node, copy);                                  // register before recursing
+        for (Node nb : node.neighbors) copy.neighbors.add(clone(nb, copies));
+        return copy;
+    }
+}
+```
+=== 81
+S: In a binary grid, an island is a group of `1`s connected horizontally or vertically. Return the area (number of cells) of the largest island, or 0 if there is none.
+T: `grid = [[1,1,0,0,0],[1,1,0,0,0],[0,0,0,1,1],[0,0,0,1,1]]` => `4`
+T: `grid = [[1,0,1],[1,1,0],[0,0,1]]` => `3`
+T: `grid = [[0,0,0,0,0,0,0,0]]` => `0`
+A: DFS from every land cell, returning 1 plus the areas of its four neighbours and sinking each visited cell to 0. Track the largest area returned.
+C: new Solution().maxAreaOfIsland(new int[][]{{1,1,0,0,0},{1,1,0,0,0},{0,0,0,1,1},{0,0,0,1,1}})==4 && new Solution().maxAreaOfIsland(new int[][]{{1,0,1},{1,1,0},{0,0,1}})==3 && new Solution().maxAreaOfIsland(new int[][]{{0,0,0,0,0,0,0,0}})==0
+```java
+class Solution {
+    public int maxAreaOfIsland(int[][] grid) {
+        int best = 0;
+        for (int r = 0; r < grid.length; r++)
+            for (int c = 0; c < grid[0].length; c++)
+                best = Math.max(best, area(grid, r, c));
+        return best;
+    }
+
+    private int area(int[][] g, int r, int c) {
+        if (r < 0 || c < 0 || r >= g.length || c >= g[0].length || g[r][c] == 0) return 0;
+        g[r][c] = 0;                                     // visited
+        return 1 + area(g, r + 1, c) + area(g, r - 1, c) + area(g, r, c + 1) + area(g, r, c - 1);
+    }
+}
+```
+=== 82
+S: `heights[r][c]` is the height of a cell. The Pacific Ocean touches the top and left edges, the Atlantic touches the bottom and right edges. Water flows to neighbouring cells of equal or lower height. Return all cells from which water can reach both oceans.
+T: `heights = [[1,2,2,3,5],[3,2,3,4,4],[2,4,5,3,1],[6,7,1,4,5],[5,1,1,2,4]]` => `[[0,4],[1,3],[1,4],[2,2],[3,0],[3,1],[4,0]]`
+T: `heights = [[1]]` => `[[0,0]]`
+A: Run the search in reverse: start from the ocean borders and climb to neighbours that are equal or higher. Do this once for each ocean, then keep the cells reached by both.
+C: S(new Solution().pacificAtlantic(new int[][]{{1,2,2,3,5},{3,2,3,4,4},{2,4,5,3,1},{6,7,1,4,5},{5,1,1,2,4}})).equals("[[0,4],[1,3],[1,4],[2,2],[3,0],[3,1],[4,0]]") && S(new Solution().pacificAtlantic(new int[][]{{1}})).equals("[[0,0]]")
+```java
+import java.util.*;
+
+class Solution {
+    public List<List<Integer>> pacificAtlantic(int[][] h) {
+        int m = h.length, n = h[0].length;
+        boolean[][] pacific = new boolean[m][n], atlantic = new boolean[m][n];
+        for (int r = 0; r < m; r++) { climb(h, pacific, r, 0); climb(h, atlantic, r, n - 1); }
+        for (int c = 0; c < n; c++) { climb(h, pacific, 0, c); climb(h, atlantic, m - 1, c); }
+
+        List<List<Integer>> result = new ArrayList<>();
+        for (int r = 0; r < m; r++)
+            for (int c = 0; c < n; c++)
+                if (pacific[r][c] && atlantic[r][c]) result.add(Arrays.asList(r, c));
+        return result;
+    }
+
+    private void climb(int[][] h, boolean[][] seen, int r, int c) {
+        seen[r][c] = true;
+        int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int[] d : dirs) {
+            int nr = r + d[0], nc = c + d[1];
+            if (nr < 0 || nc < 0 || nr >= h.length || nc >= h[0].length) continue;
+            if (seen[nr][nc] || h[nr][nc] < h[r][c]) continue;   // water would not flow back
+            climb(h, seen, nr, nc);
+        }
+    }
+}
+```
+=== 83
+S: A board contains `'X'` and `'O'`. Capture every region of `'O'` that is completely surrounded by `'X'` by flipping its cells to `'X'`. An `'O'` on the border, or connected to one, is not captured.
+T: `board = [["X","X","X","X"],["X","O","O","X"],["X","X","O","X"],["X","O","X","X"]]` => `[["X","X","X","X"],["X","X","X","X"],["X","X","X","X"],["X","O","X","X"]]`
+T: `board = [["X"]]` => `[["X"]]`
+A: Work backwards from the border: mark every `'O'` reachable from a border `'O'` as safe (`'T'`). Then flip the remaining `'O'` to `'X'` and turn `'T'` back to `'O'`.
+C: { char[][] b = G("XXXX","XOOX","XXOX","XOXX"); new Solution().solve(b); char[][] c = G("X"); new Solution().solve(c); return GS(b).equals("XXXX|XXXX|XXXX|XOXX|") && GS(c).equals("X|"); }
+```java
+class Solution {
+    public void solve(char[][] board) {
+        int m = board.length, n = board[0].length;
+        for (int r = 0; r < m; r++) { mark(board, r, 0); mark(board, r, n - 1); }
+        for (int c = 0; c < n; c++) { mark(board, 0, c); mark(board, m - 1, c); }
+
+        for (int r = 0; r < m; r++) {
+            for (int c = 0; c < n; c++) {
+                if (board[r][c] == 'O') board[r][c] = 'X';       // surrounded: capture
+                else if (board[r][c] == 'T') board[r][c] = 'O';  // safe: restore
+            }
+        }
+    }
+
+    private void mark(char[][] b, int r, int c) {
+        if (r < 0 || c < 0 || r >= b.length || c >= b[0].length || b[r][c] != 'O') return;
+        b[r][c] = 'T';
+        mark(b, r + 1, c);
+        mark(b, r - 1, c);
+        mark(b, r, c + 1);
+        mark(b, r, c - 1);
+    }
+}
+```
+=== 84
+S: In a grid, `0` is empty, `1` is a fresh orange and `2` is a rotten orange. Every minute, each fresh orange next to a rotten one (up, down, left, right) becomes rotten. Return the minutes until no fresh orange remains, or -1 if that is impossible.
+T: `grid = [[2,1,1],[1,1,0],[0,1,1]]` => `4`
+T: `grid = [[2,1,1],[0,1,1],[1,0,1]]` => `-1`
+T: `grid = [[0,2]]` => `0`
+A: Multi-source BFS: start with all rotten oranges in the queue and spread one level per minute, counting the fresh oranges that get infected. If any fresh orange is left at the end, return -1.
+C: new Solution().orangesRotting(new int[][]{{2,1,1},{1,1,0},{0,1,1}})==4 && new Solution().orangesRotting(new int[][]{{2,1,1},{0,1,1},{1,0,1}})==-1 && new Solution().orangesRotting(new int[][]{{0,2}})==0
+```java
+import java.util.*;
+
+class Solution {
+    public int orangesRotting(int[][] grid) {
+        int m = grid.length, n = grid[0].length, fresh = 0;
+        Queue<int[]> queue = new ArrayDeque<>();
+        for (int r = 0; r < m; r++)
+            for (int c = 0; c < n; c++) {
+                if (grid[r][c] == 2) queue.offer(new int[]{r, c});
+                else if (grid[r][c] == 1) fresh++;
+            }
+
+        int minutes = 0;
+        int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        while (!queue.isEmpty() && fresh > 0) {
+            minutes++;
+            for (int size = queue.size(); size > 0; size--) {   // one minute = one BFS level
+                int[] cell = queue.poll();
+                for (int[] d : dirs) {
+                    int r = cell[0] + d[0], c = cell[1] + d[1];
+                    if (r < 0 || c < 0 || r >= m || c >= n || grid[r][c] != 1) continue;
+                    grid[r][c] = 2;
+                    fresh--;
+                    queue.offer(new int[]{r, c});
+                }
+            }
+        }
+        return fresh == 0 ? minutes : -1;
+    }
+}
+```
+=== 85
+S: A grid of rooms holds `-1` (wall), `0` (gate) and `2147483647` (empty room, "INF"). Fill each empty room with the number of steps to its nearest gate, or leave it as INF if no gate is reachable.
+T: `rooms = [[INF,-1,0,INF],[INF,INF,INF,-1],[INF,-1,INF,-1],[0,-1,INF,INF]]` => `[[3,-1,0,1],[2,2,1,-1],[1,-1,2,-1],[0,-1,3,4]]`
+A: Multi-source BFS from every gate at once. The first time BFS reaches an empty room is by the shortest path, so assign `distance + 1` and enqueue it. Rooms never reached keep INF.
+C: { int INF = 2147483647; int[][] g = {{INF,-1,0,INF},{INF,INF,INF,-1},{INF,-1,INF,-1},{0,-1,INF,INF}}; new Solution().wallsAndGates(g); return D(g).equals("[[3,-1,0,1],[2,2,1,-1],[1,-1,2,-1],[0,-1,3,4]]"); }
+```java
+import java.util.*;
+
+class Solution {
+    public void wallsAndGates(int[][] rooms) {
+        final int INF = Integer.MAX_VALUE;
+        int m = rooms.length, n = rooms[0].length;
+        Queue<int[]> queue = new ArrayDeque<>();
+        for (int r = 0; r < m; r++)
+            for (int c = 0; c < n; c++)
+                if (rooms[r][c] == 0) queue.offer(new int[]{r, c});   // all gates start together
+
+        int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        while (!queue.isEmpty()) {
+            int[] cell = queue.poll();
+            for (int[] d : dirs) {
+                int r = cell[0] + d[0], c = cell[1] + d[1];
+                if (r < 0 || c < 0 || r >= m || c >= n || rooms[r][c] != INF) continue;
+                rooms[r][c] = rooms[cell[0]][cell[1]] + 1;
+                queue.offer(new int[]{r, c});
+            }
+        }
+    }
+}
+```
+=== 86
+S: There are `numCourses` courses labelled `0..n-1`. Each pair `[a, b]` means you must take course `b` before course `a`. Return whether all courses can be finished.
+T: `numCourses = 2, prerequisites = [[1,0]]` => `true`
+T: `numCourses = 2, prerequisites = [[1,0],[0,1]]` => `false`
+A: This is cycle detection in a directed graph. Kahn's algorithm: repeatedly take courses with in-degree 0, "remove" them and reduce their dependents' in-degree. If every course gets taken, there is no cycle.
+C: new Solution().canFinish(2,new int[][]{{1,0}}) && !new Solution().canFinish(2,new int[][]{{1,0},{0,1}}) && new Solution().canFinish(3,new int[][]{}) && !new Solution().canFinish(3,new int[][]{{0,1},{1,2},{2,0}})
+```java
+import java.util.*;
+
+class Solution {
+    public boolean canFinish(int numCourses, int[][] prerequisites) {
+        List<List<Integer>> next = new ArrayList<>();
+        int[] indegree = new int[numCourses];
+        for (int i = 0; i < numCourses; i++) next.add(new ArrayList<>());
+        for (int[] p : prerequisites) {
+            next.get(p[1]).add(p[0]);          // p[1] must come before p[0]
+            indegree[p[0]]++;
+        }
+
+        Queue<Integer> ready = new ArrayDeque<>();
+        for (int i = 0; i < numCourses; i++) if (indegree[i] == 0) ready.offer(i);
+
+        int taken = 0;
+        while (!ready.isEmpty()) {
+            int course = ready.poll();
+            taken++;
+            for (int dependent : next.get(course)) {
+                if (--indegree[dependent] == 0) ready.offer(dependent);
+            }
+        }
+        return taken == numCourses;
+    }
+}
+```
+=== 87
+S: Same setup as Course Schedule, but return one valid order in which to take all courses. If it is impossible, return an empty array.
+T: `numCourses = 2, prerequisites = [[1,0]]` => `[0,1]`
+T: `numCourses = 4, prerequisites = [[1,0],[2,0],[3,1],[3,2]]` => `[0,1,2,3]`
+T: `numCourses = 1, prerequisites = []` => `[0]`
+A: Run Kahn's topological sort and record courses in the order they are taken. If fewer than `numCourses` were taken, a cycle exists and the answer is empty.
+C: A(new Solution().findOrder(2,new int[][]{{1,0}})).equals("[0,1]") && A(new Solution().findOrder(4,new int[][]{{1,0},{2,0},{3,1},{3,2}})).equals("[0,1,2,3]") && A(new Solution().findOrder(1,new int[][]{})).equals("[0]") && new Solution().findOrder(2,new int[][]{{1,0},{0,1}}).length==0
+```java
+import java.util.*;
+
+class Solution {
+    public int[] findOrder(int numCourses, int[][] prerequisites) {
+        List<List<Integer>> next = new ArrayList<>();
+        int[] indegree = new int[numCourses];
+        for (int i = 0; i < numCourses; i++) next.add(new ArrayList<>());
+        for (int[] p : prerequisites) {
+            next.get(p[1]).add(p[0]);
+            indegree[p[0]]++;
+        }
+
+        Queue<Integer> ready = new ArrayDeque<>();
+        for (int i = 0; i < numCourses; i++) if (indegree[i] == 0) ready.offer(i);
+
+        int[] order = new int[numCourses];
+        int count = 0;
+        while (!ready.isEmpty()) {
+            int course = ready.poll();
+            order[count++] = course;
+            for (int dependent : next.get(course)) {
+                if (--indegree[dependent] == 0) ready.offer(dependent);
+            }
+        }
+        return count == numCourses ? order : new int[0];   // cycle -> no valid order
+    }
+}
+```
+=== 88
+S: A tree with `n` nodes had one extra edge added, creating a cycle. Given the edges, return the extra edge to remove so the graph becomes a tree again. If several answers exist, return the one that occurs last in the input.
+T: `edges = [[1,2],[1,3],[2,3]]` => `[2,3]`
+T: `edges = [[1,2],[2,3],[3,4],[1,4],[1,5]]` => `[1,4]`
+A: Union-Find (disjoint set). Process edges in order; an edge whose endpoints already share a root would close a cycle, so it is the redundant one. Path compression plus union by size keeps each operation near O(1).
+C: A(new Solution().findRedundantConnection(new int[][]{{1,2},{1,3},{2,3}})).equals("[2,3]") && A(new Solution().findRedundantConnection(new int[][]{{1,2},{2,3},{3,4},{1,4},{1,5}})).equals("[1,4]")
+```java
+class Solution {
+    private int[] parent;
+
+    public int[] findRedundantConnection(int[][] edges) {
+        parent = new int[edges.length + 1];
+        for (int i = 0; i < parent.length; i++) parent[i] = i;
+        for (int[] e : edges) {
+            int a = find(e[0]), b = find(e[1]);
+            if (a == b) return e;          // already connected: this edge makes a cycle
+            parent[a] = b;                 // union
+        }
+        return new int[0];
+    }
+
+    private int find(int x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]]; // path compression (halving)
+            x = parent[x];
+        }
+        return x;
+    }
+}
+```
+=== 89
+S: Transform `beginWord` into `endWord` by changing one letter at a time, where every intermediate word must be in `wordList`. Return the number of words in the shortest sequence (including both ends), or 0 if no sequence exists.
+T: `beginWord = "hit", endWord = "cog", wordList = ["hot","dot","dog","lot","log","cog"]` => `5`
+T: `beginWord = "hit", endWord = "cog", wordList = ["hot","dot","dog","lot","log"]` => `0`
+A: Shortest path in an implicit graph, so use BFS. From each word, try replacing every position with each letter `a-z` and keep results found in the dictionary that were not visited. The BFS level at which `endWord` appears is the answer.
+C: new Solution().ladderLength("hit","cog",Arrays.asList("hot","dot","dog","lot","log","cog"))==5 && new Solution().ladderLength("hit","cog",Arrays.asList("hot","dot","dog","lot","log"))==0
+```java
+import java.util.*;
+
+class Solution {
+    public int ladderLength(String beginWord, String endWord, List<String> wordList) {
+        Set<String> dict = new HashSet<>(wordList);
+        if (!dict.contains(endWord)) return 0;
+
+        Queue<String> queue = new ArrayDeque<>();
+        Set<String> seen = new HashSet<>();
+        queue.offer(beginWord);
+        seen.add(beginWord);
+        int steps = 1;
+        while (!queue.isEmpty()) {
+            for (int size = queue.size(); size > 0; size--) {
+                String word = queue.poll();
+                if (word.equals(endWord)) return steps;
+                char[] chars = word.toCharArray();
+                for (int i = 0; i < chars.length; i++) {
+                    char original = chars[i];
+                    for (char c = 'a'; c <= 'z'; c++) {
+                        if (c == original) continue;
+                        chars[i] = c;
+                        String next = new String(chars);
+                        if (dict.contains(next) && seen.add(next)) queue.offer(next);
+                    }
+                    chars[i] = original;
+                }
+            }
+            steps++;
+        }
+        return 0;
+    }
+}
+```

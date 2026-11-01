@@ -1,0 +1,58 @@
+=== 98
+S: Every element appears twice except one. Find the element that appears once, in O(N) time and O(1) extra space.
+T: `nums = [2,2,1]` => `1`
+T: `nums = [4,1,2,1,2]` => `4`
+T: `nums = [1]` => `1`
+A: XOR has two useful properties: `a ^ a = 0` and `a ^ 0 = a`. XOR-ing every element cancels all pairs and leaves the single number.
+C: new Solution().singleNumber(new int[]{2,2,1})==1 && new Solution().singleNumber(new int[]{4,1,2,1,2})==4 && new Solution().singleNumber(new int[]{1})==1
+```java
+class Solution {
+    public int singleNumber(int[] nums) {
+        int result = 0;
+        for (int n : nums) result ^= n;   // pairs cancel out
+        return result;
+    }
+}
+```
+=== 99
+S: Return the number of `1` bits in the binary representation of the 32-bit integer `n` (its Hamming weight).
+T: `n = 00000000000000000000000000001011` => `3`
+T: `n = 00000000000000000000000010000000` => `1`
+T: `n = 11111111111111111111111111111101` => `31`
+A: Brian Kernighan's trick: `n & (n - 1)` clears the lowest set bit. Count how many times you can do that before `n` becomes 0; the loop runs once per set bit.
+C: new Solution().hammingWeight(11)==3 && new Solution().hammingWeight(128)==1 && new Solution().hammingWeight(-3)==31 && new Solution().hammingWeight(-1)==32 && new Solution().hammingWeight(0)==0
+```java
+class Solution {
+    public int hammingWeight(int n) {
+        int count = 0;
+        while (n != 0) {
+            n &= (n - 1);                 // drop the lowest set bit
+            count++;
+        }
+        return count;
+    }
+}
+```
+=== 100
+S: Reverse the digits of a signed 32-bit integer. If the reversed value falls outside the 32-bit range, return 0. You may not use 64-bit integers.
+T: `x = 123` => `321`
+T: `x = -123` => `-321`
+T: `x = 120` => `21`
+T: `x = 1534236469` => `0` (the reverse overflows)
+A: Pop the last digit with `% 10` and push it onto the result with `* 10`. Before each push, check whether `rev * 10 + digit` would overflow by comparing `rev` with `Integer.MAX_VALUE / 10` (and the minimum equivalent), so no wider type is needed.
+C: new Solution().reverse(123)==321 && new Solution().reverse(-123)==-321 && new Solution().reverse(120)==21 && new Solution().reverse(1534236469)==0 && new Solution().reverse(-2147483648)==0
+```java
+class Solution {
+    public int reverse(int x) {
+        int rev = 0;
+        while (x != 0) {
+            int digit = x % 10;
+            x /= 10;
+            if (rev > Integer.MAX_VALUE / 10 || (rev == Integer.MAX_VALUE / 10 && digit > 7)) return 0;
+            if (rev < Integer.MIN_VALUE / 10 || (rev == Integer.MIN_VALUE / 10 && digit < -8)) return 0;
+            rev = rev * 10 + digit;
+        }
+        return rev;
+    }
+}
+```

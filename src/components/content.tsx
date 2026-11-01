@@ -10,6 +10,14 @@ import 'prismjs/components/prism-yaml'
 import 'prismjs/components/prism-properties'
 import 'prismjs/components/prism-json'
 
+// IDE-style Java colouring: variables/fields light blue, control-flow keywords purple (VS Code Dark+).
+if (!('variable' in Prism.languages.java)) {
+  Prism.languages.insertBefore('java', 'punctuation', { variable: /\b[a-z_]\w*\b/ })
+  Prism.hooks.add('wrap', (env) => {
+    if (env.type === 'keyword' && /^(if|else|for|while|do|return|break|continue|switch|case|default|try|catch|finally|throw|throws|yield)$/.test(env.content)) env.classes.push('control')
+  })
+}
+
 const ALIAS: Record<string, string> = { xml: 'markup', html: 'markup', sh: 'bash', shell: 'bash', yml: 'yaml' }
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 

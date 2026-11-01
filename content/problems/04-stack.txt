@@ -1,0 +1,195 @@
+=== 28
+S: `s` contains only the characters `()[]{}`. Return whether every bracket is closed by the same type, in the correct order.
+T: `s = "()"` => `true`
+T: `s = "()[]{}"` => `true`
+T: `s = "(]"` => `false`
+T: `s = "([)]"` => `false`
+A: Push each opening bracket on a stack. For a closing bracket, the top of the stack must be its matching opener. At the end the stack must be empty.
+C: new Solution().isValid("()") && new Solution().isValid("()[]{}") && !new Solution().isValid("(]") && !new Solution().isValid("([)]") && !new Solution().isValid("(") && new Solution().isValid("{[]}")
+```java
+import java.util.*;
+
+class Solution {
+    public boolean isValid(String s) {
+        Deque<Character> stack = new ArrayDeque<>();
+        for (char c : s.toCharArray()) {
+            if (c == '(') stack.push(')');        // push the closer we expect
+            else if (c == '[') stack.push(']');
+            else if (c == '{') stack.push('}');
+            else if (stack.isEmpty() || stack.pop() != c) return false;
+        }
+        return stack.isEmpty();
+    }
+}
+```
+=== 29
+S: Design a stack that supports `push`, `pop`, `top` and retrieving the minimum element, all in constant time.
+T: `push(-2), push(0), push(-3), getMin()` => `-3`
+T: `pop(), top(), getMin()` => `0, -2`
+A: Keep a second stack of running minimums. Every push also pushes `min(value, currentMin)`; every pop removes from both. The top of the min stack is always the current minimum.
+C: { MinStack s = new MinStack(); s.push(-2); s.push(0); s.push(-3); boolean a = s.getMin() == -3; s.pop(); return a && s.top() == 0 && s.getMin() == -2; }
+```java
+import java.util.*;
+
+class MinStack {
+    private final Deque<Integer> stack = new ArrayDeque<>();
+    private final Deque<Integer> mins = new ArrayDeque<>(); // mins.peek() = current minimum
+
+    public void push(int val) {
+        stack.push(val);
+        mins.push(mins.isEmpty() ? val : Math.min(val, mins.peek()));
+    }
+
+    public void pop() {
+        stack.pop();
+        mins.pop();
+    }
+
+    public int top() { return stack.peek(); }
+
+    public int getMin() { return mins.peek(); }
+}
+```
+=== 30
+S: Evaluate an arithmetic expression given in Reverse Polish Notation. Operators are `+ - * /`; division truncates toward zero. Every intermediate result fits in 32 bits.
+T: `tokens = ["2","1","+","3","*"]` => `9`
+T: `tokens = ["4","13","5","/","+"]` => `6`
+T: `tokens = ["10","6","9","3","+","-11","*","/","*","17","+","5","+"]` => `22`
+A: Scan the tokens with a stack. Numbers are pushed; an operator pops the top two values (right operand first), applies the operation and pushes the result. The last value left is the answer.
+C: new Solution().evalRPN(new String[]{"2","1","+","3","*"})==9 && new Solution().evalRPN(new String[]{"4","13","5","/","+"})==6 && new Solution().evalRPN(new String[]{"10","6","9","3","+","-11","*","/","*","17","+","5","+"})==22
+```java
+import java.util.*;
+
+class Solution {
+    public int evalRPN(String[] tokens) {
+        Deque<Integer> stack = new ArrayDeque<>();
+        for (String t : tokens) {
+            switch (t) {
+                case "+": stack.push(stack.pop() + stack.pop()); break;
+                case "*": stack.push(stack.pop() * stack.pop()); break;
+                case "-": { int b = stack.pop(), a = stack.pop(); stack.push(a - b); break; }
+                case "/": { int b = stack.pop(), a = stack.pop(); stack.push(a / b); break; }
+                default:  stack.push(Integer.parseInt(t));
+            }
+        }
+        return stack.pop();
+    }
+}
+```
+=== 31
+S: Given `n` pairs of parentheses, generate every combination of well-formed parentheses.
+T: `n = 3` => `["((()))","(()())","(())()","()(())","()()()"]`
+T: `n = 1` => `["()"]`
+A: Backtracking. You can add `(` while fewer than `n` have been used, and `)` only while it would not exceed the number of opens. Every path that reaches length `2n` is valid.
+C: S(new Solution().generateParenthesis(3)).equals("[((())),(()()),(())(),()(()),()()()]") && S(new Solution().generateParenthesis(1)).equals("[()]")
+```java
+import java.util.*;
+
+class Solution {
+    public List<String> generateParenthesis(int n) {
+        List<String> res = new ArrayList<>();
+        build(res, new StringBuilder(), 0, 0, n);
+        return res;
+    }
+
+    private void build(List<String> res, StringBuilder cur, int open, int close, int n) {
+        if (cur.length() == 2 * n) {
+            res.add(cur.toString());
+            return;
+        }
+        if (open < n) {
+            cur.append('(');
+            build(res, cur, open + 1, close, n);
+            cur.deleteCharAt(cur.length() - 1);   // backtrack
+        }
+        if (close < open) {
+            cur.append(')');
+            build(res, cur, open, close + 1, n);
+            cur.deleteCharAt(cur.length() - 1);
+        }
+    }
+}
+```
+=== 32
+S: For each day, return how many days you must wait for a warmer temperature. If no warmer day follows, the answer for that day is 0.
+T: `temperatures = [73,74,75,71,69,72,76,73]` => `[1,1,4,2,1,1,0,0]`
+T: `temperatures = [30,40,50,60]` => `[1,1,1,0]`
+T: `temperatures = [30,60,90]` => `[1,1,0]`
+A: Monotonic stack of indices with decreasing temperatures. When today is warmer than the temperature at the top index, that earlier day has found its answer (`today - index`); pop and repeat.
+C: A(new Solution().dailyTemperatures(new int[]{73,74,75,71,69,72,76,73})).equals("[1,1,4,2,1,1,0,0]") && A(new Solution().dailyTemperatures(new int[]{30,40,50,60})).equals("[1,1,1,0]") && A(new Solution().dailyTemperatures(new int[]{30,60,90})).equals("[1,1,0]")
+```java
+import java.util.*;
+
+class Solution {
+    public int[] dailyTemperatures(int[] temperatures) {
+        int n = temperatures.length;
+        int[] answer = new int[n];
+        Deque<Integer> stack = new ArrayDeque<>();   // indices still waiting for a warmer day
+        for (int i = 0; i < n; i++) {
+            while (!stack.isEmpty() && temperatures[i] > temperatures[stack.peek()]) {
+                int prev = stack.pop();
+                answer[prev] = i - prev;
+            }
+            stack.push(i);
+        }
+        return answer;
+    }
+}
+```
+=== 33
+S: Cars at the given `position`s drive toward `target` at their own `speed`. A faster car that catches a slower one must slow down and drive bumper to bumper, forming a fleet. Return the number of fleets that arrive at the target.
+T: `target = 12, position = [10,8,0,5,3], speed = [2,4,1,1,3]` => `3`
+T: `target = 10, position = [3], speed = [3]` => `1`
+T: `target = 100, position = [0,2,4], speed = [4,2,1]` => `1`
+A: Sort cars by position, closest to the target first, and compute each car's arrival time. If a car would arrive later than the fleet ahead of it, it is a new fleet; otherwise it merges into that fleet.
+C: new Solution().carFleet(12,new int[]{10,8,0,5,3},new int[]{2,4,1,1,3})==3 && new Solution().carFleet(10,new int[]{3},new int[]{3})==1 && new Solution().carFleet(100,new int[]{0,2,4},new int[]{4,2,1})==1
+```java
+import java.util.*;
+
+class Solution {
+    public int carFleet(int target, int[] position, int[] speed) {
+        int n = position.length;
+        int[][] cars = new int[n][2];
+        for (int i = 0; i < n; i++) cars[i] = new int[]{position[i], speed[i]};
+        Arrays.sort(cars, (a, b) -> b[0] - a[0]);        // closest to target first
+
+        int fleets = 0;
+        double lastTime = 0;
+        for (int[] car : cars) {
+            double time = (double) (target - car[0]) / car[1];
+            if (time > lastTime) {                        // cannot catch the fleet ahead
+                fleets++;
+                lastTime = time;
+            }
+        }
+        return fleets;
+    }
+}
+```
+=== 34
+S: `heights[i]` is the height of a histogram bar of width 1. Return the area of the largest rectangle that fits inside the histogram.
+T: `heights = [2,1,5,6,2,3]` => `10`
+T: `heights = [2,4]` => `4`
+T: `heights = [1,1]` => `2`
+A: Keep a stack of indices with increasing heights. When a shorter bar arrives, pop taller bars: each popped bar's rectangle extends from the new stack top to the current index. A sentinel height of 0 at the end flushes the stack.
+C: new Solution().largestRectangleArea(new int[]{2,1,5,6,2,3})==10 && new Solution().largestRectangleArea(new int[]{2,4})==4 && new Solution().largestRectangleArea(new int[]{1,1})==2
+```java
+import java.util.*;
+
+class Solution {
+    public int largestRectangleArea(int[] heights) {
+        int n = heights.length, best = 0;
+        Deque<Integer> stack = new ArrayDeque<>();       // indices, heights increasing
+        for (int i = 0; i <= n; i++) {
+            int h = (i == n) ? 0 : heights[i];           // sentinel flushes the stack
+            while (!stack.isEmpty() && heights[stack.peek()] >= h) {
+                int height = heights[stack.pop()];
+                int left = stack.isEmpty() ? -1 : stack.peek();
+                best = Math.max(best, height * (i - left - 1));
+            }
+            stack.push(i);
+        }
+        return best;
+    }
+}
+```

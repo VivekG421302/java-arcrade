@@ -12,11 +12,13 @@ h1, h2 { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 code[class*='language-'], pre code { background: none; }
 .token.comment, .token.prolog, .token.doctype { color: #6a9955; }
 .token.keyword, .token.boolean, .token.atrule { color: #569cd6; }
+.token.keyword.control { color: #c586c0; }
 .token.string, .token.char, .token.attr-value { color: #ce9178; }
 .token.number { color: #b5cea8; }
 .token.function, .token.annotation, .token.builtin { color: #dcdcaa; }
 .token.class-name, .token.namespace { color: #4ec9b0; }
 .token.operator, .token.punctuation { color: #d4d4d4; }
+.token.annotation { color: #dcdcaa; }
 .token.tag, .token.selector { color: #569cd6; }
 .token.attr-name, .token.property, .token.variable, .token.constant { color: #9cdcfe; }
 

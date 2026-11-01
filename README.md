@@ -13,6 +13,10 @@ npm run dev                 # regenerates src/content.json from the markdown, th
 2. In **Authentication → Providers**, keep Email enabled (disable "Confirm email" for quicker local testing).
 3. No env vars? The app still works in **guest mode**: progress is stored in localStorage.
 
+## Question bank content
+Each of the 100 questions has a problem statement, test cases (input and expected output), the expected complexity and a Java solution, all in `content/problems/*.txt` (one block per question; format described at the top of `scripts/problems.mjs`). `npm run content` merges them into `src/content.json`.
+Every solution is compiled and run against its test cases by `node scripts/verify-problems.mjs` (needs JDK 11+; currently 100/100 pass). Run it after editing any solution.
+
 ## How it works
 - **Content**: `scripts/build-content.mjs` parses the markdown into `src/content.json` (6 phases / 17 sections, 100 questions, 10 deep-dive + 40 matrix anti-patterns, 10 + 20 scenarios). To update content, edit `content/roadmap.md` and re-run `npm run dev` / `npm run build`. Inline LaTeX (`$O(N \log N)$`) is converted to plain text.
 - **Gating** (`src/hooks/useProgress.tsx`): only Phase 1 starts unlocked; Phase N unlocks when Phase N-1 is `completed`. Pass mark is 80%.

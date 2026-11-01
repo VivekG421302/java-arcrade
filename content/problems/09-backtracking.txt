@@ -1,0 +1,226 @@
+=== 72
+S: Return all subsets (the power set) of an array of distinct integers. The result must not contain duplicate subsets; any order is accepted.
+T: `nums = [1,2,3]` => `[[],[1],[1,2],[1,2,3],[1,3],[2],[2,3],[3]]`
+T: `nums = [0]` => `[[],[0]]`
+A: Backtracking: at each step record the current subset, then try adding each later element, recurse, and remove it. Choosing only from indices after the last pick prevents duplicates. There are 2^N subsets.
+C: S(new Solution().subsets(new int[]{1,2,3})).equals("[[],[1],[1,2],[1,2,3],[1,3],[2],[2,3],[3]]") && S(new Solution().subsets(new int[]{0})).equals("[[],[0]]")
+```java
+import java.util.*;
+
+class Solution {
+    public List<List<Integer>> subsets(int[] nums) {
+        List<List<Integer>> res = new ArrayList<>();
+        backtrack(nums, 0, new ArrayList<>(), res);
+        return res;
+    }
+
+    private void backtrack(int[] nums, int start, List<Integer> cur, List<List<Integer>> res) {
+        res.add(new ArrayList<>(cur));                 // every path is a valid subset
+        for (int i = start; i < nums.length; i++) {
+            cur.add(nums[i]);
+            backtrack(nums, i + 1, cur, res);
+            cur.remove(cur.size() - 1);                // undo the choice
+        }
+    }
+}
+```
+=== 73
+S: Given distinct positive integers `candidates` and a `target`, return every unique combination whose numbers sum to `target`. Each number may be used any number of times.
+T: `candidates = [2,3,6,7], target = 7` => `[[2,2,3],[7]]`
+T: `candidates = [2,3,5], target = 8` => `[[2,2,2,2],[2,3,3],[3,5]]`
+T: `candidates = [2], target = 1` => `[]`
+A: Backtrack with a start index. Reusing the same number means recursing with `i` (not `i + 1`); moving the start forward avoids permutations of the same combination. Stop when the remaining amount hits 0.
+C: S(new Solution().combinationSum(new int[]{2,3,6,7},7)).equals("[[2,2,3],[7]]") && S(new Solution().combinationSum(new int[]{2,3,5},8)).equals("[[2,2,2,2],[2,3,3],[3,5]]") && S(new Solution().combinationSum(new int[]{2},1)).equals("[]")
+```java
+import java.util.*;
+
+class Solution {
+    public List<List<Integer>> combinationSum(int[] candidates, int target) {
+        List<List<Integer>> res = new ArrayList<>();
+        dfs(candidates, 0, target, new ArrayList<>(), res);
+        return res;
+    }
+
+    private void dfs(int[] c, int start, int remain, List<Integer> cur, List<List<Integer>> res) {
+        if (remain == 0) {
+            res.add(new ArrayList<>(cur));
+            return;
+        }
+        for (int i = start; i < c.length; i++) {
+            if (c[i] > remain) continue;
+            cur.add(c[i]);
+            dfs(c, i, remain - c[i], cur, res);       // i, not i+1: reuse allowed
+            cur.remove(cur.size() - 1);
+        }
+    }
+}
+```
+=== 74
+S: Return all permutations of an array of distinct integers, in any order.
+T: `nums = [1,2,3]` => `[[1,2,3],[1,3,2],[2,1,3],[2,3,1],[3,1,2],[3,2,1]]`
+T: `nums = [0,1]` => `[[0,1],[1,0]]`
+T: `nums = [1]` => `[[1]]`
+A: Build each permutation position by position, choosing any value not yet used (tracked with a boolean array), recursing, then un-choosing. N! results of length N.
+C: S(new Solution().permute(new int[]{1,2,3})).equals("[[1,2,3],[1,3,2],[2,1,3],[2,3,1],[3,1,2],[3,2,1]]") && S(new Solution().permute(new int[]{0,1})).equals("[[0,1],[1,0]]") && S(new Solution().permute(new int[]{1})).equals("[[1]]")
+```java
+import java.util.*;
+
+class Solution {
+    public List<List<Integer>> permute(int[] nums) {
+        List<List<Integer>> res = new ArrayList<>();
+        backtrack(nums, new boolean[nums.length], new ArrayList<>(), res);
+        return res;
+    }
+
+    private void backtrack(int[] nums, boolean[] used, List<Integer> cur, List<List<Integer>> res) {
+        if (cur.size() == nums.length) {
+            res.add(new ArrayList<>(cur));
+            return;
+        }
+        for (int i = 0; i < nums.length; i++) {
+            if (used[i]) continue;
+            used[i] = true;
+            cur.add(nums[i]);
+            backtrack(nums, used, cur, res);
+            cur.remove(cur.size() - 1);
+            used[i] = false;
+        }
+    }
+}
+```
+=== 75
+S: `nums` may contain duplicates. Return all possible subsets without duplicate subsets, in any order.
+T: `nums = [1,2,2]` => `[[],[1],[1,2],[1,2,2],[2],[2,2]]`
+T: `nums = [0]` => `[[],[0]]`
+A: Sort first so equal values are adjacent. In the loop, skip `nums[i]` when it equals `nums[i-1]` and `i > start`: that value was already tried at this depth, so using it again would repeat a subset.
+C: S(new Solution().subsetsWithDup(new int[]{1,2,2})).equals("[[],[1],[1,2],[1,2,2],[2],[2,2]]") && S(new Solution().subsetsWithDup(new int[]{0})).equals("[[],[0]]") && new Solution().subsetsWithDup(new int[]{4,4,4,1,4}).size()==10
+```java
+import java.util.*;
+
+class Solution {
+    public List<List<Integer>> subsetsWithDup(int[] nums) {
+        Arrays.sort(nums);
+        List<List<Integer>> res = new ArrayList<>();
+        backtrack(nums, 0, new ArrayList<>(), res);
+        return res;
+    }
+
+    private void backtrack(int[] nums, int start, List<Integer> cur, List<List<Integer>> res) {
+        res.add(new ArrayList<>(cur));
+        for (int i = start; i < nums.length; i++) {
+            if (i > start && nums[i] == nums[i - 1]) continue;   // skip duplicate at this depth
+            cur.add(nums[i]);
+            backtrack(nums, i + 1, cur, res);
+            cur.remove(cur.size() - 1);
+        }
+    }
+}
+```
+=== 76
+S: Return whether `word` can be built by walking through horizontally or vertically adjacent cells of the grid, never using the same cell twice.
+T: `board = [["A","B","C","E"],["S","F","C","S"],["A","D","E","E"]], word = "ABCCED"` => `true`
+T: `board = same, word = "SEE"` => `true`
+T: `board = same, word = "ABCB"` => `false`
+A: DFS from every cell that matches the first letter. Mark the current cell as used while exploring its four neighbours, then restore it when backtracking.
+C: { String[] rows = {"ABCE","SFCS","ADEE"}; char[][] b = new char[3][]; for (int i = 0; i < 3; i++) b[i] = rows[i].toCharArray(); return new Solution().exist(b,"ABCCED") && new Solution().exist(b,"SEE") && !new Solution().exist(b,"ABCB"); }
+```java
+class Solution {
+    public boolean exist(char[][] board, String word) {
+        for (int r = 0; r < board.length; r++)
+            for (int c = 0; c < board[0].length; c++)
+                if (dfs(board, word, 0, r, c)) return true;
+        return false;
+    }
+
+    private boolean dfs(char[][] b, String w, int k, int r, int c) {
+        if (k == w.length()) return true;
+        if (r < 0 || c < 0 || r >= b.length || c >= b[0].length || b[r][c] != w.charAt(k)) return false;
+        char saved = b[r][c];
+        b[r][c] = '#';                                   // mark as used
+        boolean found = dfs(b, w, k + 1, r + 1, c) || dfs(b, w, k + 1, r - 1, c)
+                     || dfs(b, w, k + 1, r, c + 1) || dfs(b, w, k + 1, r, c - 1);
+        b[r][c] = saved;                                 // backtrack
+        return found;
+    }
+}
+```
+=== 77
+S: Partition string `s` so that every piece is a palindrome, and return all possible partitionings.
+T: `s = "aab"` => `[["a","a","b"],["aa","b"]]`
+T: `s = "a"` => `[["a"]]`
+A: Backtracking over cut positions: from the current start, try every end index; if `s[start..end]` is a palindrome, take it and recurse on the rest. When the start reaches the end of the string, record the partition.
+C: S(new Solution().partition("aab")).equals("[[a,a,b],[aa,b]]") && S(new Solution().partition("a")).equals("[[a]]")
+```java
+import java.util.*;
+
+class Solution {
+    public List<List<String>> partition(String s) {
+        List<List<String>> res = new ArrayList<>();
+        dfs(s, 0, new ArrayList<>(), res);
+        return res;
+    }
+
+    private void dfs(String s, int start, List<String> cur, List<List<String>> res) {
+        if (start == s.length()) {
+            res.add(new ArrayList<>(cur));
+            return;
+        }
+        for (int end = start; end < s.length(); end++) {
+            if (isPalindrome(s, start, end)) {
+                cur.add(s.substring(start, end + 1));
+                dfs(s, end + 1, cur, res);
+                cur.remove(cur.size() - 1);
+            }
+        }
+    }
+
+    private boolean isPalindrome(String s, int l, int r) {
+        while (l < r) if (s.charAt(l++) != s.charAt(r--)) return false;
+        return true;
+    }
+}
+```
+=== 78
+S: Place `n` queens on an `n x n` chessboard so that no two attack each other (no shared row, column or diagonal). Return every distinct arrangement as a list of board strings using `'Q'` and `'.'`.
+T: `n = 4` => `[[".Q..","...Q","Q...","..Q."],["..Q.","Q...","...Q",".Q.."]]`
+T: `n = 1` => `[["Q"]]`
+A: Place one queen per row, trying each column. Track used columns and both diagonals in boolean arrays (`row - col` and `row + col` identify diagonals) so each check is O(1). Backtrack when no column is free.
+C: S(new Solution().solveNQueens(4)).equals("[[.Q..,...Q,Q...,..Q.],[..Q.,Q...,...Q,.Q..]]") && S(new Solution().solveNQueens(1)).equals("[[Q]]") && new Solution().solveNQueens(6).size()==4 && new Solution().solveNQueens(8).size()==92
+```java
+import java.util.*;
+
+class Solution {
+    public List<List<String>> solveNQueens(int n) {
+        List<List<String>> res = new ArrayList<>();
+        place(0, n, new int[n], new boolean[n], new boolean[2 * n], new boolean[2 * n], res);
+        return res;
+    }
+
+    private void place(int row, int n, int[] queenCol, boolean[] cols,
+                       boolean[] diag, boolean[] anti, List<List<String>> res) {
+        if (row == n) {
+            res.add(render(queenCol, n));
+            return;
+        }
+        for (int c = 0; c < n; c++) {
+            int d = row - c + n, a = row + c;            // diagonal ids
+            if (cols[c] || diag[d] || anti[a]) continue;
+            cols[c] = diag[d] = anti[a] = true;
+            queenCol[row] = c;
+            place(row + 1, n, queenCol, cols, diag, anti, res);
+            cols[c] = diag[d] = anti[a] = false;         // backtrack
+        }
+    }
+
+    private List<String> render(int[] queenCol, int n) {
+        List<String> board = new ArrayList<>();
+        for (int r = 0; r < n; r++) {
+            char[] line = new char[n];
+            Arrays.fill(line, '.');
+            line[queenCol[r]] = 'Q';
+            board.add(new String(line));
+        }
+        return board;
+    }
+}
+```

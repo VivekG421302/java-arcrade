@@ -1,0 +1,330 @@
+=== 43
+S: Reverse a singly linked list and return the new head.
+T: `head = [1,2,3,4,5]` => `[5,4,3,2,1]`
+T: `head = [1,2]` => `[2,1]`
+T: `head = []` => `[]`
+A: Walk the list once, pointing each node's `next` at the node before it. Keep `prev`, `cur` and a saved `next`. O(1) extra space; recursion is the O(N)-stack alternative.
+C: LS(new Solution().reverseList(L(1,2,3,4,5))).equals("[5,4,3,2,1]") && LS(new Solution().reverseList(L(1,2))).equals("[2,1]") && LS(new Solution().reverseList(null)).equals("[]")
+```java
+class Solution {
+    public ListNode reverseList(ListNode head) {
+        ListNode prev = null, cur = head;
+        while (cur != null) {
+            ListNode next = cur.next;   // save the rest
+            cur.next = prev;            // flip the pointer
+            prev = cur;
+            cur = next;
+        }
+        return prev;
+    }
+}
+```
+=== 44
+S: Merge two sorted linked lists into one sorted list made from the nodes of both, and return its head.
+T: `list1 = [1,2,4], list2 = [1,3,4]` => `[1,1,2,3,4,4]`
+T: `list1 = [], list2 = []` => `[]`
+T: `list1 = [], list2 = [0]` => `[0]`
+A: Use a dummy head and a tail pointer. Repeatedly attach the smaller front node of the two lists. When one list runs out, attach the remainder of the other.
+C: LS(new Solution().mergeTwoLists(L(1,2,4),L(1,3,4))).equals("[1,1,2,3,4,4]") && LS(new Solution().mergeTwoLists(null,null)).equals("[]") && LS(new Solution().mergeTwoLists(null,L(0))).equals("[0]")
+```java
+class Solution {
+    public ListNode mergeTwoLists(ListNode list1, ListNode list2) {
+        ListNode dummy = new ListNode(0), tail = dummy;
+        while (list1 != null && list2 != null) {
+            if (list1.val <= list2.val) { tail.next = list1; list1 = list1.next; }
+            else                        { tail.next = list2; list2 = list2.next; }
+            tail = tail.next;
+        }
+        tail.next = (list1 != null) ? list1 : list2;   // attach the leftover
+        return dummy.next;
+    }
+}
+```
+=== 45
+S: Reorder a list `L0 -> L1 -> ... -> Ln` in place into `L0 -> Ln -> L1 -> Ln-1 -> L2 -> ...`. You may not change node values, only the links.
+T: `head = [1,2,3,4]` => `[1,4,2,3]`
+T: `head = [1,2,3,4,5]` => `[1,5,2,4,3]`
+A: Three steps: find the middle with slow/fast pointers, reverse the second half, then interleave the two halves node by node.
+C: { ListNode a = L(1,2,3,4); new Solution().reorderList(a); ListNode b = L(1,2,3,4,5); new Solution().reorderList(b); return LS(a).equals("[1,4,2,3]") && LS(b).equals("[1,5,2,4,3]"); }
+```java
+class Solution {
+    public void reorderList(ListNode head) {
+        if (head == null || head.next == null) return;
+
+        ListNode slow = head, fast = head;                 // 1. find the middle
+        while (fast.next != null && fast.next.next != null) {
+            slow = slow.next;
+            fast = fast.next.next;
+        }
+
+        ListNode second = reverse(slow.next);              // 2. reverse second half
+        slow.next = null;
+
+        ListNode first = head;                             // 3. interleave
+        while (second != null) {
+            ListNode t1 = first.next, t2 = second.next;
+            first.next = second;
+            second.next = t1;
+            first = t1;
+            second = t2;
+        }
+    }
+
+    private ListNode reverse(ListNode node) {
+        ListNode prev = null;
+        while (node != null) {
+            ListNode next = node.next;
+            node.next = prev;
+            prev = node;
+            node = next;
+        }
+        return prev;
+    }
+}
+```
+=== 46
+S: Remove the `n`-th node from the end of a list and return the head.
+T: `head = [1,2,3,4,5], n = 2` => `[1,2,3,5]`
+T: `head = [1], n = 1` => `[]`
+T: `head = [1,2], n = 1` => `[1]`
+A: Move a fast pointer `n` steps ahead, then advance both pointers until fast reaches the last node. The slow pointer is then right before the node to delete. A dummy head handles removing the first node.
+C: LS(new Solution().removeNthFromEnd(L(1,2,3,4,5),2)).equals("[1,2,3,5]") && LS(new Solution().removeNthFromEnd(L(1),1)).equals("[]") && LS(new Solution().removeNthFromEnd(L(1,2),1)).equals("[1]")
+```java
+class Solution {
+    public ListNode removeNthFromEnd(ListNode head, int n) {
+        ListNode dummy = new ListNode(0);
+        dummy.next = head;
+        ListNode fast = dummy, slow = dummy;
+        for (int i = 0; i < n; i++) fast = fast.next;       // gap of n nodes
+        while (fast.next != null) {
+            fast = fast.next;
+            slow = slow.next;
+        }
+        slow.next = slow.next.next;                         // unlink the target
+        return dummy.next;
+    }
+}
+```
+=== 47
+S: Each node of a linked list has an extra `random` pointer that may point to any node in the list or to null. Return a deep copy: brand-new nodes whose `next` and `random` pointers reproduce the original structure.
+T: `[[7,null],[13,0],[11,4],[10,2],[1,0]] (value, random index)` => `a deep copy with the same values and random links`
+T: `[[1,1],[2,1]]` => `[[1,1],[2,1]]`
+A: Interleave: insert each copy right after its original, set `copy.random = original.random.next`, then split the two lists apart again. No hash map, so auxiliary space is O(1).
+C: { Solution.Node a = new Solution.Node(7), b = new Solution.Node(13), c = new Solution.Node(11); a.next = b; b.next = c; b.random = a; c.random = c; Solution.Node r = new Solution().copyRandomList(a); return r != a && r.val == 7 && r.next.val == 13 && r.next.next.val == 11 && r.next.random == r && r.next.next.random == r.next.next && a.next == b && b.next == c; }
+```java
+class Solution {
+    static class Node {
+        int val;
+        Node next, random;
+        Node(int val) { this.val = val; }
+    }
+
+    public Node copyRandomList(Node head) {
+        if (head == null) return null;
+
+        // 1. weave: A -> A' -> B -> B' -> ...
+        for (Node cur = head; cur != null; cur = cur.next.next) {
+            Node copy = new Node(cur.val);
+            copy.next = cur.next;
+            cur.next = copy;
+        }
+        // 2. wire up the random pointers of the copies
+        for (Node cur = head; cur != null; cur = cur.next.next) {
+            if (cur.random != null) cur.next.random = cur.random.next;
+        }
+        // 3. unweave into two lists
+        Node dummy = new Node(0), tail = dummy;
+        for (Node cur = head; cur != null; cur = cur.next) {
+            Node copy = cur.next;
+            tail.next = copy;
+            tail = copy;
+            cur.next = copy.next;      // restore the original list
+        }
+        return dummy.next;
+    }
+}
+```
+=== 48
+S: Two non-empty lists store non-negative integers with the digits in reverse order (least significant digit first). Add the numbers and return the sum in the same format.
+T: `l1 = [2,4,3], l2 = [5,6,4]` => `[7,0,8]`
+T: `l1 = [0], l2 = [0]` => `[0]`
+T: `l1 = [9,9,9,9,9,9,9], l2 = [9,9,9,9]` => `[8,9,9,9,0,0,0,1]`
+A: Add digit by digit like grade-school addition, carrying into the next node. Keep going while either list has digits or a carry remains, treating missing digits as 0.
+C: LS(new Solution().addTwoNumbers(L(2,4,3),L(5,6,4))).equals("[7,0,8]") && LS(new Solution().addTwoNumbers(L(0),L(0))).equals("[0]") && LS(new Solution().addTwoNumbers(L(9,9,9,9,9,9,9),L(9,9,9,9))).equals("[8,9,9,9,0,0,0,1]")
+```java
+class Solution {
+    public ListNode addTwoNumbers(ListNode l1, ListNode l2) {
+        ListNode dummy = new ListNode(0), tail = dummy;
+        int carry = 0;
+        while (l1 != null || l2 != null || carry != 0) {
+            int sum = carry;
+            if (l1 != null) { sum += l1.val; l1 = l1.next; }
+            if (l2 != null) { sum += l2.val; l2 = l2.next; }
+            tail.next = new ListNode(sum % 10);
+            tail = tail.next;
+            carry = sum / 10;
+        }
+        return dummy.next;
+    }
+}
+```
+=== 49
+S: Return whether a linked list contains a cycle (some node's `next` leads back to an earlier node).
+T: `head = [3,2,0,-4], tail connects to index 1` => `true`
+T: `head = [1,2], no cycle` => `false`
+T: `head = []` => `false`
+A: Floyd's tortoise and hare: move one pointer by 1 and another by 2. If there is a cycle the fast pointer eventually laps the slow one; otherwise it reaches null.
+C: { ListNode h = L(3,2,0,-4); h.next.next.next.next = h.next; return new Solution().hasCycle(h) && !new Solution().hasCycle(L(1,2)) && !new Solution().hasCycle(null); }
+```java
+class Solution {
+    public boolean hasCycle(ListNode head) {
+        ListNode slow = head, fast = head;
+        while (fast != null && fast.next != null) {
+            slow = slow.next;
+            fast = fast.next.next;
+            if (slow == fast) return true;
+        }
+        return false;
+    }
+}
+```
+=== 50
+S: If a linked list has a cycle, return the node where the cycle begins; otherwise return null. Do not modify the list.
+T: `head = [3,2,0,-4], tail connects to index 1` => `the node with value 2`
+T: `head = [1,2], no cycle` => `null`
+A: Use Floyd's algorithm to detect a meeting point. Then restart one pointer from the head and move both one step at a time; they meet exactly at the cycle entrance, because the distance from head to entrance equals the distance from the meeting point to it around the loop.
+C: { ListNode h = L(3,2,0,-4); h.next.next.next.next = h.next; return new Solution().detectCycle(h) == h.next && new Solution().detectCycle(L(1,2)) == null; }
+```java
+class Solution {
+    public ListNode detectCycle(ListNode head) {
+        ListNode slow = head, fast = head;
+        while (fast != null && fast.next != null) {
+            slow = slow.next;
+            fast = fast.next.next;
+            if (slow == fast) {                 // met inside the cycle
+                ListNode entry = head;
+                while (entry != slow) {
+                    entry = entry.next;
+                    slow = slow.next;
+                }
+                return entry;
+            }
+        }
+        return null;
+    }
+}
+```
+=== 51
+S: `nums` has `n + 1` integers, each between 1 and `n`, and exactly one value is repeated (possibly many times). Return the repeated value without modifying the array and using only O(1) extra space.
+T: `nums = [1,3,4,2,2]` => `2`
+T: `nums = [3,1,3,4,2]` => `3`
+T: `nums = [3,3,3,3,3]` => `3`
+A: Treat `i -> nums[i]` as a linked list. A duplicate means two indices point to the same next node, so the list has a cycle and the duplicate value is the cycle entrance. Find it with Floyd's two phases.
+C: new Solution().findDuplicate(new int[]{1,3,4,2,2})==2 && new Solution().findDuplicate(new int[]{3,1,3,4,2})==3 && new Solution().findDuplicate(new int[]{3,3,3,3,3})==3
+```java
+class Solution {
+    public int findDuplicate(int[] nums) {
+        int slow = nums[0], fast = nums[0];
+        do {                                   // phase 1: meet inside the cycle
+            slow = nums[slow];
+            fast = nums[nums[fast]];
+        } while (slow != fast);
+
+        slow = nums[0];                        // phase 2: find the entrance
+        while (slow != fast) {
+            slow = nums[slow];
+            fast = nums[fast];
+        }
+        return slow;
+    }
+}
+```
+=== 52
+S: Design a Least Recently Used cache with a fixed capacity. `get(key)` returns the value or -1; `put(key, value)` inserts or updates and evicts the least recently used key when the capacity is exceeded. Both must run in O(1).
+T: `capacity = 2; put(1,1), put(2,2), get(1)` => `1`
+T: `put(3,3), get(2)` => `-1 (key 2 was evicted)`
+T: `put(4,4), get(1), get(3), get(4)` => `-1, 3, 4`
+A: A `HashMap` gives O(1) lookup of nodes; a doubly linked list keeps usage order (most recent at the front). Every access moves the node to the front; eviction removes the node before the tail sentinel.
+C: { LRUCache c = new LRUCache(2); c.put(1,1); c.put(2,2); boolean a = c.get(1) == 1; c.put(3,3); boolean b = c.get(2) == -1; c.put(4,4); return a && b && c.get(1) == -1 && c.get(3) == 3 && c.get(4) == 4; }
+```java
+import java.util.*;
+
+class LRUCache {
+    private static class Node {
+        int key, val;
+        Node prev, next;
+        Node(int key, int val) { this.key = key; this.val = val; }
+    }
+
+    private final int capacity;
+    private final Map<Integer, Node> map = new HashMap<>();
+    private final Node head = new Node(0, 0), tail = new Node(0, 0); // sentinels
+
+    public LRUCache(int capacity) {
+        this.capacity = capacity;
+        head.next = tail;
+        tail.prev = head;
+    }
+
+    public int get(int key) {
+        Node n = map.get(key);
+        if (n == null) return -1;
+        unlink(n);
+        addFront(n);                       // now the most recently used
+        return n.val;
+    }
+
+    public void put(int key, int value) {
+        Node n = map.get(key);
+        if (n != null) {
+            n.val = value;
+            unlink(n);
+            addFront(n);
+            return;
+        }
+        if (map.size() == capacity) {
+            Node lru = tail.prev;          // least recently used
+            unlink(lru);
+            map.remove(lru.key);
+        }
+        n = new Node(key, value);
+        map.put(key, n);
+        addFront(n);
+    }
+
+    private void unlink(Node n) { n.prev.next = n.next; n.next.prev = n.prev; }
+
+    private void addFront(Node n) {
+        n.next = head.next;
+        n.prev = head;
+        head.next.prev = n;
+        head.next = n;
+    }
+}
+```
+=== 53
+S: Merge `k` sorted linked lists into one sorted linked list and return it.
+T: `lists = [[1,4,5],[1,3,4],[2,6]]` => `[1,1,2,3,4,4,5,6]`
+T: `lists = []` => `[]`
+T: `lists = [[]]` => `[]`
+A: Keep a min-heap holding the current head of each list. Pop the smallest, append it to the result, and push that node's successor. Each of the N nodes costs O(log K).
+C: LS(new Solution().mergeKLists(new ListNode[]{L(1,4,5),L(1,3,4),L(2,6)})).equals("[1,1,2,3,4,4,5,6]") && LS(new Solution().mergeKLists(new ListNode[]{})).equals("[]") && LS(new Solution().mergeKLists(new ListNode[]{L()})).equals("[]")
+```java
+import java.util.*;
+
+class Solution {
+    public ListNode mergeKLists(ListNode[] lists) {
+        PriorityQueue<ListNode> heap = new PriorityQueue<>((a, b) -> a.val - b.val);
+        for (ListNode head : lists) if (head != null) heap.offer(head);
+
+        ListNode dummy = new ListNode(0), tail = dummy;
+        while (!heap.isEmpty()) {
+            ListNode smallest = heap.poll();
+            tail.next = smallest;
+            tail = smallest;
+            if (smallest.next != null) heap.offer(smallest.next);
+        }
+        return dummy.next;
+    }
+}
+```
