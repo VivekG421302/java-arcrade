@@ -77,7 +77,7 @@ function IdePanel() {
   return (
     <motion.section
       initial={{ opacity: 0, x: 90 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 90 }} transition={spring}
-      className="relative flex min-w-0 flex-1 flex-col rounded-[28px] bg-[#0b0c10] p-2 text-slate-200 shadow-2xl ring-1 ring-white/10"
+      className="dark-surface relative flex min-w-0 flex-1 flex-col rounded-[28px] bg-[#0b0c10] p-2 text-slate-200 shadow-2xl ring-1 ring-white/10"
     >
       <header className="flex shrink-0 items-center gap-1 px-2 pb-2 pt-1">
         <button type="button" onClick={toggleHidden} aria-label={hidden ? 'Show the app view' : 'Hide the app view'} data-tip={hidden ? 'Bring back the app' : 'Hide the app'} data-tip-start="" className={ib}>

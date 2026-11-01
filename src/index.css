@@ -38,3 +38,19 @@ code[class*='language-'], pre code { background: none; }
 [data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; }
 .dark [data-tip]::after { background: #e2e8f0; color: #0f172a; }
 @media (hover: none) { [data-tip]::after { display: none; } }
+
+/* Themed, minimal scrollbars: thin, no track, soft thumb that brightens while you hover the scrollable area. */
+* { scrollbar-width: thin; scrollbar-color: rgba(100, 116, 139, 0.22) transparent; }
+*:hover { scrollbar-color: rgba(100, 116, 139, 0.5) transparent; }
+.dark * { scrollbar-color: rgba(148, 163, 184, 0.16) transparent; }
+.dark *:hover { scrollbar-color: rgba(148, 163, 184, 0.4) transparent; }
+/* always-dark surfaces (code blocks, IDE) keep light thumbs in either theme */
+.dark-surface, .dark-surface * { scrollbar-color: rgba(148, 163, 184, 0.16) transparent; }
+.dark-surface:hover, .dark-surface *:hover { scrollbar-color: rgba(148, 163, 184, 0.4) transparent; }
+/* Safari / older WebKit */
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.35); border: 3px solid transparent; border-radius: 999px; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.6); background-clip: content-box; }
+}
