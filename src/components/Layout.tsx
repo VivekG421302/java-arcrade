@@ -1,9 +1,10 @@
-import { Bell, BellOff, CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, LogIn, LogOut, Menu, MoreHorizontal, RefreshCw } from 'lucide-react'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Bell, BellOff, CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, LogIn, LogOut, Menu, MoreHorizontal, RefreshCw, SquareTerminal } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom'
 import { content, PHASES } from '../lib/content'
 import { useAuth } from '../hooks/useAuth'
 import { useProgress } from '../hooks/useProgress'
+import { useIde } from '../hooks/useIde'
 import { ThemeToggle } from './ui'
 import { disableReminders, enableReminders, reminderBlocked, reminderEnabled, reminderSupported, startLocalScheduler, subscribePush } from '../lib/reminder'
 
@@ -79,15 +80,17 @@ function AuthModal({ onClose }: { onClose: () => void }) {
 function TopBar({ onMenu, onToc, tocAvailable }: { onMenu: () => void; onToc: () => void; tocAvailable: boolean }) {
   const { user, enabled, signOut } = useAuth()
   const { streak } = useProgress()
+  const ide = useIde()
   const [modal, setModal] = useState(false)
   const [more, setMore] = useState(false)
   const btn = 'grid h-11 w-11 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-slate-100'
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-1 bg-white/90 px-2 backdrop-blur dark:bg-[#0f1115]/90 md:px-4">
+    <header className={`relative z-30 flex h-14 shrink-0 items-center gap-1 px-2 ${ide.open ? '' : 'md:px-4'}`}>
       <button type="button" onClick={onMenu} aria-label="Open navigation" data-tip="Menu" data-tip-start="" className={btn}><Menu size={20} aria-hidden /></button>
       <Link to="/" aria-label="Home" data-tip="Home" className={btn}><Coffee size={18} aria-hidden /></Link>
       <div className="ml-auto flex items-center gap-1">
         {tocAvailable && <button type="button" onClick={onToc} aria-label="Contents of this phase" data-tip="Contents" className={btn}><ListTree size={20} aria-hidden /></button>}
+        <button type="button" onClick={ide.toggle} aria-pressed={ide.open} aria-label="Java IDE" data-tip="Java IDE" className={`${btn} ${ide.open ? 'text-sky-500' : ''}`}><SquareTerminal size={20} aria-hidden /></button>
         <button type="button" onClick={() => setMore(!more)} aria-expanded={more} aria-label="Settings" data-tip="Settings" data-tip-end="" className={btn}><MoreHorizontal size={20} aria-hidden /></button>
       </div>
       {more && (
@@ -197,17 +200,21 @@ export default function Layout() {
   const [open, setOpen] = useState(false)
   const [toc, setToc] = useState(false)
   const { pathname, hash } = useLocation()
+  const ide = useIde()
+  const scroller = useRef<HTMLDivElement>(null)
   const onPhase = !!useMatch('/phase/:id')
   const close = useCallback(() => setOpen(false), [])
-  useEffect(() => { setOpen(false); setToc(false); if (!hash) window.scrollTo(0, 0) }, [pathname, hash])
+  useEffect(() => { setOpen(false); setToc(false); if (!hash) scroller.current?.scrollTo(0, 0) }, [pathname, hash])
   return (
-    <div className="min-h-screen">
+    <div className="relative flex h-full flex-col">
       <ReminderEngine />
       <TopBar onMenu={() => setOpen(true)} onToc={() => setToc(!toc)} tocAvailable={onPhase} />
       <Sidebar open={open} onClose={close} />
-      <main className="px-5 pb-24 pt-6 md:px-10">
-        <div className="mx-auto max-w-[760px]"><Outlet /></div>
-      </main>
+      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <main className={`pb-24 pt-4 ${ide.open ? 'px-5' : 'px-5 md:px-10'}`}>
+          <div className="mx-auto max-w-[760px]"><Outlet /></div>
+        </main>
+      </div>
       {toc && onPhase && <TOC onClose={() => setToc(false)} />}
     </div>
   )

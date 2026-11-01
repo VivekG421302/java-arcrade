@@ -56,6 +56,34 @@ for (const line of part(2).split('\n')) {
   if (q) questions.push({ n: +q[1], title: q[2], lc: +q[3], difficulty: q[4], target: q[5], category: cat })
 }
 
+// ---- IDE starter file per question: stubbed class + a Main with the sample tests as comments
+const DEFAULT_RET = { int: '0', long: '0L', short: '0', byte: '0', double: '0.0', float: '0f', boolean: 'false', char: "'\\0'" }
+function makeStarter(q) {
+  const lines = q.code.split('\n')
+  const cls = (lines.find((l) => /^class \w+/.test(l)) || '').match(/^class (\w+)/)?.[1] || 'Solution'
+  // nested helper class (e.g. Node) that the public signatures depend on
+  const ns = lines.findIndex((l) => /^    static class Node\b/.test(l))
+  let nested = ''
+  if (ns >= 0) {
+    let end = ns
+    while (!/^    \}/.test(lines[end])) end++
+    nested = lines.slice(ns, end + 1).join('\n') + '\n\n'
+  }
+  const stubs = lines
+    .filter((l) => /^    public .*\)\s*\{\s*$/.test(l))
+    .map((l) => {
+      const sig = l.trim().replace(/\s*\{$/, '').replace(/^public\s+/, '')
+      const parts = sig.slice(0, sig.indexOf('(')).trim().split(/\s+/)
+      const type = parts.length > 1 ? parts.slice(0, -1).join(' ') : null // null = constructor
+      const ret = type && type !== 'void' ? `        return ${DEFAULT_RET[type] ?? 'null'};\n` : ''
+      return `    public ${sig} {\n        // TODO: write your solution\n${ret}    }`
+    })
+  const defs = q.defs ? q.defs.replace(/^public /, '') + '\n\n' : ''
+  const tests = q.tests.slice(0, 3).map((t) => `        //   ${t.input}  =>  ${t.output}`).join('\n')
+  const make = cls === 'Solution' ? '        Solution solution = new Solution();\n' : `        // ${cls} obj = new ${cls}(...);\n`
+  return `import java.util.*;\n\n${defs}class ${cls} {\n${nested}${stubs.join('\n\n')}\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        // Sample tests:\n${tests}\n\n${make}        // System.out.println(...);\n    }\n}\n`
+}
+
 // ---- merge problem statements, test cases and Java solutions into the questions
 const DEFS = {
   ListNode: 'public class ListNode {\n    int val;\n    ListNode next;\n    ListNode(int val) { this.val = val; }\n}',
@@ -71,6 +99,7 @@ for (const q of questions) {
   q.code = p.code
   const need = Object.keys(DEFS).find((k) => new RegExp(`\\b${k}\\b`).test(p.code) && !new RegExp(`class ${k}\\b`).test(p.code))
   if (need) q.defs = DEFS[need]
+  q.starter = makeStarter(q)
 }
 
 // ---- table rows helper

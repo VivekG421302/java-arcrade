@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
+import Workspace from './components/Workspace'
 
 const Landing = lazy(() => import('./pages/Landing'))
 const PhaseView = lazy(() => import('./pages/PhaseView'))
@@ -11,6 +12,7 @@ const Scenarios = lazy(() => import('./pages/Scenarios'))
 
 export default function App() {
   return (
+    <Workspace>
     <Suspense fallback={<p className="p-8 text-slate-500" role="status">Loading…</p>}>
       <Routes>
         <Route element={<Layout />}>
@@ -24,5 +26,6 @@ export default function App() {
         </Route>
       </Routes>
     </Suspense>
+    </Workspace>
   )
 }

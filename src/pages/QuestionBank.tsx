@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Eye, EyeOff } from 'lucide-react'
+import { ExternalLink, Eye, EyeOff, SquareTerminal } from 'lucide-react'
 import { content, type LcQuestion } from '../lib/content'
 import { Accordion } from '../components/ui'
 import { CodeBlock, Inline } from '../components/content'
+import { useIde } from '../hooks/useIde'
 
 const diffColor: Record<string, string> = { Easy: 'text-emerald-500 bg-emerald-500/10', Medium: 'text-amber-500 bg-amber-500/10', Hard: 'text-red-500 bg-red-500/10' }
 const cats = Array.from(new Set(content.questions.map((q) => q.category)))
@@ -18,6 +19,9 @@ const Cell = ({ t }: { t: string }) => (t.includes('`') ? <Inline md={t} /> : <>
 
 function QuestionBody({ q }: { q: LcQuestion }) {
   const [show, setShow] = useState(false)
+  const ide = useIde()
+  const btn = 'inline-flex min-h-[44px] items-center gap-2 rounded-md border border-slate-400 px-4 text-sm font-medium hover:bg-slate-100 dark:hover:bg-white/5'
+  const lc = `https://leetcode.com/problemset/?search=${encodeURIComponent(q.title.replace(/\s*\(.*\)/, ''))}`
   return (
     <div>
       <Label>Problem</Label>
@@ -43,11 +47,16 @@ function QuestionBody({ q }: { q: LcQuestion }) {
       <Label>Expected complexity</Label>
       <p className="font-serif leading-7"><Inline md={q.target} /></p>
 
-      <button type="button" aria-expanded={show} onClick={() => setShow(!show)}
-        className="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-md border border-slate-400 px-4 text-sm font-medium hover:bg-slate-100 dark:hover:bg-white/5">
-        {show ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
-        {show ? 'Hide Java solution' : 'Show Java solution'}
-      </button>
+      <div className="mt-6 flex flex-wrap gap-2">
+        <button type="button" onClick={() => ide.openFor(q.n)} className={`${btn} border-sky-500 text-sky-600 dark:text-sky-400`}>
+          <SquareTerminal size={16} aria-hidden /> Practice in IDE
+        </button>
+        <button type="button" aria-expanded={show} onClick={() => setShow(!show)} className={btn}>
+          {show ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
+          {show ? 'Hide Java solution' : 'Show Java solution'}
+        </button>
+        <a href={lc} target="_blank" rel="noreferrer" className={btn}><ExternalLink size={16} aria-hidden /> LeetCode</a>
+      </div>
 
       {show && (
         <div>

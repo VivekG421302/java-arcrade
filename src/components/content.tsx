@@ -21,9 +21,14 @@ if (!('variable' in Prism.languages.java)) {
 const ALIAS: Record<string, string> = { xml: 'markup', html: 'markup', sh: 'bash', shell: 'bash', yml: 'yaml' }
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
+export function highlight(code: string, lang: string) {
+  const l = ALIAS[lang] ?? lang
+  return Prism.languages[l] ? Prism.highlight(code, Prism.languages[l], l) : esc(code)
+}
+
 export function CodeBlock({ code, lang = 'text', accent }: { code: string; lang?: string; accent?: 'bad' | 'good' }) {
   const l = ALIAS[lang] ?? lang
-  const html = useMemo(() => (Prism.languages[l] ? Prism.highlight(code, Prism.languages[l], l) : esc(code)), [code, l])
+  const html = useMemo(() => highlight(code, l), [code, l])
   const [copied, setCopied] = useState(false)
   const lines = code.split('\n').length
   const ring = accent === 'bad' ? 'border-l-4 border-l-red-500' : accent === 'good' ? 'border-l-4 border-l-emerald-500' : ''
