@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useProgress } from '../hooks/useProgress'
 import { useIde } from '../hooks/useIde'
 import { ThemeToggle } from './ui'
+import { tip, matches } from '../lib/shortcuts'
 import { disableReminders, enableReminders, reminderBlocked, reminderEnabled, reminderSupported, startLocalScheduler, subscribePush } from '../lib/reminder'
 
 const CHANGE = 'reminder-change'
@@ -86,11 +87,11 @@ function TopBar({ onMenu, onToc, tocAvailable }: { onMenu: () => void; onToc: ()
   const btn = 'grid h-11 w-11 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-slate-100'
   return (
     <header className={`relative z-30 flex h-14 shrink-0 items-center gap-1 px-2 ${ide.open ? '' : 'md:px-4'}`}>
-      <button type="button" onClick={onMenu} aria-label="Open navigation" data-tip="Menu" data-tip-start="" className={btn}><Menu size={20} aria-hidden /></button>
+      <button type="button" onClick={onMenu} aria-label="Open navigation" {...tip('Menu', 'menu')} data-tip-start="" className={btn}><Menu size={20} aria-hidden /></button>
       <Link to="/" aria-label="Home" data-tip="Home" className={btn}><Coffee size={18} aria-hidden /></Link>
       <div className="ml-auto flex items-center gap-1">
         {tocAvailable && <button type="button" onClick={onToc} aria-label="Contents of this phase" data-tip="Contents" className={btn}><ListTree size={20} aria-hidden /></button>}
-        <button type="button" onClick={ide.toggle} aria-pressed={ide.open} aria-label="Java IDE" data-tip="Java IDE" className={`${btn} ${ide.open ? 'text-sky-500' : ''}`}><SquareTerminal size={20} aria-hidden /></button>
+        <button type="button" onClick={ide.toggle} aria-pressed={ide.open} aria-label="Java IDE" {...tip('Java IDE', 'ide')} className={`${btn} ${ide.open ? 'text-sky-500' : ''}`}><SquareTerminal size={20} aria-hidden /></button>
         <button type="button" onClick={() => setMore(!more)} aria-expanded={more} aria-label="Settings" data-tip="Settings" data-tip-end="" className={btn}><MoreHorizontal size={20} aria-hidden /></button>
       </div>
       {more && (
@@ -205,6 +206,11 @@ export default function Layout() {
   const onPhase = !!useMatch('/phase/:id')
   const close = useCallback(() => setOpen(false), [])
   useEffect(() => { setOpen(false); setToc(false); if (!hash) scroller.current?.scrollTo(0, 0) }, [pathname, hash])
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (matches(e, 'menu')) { e.preventDefault(); setOpen((o) => !o) } }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [])
   return (
     <div className="relative flex h-full flex-col">
       <ReminderEngine />

@@ -55,3 +55,24 @@ Open it from a question ("Practice in IDE") or with the terminal icon in the top
 - **How code runs**: browsers cannot run `javac`, so code is sent to a [Judge0](https://github.com/judge0/judge0) server (public CE by default, rate limited; set `VITE_JUDGE0_URL` for your own). It needs an internet connection, and the entry point must be `public class Main`.
 - Built for laptop-sized screens; on small screens the IDE is not laid out.
 - To remove the feature: delete `components/Workspace.tsx`, `CodeEditor.tsx`, `hooks/useIde.tsx`, `lib/runner.ts` and unwrap `<Workspace>` in `App.tsx`.
+
+### Keyboard shortcuts
+Hover or focus any button (or long-press on touch) to see its tooltip with the shortcut. On macOS use Option instead of Alt and Command instead of Ctrl.
+
+| Action | Keys |
+| --- | --- |
+| Open / close the IDE | Alt+I |
+| Run | Ctrl+Enter |
+| Previous / next problem | Alt+P / Alt+N |
+| Toggle terminal | Alt+T |
+| Cycle terminal position (bottom, right, top, left) | Alt+D |
+| Hide / show the app view | Alt+H |
+| Narrower / wider app view | Alt+[ / Alt+] |
+| Smaller / bigger terminal | Alt+- / Alt+= |
+| Reset code to starter | Alt+Z |
+| Focus the editor / leave it | Alt+C / Esc |
+| Toggle Java solution / open LeetCode (for the problem in the IDE) | Alt+S / Alt+L |
+| Open the app menu | Alt+M |
+| Jump to search (Question Bank) | / |
+
+Resize handles (between the two screens and between editor and terminal): drag, double-click to reset, or focus and use the arrow keys (Enter resets). Sizes are remembered.

@@ -4,7 +4,7 @@ import { highlight } from './content'
 const PAIRS: Record<string, string> = { '{': '}', '(': ')', '[': ']', '"': '"' }
 
 /** Lightweight IDE-style editor: a transparent textarea over a Prism-highlighted <pre>. */
-export default function CodeEditor({ value, onChange, onRun }: { value: string; onChange: (v: string) => void; onRun: () => void }) {
+export default function CodeEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const ta = useRef<HTMLTextAreaElement>(null)
   const html = useMemo(() => highlight(value, 'java') + '\n', [value])
   const lineCount = value.split('\n').length
@@ -21,7 +21,7 @@ export default function CodeEditor({ value, onChange, onRun }: { value: string; 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget
     const { selectionStart: s, selectionEnd: en, value: v } = el
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); onRun(); return }
+    if (e.key === 'Escape') { document.getElementById('ide-run')?.focus(); return }   // leave the editor (Tab otherwise indents)
 
     if (e.key === 'Tab') {
       e.preventDefault()
@@ -66,7 +66,7 @@ export default function CodeEditor({ value, onChange, onRun }: { value: string; 
           <pre aria-hidden className="m-0 min-h-full py-4 pr-8"><code dangerouslySetInnerHTML={{ __html: html }} /></pre>
           <textarea
             ref={ta} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown}
-            spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" wrap="off" aria-label="Java code editor"
+            id="ide-editor" spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" wrap="off" aria-label="Java code editor"
             className="absolute inset-0 h-full w-full resize-none overflow-hidden whitespace-pre bg-transparent py-4 pr-8 font-mono text-[13px] leading-6 text-transparent caret-white outline-none selection:bg-sky-500/30"
             style={{ tabSize: 4 }}
           />

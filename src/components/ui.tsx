@@ -21,8 +21,10 @@ export function PhaseBadge({ status, score }: { status: Status; score?: number |
   return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-sans text-xs font-medium ${cls}`}><Icon size={13} aria-hidden />{label}</span>
 }
 
-export function Accordion({ title, meta, children, defaultOpen = false }: { title: ReactNode; meta?: ReactNode; children: ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen)
+export function Accordion({ title, meta, children, defaultOpen = false, open: controlled, onToggle }: { title: ReactNode; meta?: ReactNode; children: ReactNode; defaultOpen?: boolean; open?: boolean; onToggle?: (open: boolean) => void }) {
+  const [inner, setInner] = useState(defaultOpen)
+  const open = controlled ?? inner
+  const setOpen = (o: boolean) => (onToggle ? onToggle(o) : setInner(o))
   return (
     <div className="my-3 rounded-lg bg-slate-50 dark:bg-white/[0.03]">
       <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}

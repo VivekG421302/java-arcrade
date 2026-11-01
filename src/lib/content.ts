@@ -21,4 +21,5 @@ export const content = data as unknown as {
   scenarioMatrix: ScenarioRow[]
 }
 export const PHASES = content.phases
+export const leetUrl = (title: string) => `https://leetcode.com/problemset/?search=${encodeURIComponent(title.replace(/\s*\(.*\)/, ''))}`
 export const PASS_THRESHOLD = 0.8

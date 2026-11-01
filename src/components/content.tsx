@@ -33,7 +33,7 @@ export function CodeBlock({ code, lang = 'text', accent }: { code: string; lang?
   const lines = code.split('\n').length
   const ring = accent === 'bad' ? 'border-l-4 border-l-red-500' : accent === 'good' ? 'border-l-4 border-l-emerald-500' : ''
   return (
-    <div className={`my-5 overflow-hidden rounded-lg border border-white/10 bg-[#1e1e1e] text-[13px] text-[#d4d4d4] shadow-sm ${ring}`}>
+    <div className={`dark-surface my-5 overflow-hidden rounded-lg border border-white/10 bg-[#1e1e1e] text-[13px] text-[#d4d4d4] shadow-sm ${ring}`}>
       <div className="flex items-center justify-between border-b border-white/10 pl-3 pr-1 font-sans text-xs uppercase tracking-wide text-slate-400">
         <span>{lang}</span>
         <button type="button" aria-label="Copy code to clipboard" data-tip="Copy code" data-tip-end=""
