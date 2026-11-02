@@ -1,7 +1,7 @@
 // One place for every keyboard shortcut. Matching uses e.code, so Alt+letter works on macOS too.
 export type ShortcutId =
   | 'ide' | 'menu' | 'run' | 'terminal' | 'hideApp' | 'next' | 'prev' | 'dock' | 'reset' | 'focus'
-  | 'solution' | 'leetcode' | 'appNarrower' | 'appWider' | 'termSmaller' | 'termBigger'
+  | 'solution' | 'leetcode' | 'appNarrower' | 'appWider' | 'termSmaller' | 'termBigger' | 'fontSmaller' | 'fontBigger' | 'wrap'
 
 type Def = { code: string; alt?: boolean; mod?: boolean }
 const DEFS: Record<ShortcutId, Def> = {
@@ -21,8 +21,11 @@ const DEFS: Record<ShortcutId, Def> = {
   appWider: { code: 'BracketRight', alt: true },
   termSmaller: { code: 'Minus', alt: true },
   termBigger: { code: 'Equal', alt: true },
+  fontSmaller: { code: 'Comma', alt: true },
+  fontBigger: { code: 'Period', alt: true },
+  wrap: { code: 'KeyW', alt: true },
 }
-const NAMES: Record<string, string> = { Enter: 'Enter', BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=' }
+const NAMES: Record<string, string> = { Enter: 'Enter', BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=', Comma: ',', Period: '.' }
 
 export const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform)
 

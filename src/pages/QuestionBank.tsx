@@ -6,6 +6,7 @@ import { Accordion } from '../components/ui'
 import { CodeBlock, Inline } from '../components/content'
 import ChipScroller from '../components/ChipScroller'
 import { useIde } from '../hooks/useIde'
+import { usePersisted } from '../hooks/usePersisted'
 import { tip } from '../lib/shortcuts'
 
 const diffColor: Record<string, string> = { Easy: 'text-emerald-500 bg-emerald-500/10', Medium: 'text-amber-500 bg-amber-500/10', Hard: 'text-red-500 bg-red-500/10' }
@@ -89,12 +90,13 @@ export default function QuestionBank() {
   const [sp, setSp] = useSearchParams()
   const ide = useIde()
   const cat = sp.get('cat') || 'All'
-  const [diff, setDiff] = useState('All')
+  const [diff, setDiff] = usePersisted('qb:diff', 'All')
   const [text, setText] = useState('')
   const [limit, setLimit] = useState(PAGE)
   const [openN, setOpenN] = useState<Set<number>>(new Set())
   const search = useRef<HTMLInputElement>(null)
   const revealed = useRef<number | null>(null)
+  const firstRun = useRef(true)
 
   const list = useMemo(() => {
     const t = text.toLowerCase()
@@ -115,7 +117,8 @@ export default function QuestionBank() {
 
   // when the IDE moves to another problem (prev/next/practice), open and scroll to it here
   useEffect(() => {
-    if (!ide.open || ide.qn == null) { revealed.current = null; return }
+    if (!ide.open || ide.qn == null) { revealed.current = null; firstRun.current = false; return }
+    if (firstRun.current) { firstRun.current = false; revealed.current = ide.qn; return }   // restored session: keep your saved filters, only follow later navigation
     if (revealed.current === ide.qn) return
     const idx = list.findIndex((q) => q.n === ide.qn)
     if (idx === -1) { if (cat !== 'All') setSp({}); setDiff('All'); setText(''); return }   // filtered out: clear filters, then retry
@@ -139,12 +142,14 @@ export default function QuestionBank() {
           ))}
         </ChipScroller>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {['All', 'Easy', 'Medium', 'Hard'].map((d) => <button key={d} aria-pressed={diff === d} className={chip(diff === d)} onClick={() => { setDiff(d); setLimit(PAGE) }}>{d}</button>)}
-        <input ref={search} type="search" aria-label="Search questions" placeholder="Search…  ( / )" value={text} onChange={(e) => { setText(e.target.value); setLimit(PAGE) }}
-          onKeyDown={(e) => e.key === 'Escape' && e.currentTarget.blur()}
-          className="min-h-[44px] min-w-[8rem] flex-1 rounded-md border border-slate-300 bg-transparent px-3 dark:border-white/15" />
+      <div className="mt-2">
+        <ChipScroller label="Filter by difficulty">
+          {['All', 'Easy', 'Medium', 'Hard'].map((d) => <button key={d} aria-pressed={diff === d} className={chip(diff === d)} onClick={() => { setDiff(d); setLimit(PAGE) }}>{d}</button>)}
+        </ChipScroller>
       </div>
+      <input ref={search} type="search" aria-label="Search questions" placeholder="Search…  ( / )" value={text} onChange={(e) => { setText(e.target.value); setLimit(PAGE) }}
+        onKeyDown={(e) => e.key === 'Escape' && e.currentTarget.blur()}
+        className="mt-3 min-h-[44px] w-full rounded-md border border-slate-300 bg-transparent px-3 dark:border-white/15" />
       <div className="mt-6">
         {list.slice(0, limit).map((q) => (
           <div key={q.n} id={`q-${q.n}`} className="scroll-mt-2">

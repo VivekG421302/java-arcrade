@@ -5,18 +5,46 @@ export type EditorApi = { insert: (text: string, back?: number) => void; move: (
 export type Jump = { line: number; id: number; focus?: boolean }
 
 const PAIRS: Record<string, string> = { '{': '}', '(': ')', '[': ']', '"': '"' }
-const LINE = 24   // leading-6
-const PAD = 16    // py-4
 
-type Props = { value: string; onChange: (v: string) => void; errorLines?: number[]; jump?: Jump; onFocusChange?: (focused: boolean) => void }
+type Props = {
+  value: string
+  onChange: (v: string) => void
+  errorLines?: number[]
+  jump?: Jump
+  onFocusChange?: (focused: boolean) => void
+  fontSize?: number
+  wrap?: boolean
+}
 
-/** Lightweight IDE-style editor: a transparent textarea over a Prism-highlighted <pre>, with error-line highlighting. */
-const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onChange, errorLines = [], jump, onFocusChange }, ref) {
+/** Splits Prism's HTML into one HTML string per source line, closing and reopening spans across line breaks. */
+function splitLines(html: string): string[] {
+  const out: string[] = []
+  const stack: string[] = []
+  let cur = ''
+  for (const m of html.matchAll(/(<\/?span[^>]*>)|([^<]+)/g)) {
+    if (m[1]) {
+      if (m[1].startsWith('</')) stack.pop(); else stack.push(m[1])
+      cur += m[1]
+    } else {
+      m[2].split('\n').forEach((part, i) => {
+        if (i > 0) { out.push(cur + '</span>'.repeat(stack.length)); cur = stack.join('') }
+        cur += part
+      })
+    }
+  }
+  out.push(cur + '</span>'.repeat(stack.length))
+  return out
+}
+
+/** IDE-style editor: a transparent textarea over Prism-highlighted rows (one row per line, so wrapping keeps numbers aligned). */
+const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onChange, errorLines = [], jump, onFocusChange, fontSize = 13, wrap = false }, ref) {
   const ta = useRef<HTMLTextAreaElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
-  const html = useMemo(() => highlight(value, 'java') + '\n', [value])
-  const lineCount = value.split('\n').length
+  const rows = useMemo(() => splitLines(highlight(value, 'java')), [value])
   const errSet = useMemo(() => new Set(errorLines), [errorLines])
+  const lh = Math.round(fontSize * 1.85)
+  const gutter = Math.ceil(String(rows.length).length * fontSize * 0.62) + 28
+  const wrapCls = wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'whitespace-pre'
 
   const replace = (start: number, end: number, text: string, caret = start + text.length) => {
     const el = ta.current!
@@ -43,7 +71,8 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
     if (!jump || !el || !sc) return
     const pos = el.value.split('\n').slice(0, jump.line - 1).reduce((a, l) => a + l.length + 1, 0)
     if (jump.focus) { el.focus({ preventScroll: true }); el.setSelectionRange(pos, pos) }
-    sc.scrollTo({ top: Math.max(0, (jump.line - 4) * LINE), behavior: 'smooth' })
+    const row = sc.querySelector<HTMLElement>(`[data-line="${jump.line}"]`)
+    if (row) sc.scrollTo({ top: Math.max(0, row.offsetTop - lh * 3), behavior: 'smooth' })
   }, [jump?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -87,24 +116,26 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
   }
 
   return (
-    <div ref={scroller} className="h-full overflow-auto bg-[#1e1e1e] font-mono text-[13px] leading-6 text-[#d4d4d4]" style={{ tabSize: 4 }}>
-      <div className="flex min-h-full w-max min-w-full">
-        <div aria-hidden className="sticky left-0 z-10 select-none bg-[#1e1e1e] py-4 pl-4 pr-4 text-right text-slate-600">
-          {Array.from({ length: lineCount }, (_, i) => <div key={i} className={errSet.has(i + 1) ? 'font-semibold text-red-400' : ''}>{i + 1}</div>)}
+    <div ref={scroller} className="h-full overflow-auto bg-[#1e1e1e] font-mono text-[#d4d4d4]" style={{ fontSize, lineHeight: `${lh}px`, tabSize: 4 }}>
+      <div className="relative min-h-full" style={{ width: wrap ? '100%' : 'max-content', minWidth: '100%' }}>
+        <div aria-hidden className="py-4">
+          {rows.map((html, i) => {
+            const err = errSet.has(i + 1)
+            return (
+              <div key={i} data-line={i + 1} className={`flex ${err ? 'bg-red-500/15' : ''}`} style={{ minHeight: lh }}>
+                <span className={`sticky left-0 z-10 shrink-0 select-none pr-4 text-right ${err ? 'bg-[#2b1e21] font-semibold text-red-400' : 'bg-[#1e1e1e] text-slate-600'}`} style={{ width: gutter }}>{i + 1}</span>
+                <code className={`min-w-0 flex-1 pr-8 ${wrapCls}`} dangerouslySetInnerHTML={{ __html: html || '&#8203;' }} />
+              </div>
+            )
+          })}
         </div>
-        <div className="relative flex-1">
-          {errorLines.map((n) => (
-            <div key={n} aria-hidden className="pointer-events-none absolute inset-x-0 border-l-2 border-red-500 bg-red-500/15" style={{ top: PAD + (n - 1) * LINE, height: LINE }} />
-          ))}
-          <pre aria-hidden className="relative m-0 min-h-full py-4 pr-8"><code dangerouslySetInnerHTML={{ __html: html }} /></pre>
-          <textarea
-            ref={ta} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown}
-            onFocus={() => onFocusChange?.(true)} onBlur={() => onFocusChange?.(false)}
-            id="ide-editor" spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" wrap="off" aria-label="Java code editor"
-            className="absolute inset-0 h-full w-full resize-none overflow-hidden whitespace-pre bg-transparent py-4 pr-8 font-mono text-[13px] leading-6 text-transparent caret-white outline-none selection:bg-sky-500/30"
-            style={{ tabSize: 4 }}
-          />
-        </div>
+        <textarea
+          ref={ta} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown}
+          onFocus={() => onFocusChange?.(true)} onBlur={() => onFocusChange?.(false)}
+          id="ide-editor" spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" wrap={wrap ? 'soft' : 'off'} aria-label="Java code editor"
+          className={`absolute bottom-0 right-0 top-0 resize-none overflow-hidden bg-transparent py-4 pr-8 font-mono text-transparent caret-white outline-none selection:bg-sky-500/30 ${wrapCls}`}
+          style={{ left: gutter, fontSize, lineHeight: `${lh}px`, tabSize: 4 }}
+        />
       </div>
     </div>
   )

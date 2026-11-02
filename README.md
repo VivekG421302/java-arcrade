@@ -70,6 +70,8 @@ Hover or focus any button (or long-press on touch) to see its tooltip with the s
 | Narrower / wider app view | Alt+[ / Alt+] |
 | Smaller / bigger terminal | Alt+- / Alt+= |
 | Reset code to starter | Alt+Z |
+| Smaller / bigger editor text | Alt+, / Alt+. |
+| Wrap long lines | Alt+W |
 | Focus the editor / leave it | Alt+C / Esc |
 | Toggle Java solution / open LeetCode (for the problem in the IDE) | Alt+S / Alt+L |
 | Open the app menu | Alt+M |
@@ -81,3 +83,8 @@ Resize handles (between the two screens and between editor and terminal): drag, 
 - **Sidebar**: on a wide screen with the IDE closed it sits beside the content and shares the space (no dimming). On small screens, or whenever the IDE is open (so the app is phone-sized), it opens as an overlay covering the app view, and closes when you pick something, tap outside it, press Esc or use the menu button.
 - **Small screens**: the app and the IDE are two full-screen views. The panel icon in the IDE header (or the terminal icon in the top bar) switches between them. A symbol keyboard (brackets, operators, `->`, Tab, caret arrows and common Java snippets) sits above the native keyboard while you edit.
 - **Errors**: lines named in compiler errors or stack traces are highlighted in the editor and the line number turns red; `Main.java:12` in the terminal jumps to that line. Editing clears the highlight.
+
+### Preferences (saved in localStorage)
+Everything you adjust is remembered per browser: theme, reminder on/off, the docked sidebar and its expanded sections, the IDE (open/closed, current problem, app-view width, terminal position, size and open state, editor text size and wrapping), the Question Bank difficulty filter, your code per problem, reading progress and test results. Line wrapping defaults to on for small screens until you choose otherwise. The reset button in the top-bar settings menu clears the layout and preference keys (not your code or progress).
+
+Cursors follow the action: grab/grabbing on scrollable chip rows (drag to scroll), resize cursors on the drag handles, not-allowed on disabled controls, progress while code is running.
