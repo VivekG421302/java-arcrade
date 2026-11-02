@@ -1,4 +1,4 @@
-import { Bell, BellOff, CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, LogIn, LogOut, Menu, MoreHorizontal, RefreshCw, SquareTerminal, X } from 'lucide-react'
+import { Bell, BellOff, CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, LogIn, LogOut, Menu, MoreHorizontal, RefreshCw, RotateCcw, SquareTerminal, X } from 'lucide-react'
 import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom'
@@ -6,6 +6,7 @@ import { content, PHASES } from '../lib/content'
 import { useAuth } from '../hooks/useAuth'
 import { useProgress } from '../hooks/useProgress'
 import { useIde } from '../hooks/useIde'
+import { resetPreferences, usePersisted } from '../hooks/usePersisted'
 import { NARROW, useMedia } from '../hooks/useMedia'
 import { ThemeToggle } from './ui'
 import { tip, matches } from '../lib/shortcuts'
@@ -102,6 +103,7 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
           <span data-tip="Day streak" data-tip-end="" className="relative inline-flex items-center gap-1 px-2 text-sm text-slate-500"><Flame size={14} aria-hidden /> {streak}</span>
           <ReminderToggle />
           <ThemeToggle />
+          <button type="button" onClick={() => { if (window.confirm('Reset layout and preferences (theme, sidebar, IDE size and text settings, reminder)? Your progress and code are kept.')) { resetPreferences(); window.location.reload() } }} aria-label="Reset layout and preferences" data-tip="Reset layout and preferences" data-tip-end="" className={btn}><RotateCcw size={17} aria-hidden /></button>
           {user ? (
             <button type="button" onClick={signOut} data-tip="Sign out" data-tip-end="" aria-label="Sign out" className={btn}><LogOut size={18} aria-hidden /></button>
           ) : enabled ? (
@@ -118,8 +120,8 @@ function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; 
   const { statusOf, readPct } = useProgress()
   const loc = useLocation()
   const m = useMatch('/phase/:id/*')
-  const [expanded, setExpanded] = useState<number[]>([])
-  const [qOpen, setQOpen] = useState(false)
+  const [expanded, setExpanded] = usePersisted<number[]>('ui:expanded', [])
+  const [qOpen, setQOpen] = usePersisted('ui:qOpen', false)
   const dock = useRef<HTMLElement>(null)
   useEffect(() => { if (dock.current) dock.current.inert = !open }, [open, overlay])   // closed docked sidebar: not focusable
   useEffect(() => { if (!open) return; const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [open, onClose])
@@ -219,29 +221,32 @@ function TOC({ onClose }: { onClose: () => void }) {
 }
 
 export default function Layout() {
-  const [open, setOpen] = useState(false)
+  const [docked, setDocked] = usePersisted('ui:sidebar', false)   // remembered open/closed state of the docked sidebar
+  const [pop, setPop] = useState(false)                             // overlay menu is always closed on load
   const [toc, setToc] = useState(false)
   const { pathname, hash, search } = useLocation()
   const ide = useIde()
   const narrow = useMedia(NARROW)
   const overlay = ide.open || narrow
+  const open = overlay ? pop : docked
+  const toggleMenu = useCallback(() => (overlay ? setPop((o) => !o) : setDocked((o) => !o)), [overlay, setDocked])
   const scroller = useRef<HTMLDivElement>(null)
   const onPhase = !!useMatch('/phase/:id')
-  const close = useCallback(() => setOpen(false), [])
+  const close = useCallback(() => (overlay ? setPop(false) : setDocked(false)), [overlay, setDocked])
 
   useEffect(() => { if (!hash) scroller.current?.scrollTo(0, 0) }, [pathname, hash])
-  useEffect(() => { setToc(false); if (overlay) setOpen(false) }, [pathname, hash, search])   // picking something closes the overlay menu
-  useEffect(() => { setOpen(false) }, [overlay])                                              // layout mode changed (IDE opened/closed, resize)
+  useEffect(() => { setToc(false); if (overlay) setPop(false) }, [pathname, hash, search])   // picking something closes the overlay menu
+  useEffect(() => { setPop(false) }, [overlay])                                              // layout mode changed (IDE opened/closed, resize)
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (matches(e, 'menu')) { e.preventDefault(); setOpen((o) => !o) } }
+    const h = (e: KeyboardEvent) => { if (matches(e, 'menu')) { e.preventDefault(); toggleMenu() } }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [])
+  }, [toggleMenu])
   useEffect(() => {                                                                           // tap anywhere outside closes the overlay menu
     if (!overlay || !open) return
     const h = (e: PointerEvent) => {
       const t = e.target as Element
-      if (!t.closest('#app-menu') && !t.closest('[data-menu-toggle]')) setOpen(false)
+      if (!t.closest('#app-menu') && !t.closest('[data-menu-toggle]')) setPop(false)
     }
     document.addEventListener('pointerdown', h)
     return () => document.removeEventListener('pointerdown', h)
@@ -250,7 +255,7 @@ export default function Layout() {
   return (
     <div className="relative flex h-full flex-col">
       <ReminderEngine />
-      <TopBar onMenu={() => setOpen((o) => !o)} menuOpen={open} onToc={() => setToc(!toc)} tocAvailable={onPhase} />
+      <TopBar onMenu={toggleMenu} menuOpen={open} onToc={() => setToc(!toc)} tocAvailable={onPhase} />
       <div className="relative flex min-h-0 flex-1">
         <Sidebar open={open} overlay={overlay} onClose={close} />
         <div ref={scroller} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">

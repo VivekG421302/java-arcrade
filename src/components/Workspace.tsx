@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Loader2, PanelBottom, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelTop, Play, RotateCcw, SquareTerminal, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, PanelBottom, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelTop, Play, RotateCcw, SquareTerminal, Type, WrapText, X, Minus, Plus } from 'lucide-react'
 import { content, leetUrl } from '../lib/content'
 import { errorLines, runJava, type RunResult } from '../lib/runner'
 import { DEFAULTS, useIde, type Dock } from '../hooks/useIde'
@@ -86,11 +86,14 @@ export default function Workspace({ children }: { children: ReactNode }) {
 }
 
 const ib = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent'
-const DOCKS: [Dock, typeof PanelBottom, string][] = [['bottom', PanelBottom, 'Terminal at bottom'], ['right', PanelRight, 'Terminal on right'], ['top', PanelTop, 'Terminal on top'], ['left', PanelLeft, 'Terminal on left']]
+const DOCKS: [Dock, typeof PanelBottom, string][] = [['bottom', PanelBottom, 'Bottom'], ['right', PanelRight, 'Right'], ['top', PanelTop, 'Top'], ['left', PanelLeft, 'Left']]
+const MIN_FONT = 10, MAX_FONT = 24, DEFAULT_FONT = 13
 
 function IdePanel({ narrow }: { narrow: boolean }) {
   const ide = useIde()
-  const { qn, hidden, termOpen, termH, termW, phoneW, go, setPhoneW, setDock, setTermOpen, setTermSize } = ide
+  const { qn, hidden, termOpen, termH, termW, phoneW, go, setPhoneW, setDock, setTermOpen, setTermSize, fontSize, setFontSize } = ide
+  const wrapOn = ide.wrap ?? narrow                                   // automatic: wrap on small screens
+  const bumpFont = (d: number) => setFontSize((n) => Math.max(MIN_FONT, Math.min(MAX_FONT, n + d)))
   const dock: Dock = narrow ? 'bottom' : ide.dock                     // small screens always use the bottom dock
   const q = qn ? content.questions.find((x) => x.n === qn) : undefined
   const starter = q?.starter ?? SCRATCH
@@ -151,7 +154,8 @@ function IdePanel({ narrow }: { narrow: boolean }) {
       hit('solution', () => q && window.dispatchEvent(new CustomEvent('ide:solution', { detail: q.n }))) ||
       hit('leetcode', () => q && window.open(leetUrl(q.title), '_blank', 'noopener')) ||
       hit('appNarrower', () => setPhoneW(Math.max(MIN_PHONE, phoneW - 24))) || hit('appWider', () => setPhoneW(phoneW + 24)) ||
-      hit('termSmaller', () => setSize(size - 24)) || hit('termBigger', () => setSize(size + 24))
+      hit('termSmaller', () => setSize(size - 24)) || hit('termBigger', () => setSize(size + 24)) ||
+      hit('fontSmaller', () => bumpFont(-1)) || hit('fontBigger', () => bumpFont(1)) || hit('wrap', () => ide.setWrap(!wrapOn))
   }
   useEffect(() => {
     const h = (e: KeyboardEvent) => actions.current(e)
@@ -187,17 +191,11 @@ function IdePanel({ narrow }: { narrow: boolean }) {
           {!narrow && <span className="ml-2 rounded-md bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-slate-500">Main.java</span>}
         </p>
         <button type="button" onClick={() => go(1)} disabled={qn !== null && qn >= total} aria-label="Next problem" {...tip('Next problem', 'next')} className={ib}><ChevronRight size={18} aria-hidden /></button>
-        {!narrow && (
-          <div className="ml-1 flex items-center gap-0.5 rounded-xl bg-white/5 p-0.5" role="group" aria-label="Terminal position">
-            {DOCKS.map(([d, Icon, label]) => (
-              <button key={d} type="button" aria-pressed={dock === d} aria-label={label} {...tip(label, undefined, `${keyLabel('dock')} cycles`)} onClick={() => moveDock(d)}
-                className={`${ib} !h-8 !w-8 ${dock === d && termOpen ? 'bg-white/10 text-sky-400' : ''}`}><Icon size={16} aria-hidden /></button>
-            ))}
-          </div>
-        )}
+        {!narrow && <DockPicker dock={dock} termOpen={termOpen} onPick={moveDock} />}
         <button type="button" onClick={() => setTermOpen(!termOpen)} aria-pressed={termOpen} aria-label="Toggle terminal" {...tip('Toggle terminal', 'terminal')} className={`${ib} ${termOpen ? 'text-sky-400' : ''}`}><SquareTerminal size={18} aria-hidden /></button>
-        <button type="button" onClick={reset} aria-label="Reset code" {...tip('Reset to starter', 'reset')} className={ib}><RotateCcw size={16} aria-hidden /></button>
-        <button id="ide-run" type="button" onClick={run} disabled={res.state === 'running'} aria-label="Run code" {...tip('Run', 'run')}
+        <ViewOptions fontSize={fontSize} wrap={wrapOn} onFont={bumpFont} onFontReset={() => setFontSize(DEFAULT_FONT)} onWrap={ide.setWrap} narrow={narrow} onReset={reset} />
+        {!narrow && <button type="button" onClick={reset} aria-label="Reset code" {...tip('Reset to starter', 'reset')} className={ib}><RotateCcw size={16} aria-hidden /></button>}
+        <button id="ide-run" type="button" onClick={run} disabled={res.state === 'running'} aria-label="Run code" aria-busy={res.state === 'running'} {...tip('Run', 'run')}
           className="ml-0.5 inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60">
           {res.state === 'running' ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Play size={16} aria-hidden />}{!narrow && ' Run'}
         </button>
@@ -206,7 +204,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
 
       <div ref={body} className={`flex min-h-0 flex-1 ${dir}`}>
         <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl">
-          <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} />
+          <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} fontSize={fontSize} wrap={wrapOn} />
         </div>
         <AnimatePresence initial={false}>
           {termOpen && (
@@ -229,6 +227,80 @@ function IdePanel({ narrow }: { narrow: boolean }) {
 
       {touchy && focused && createPortal(<SymbolBar editor={api} inset={inset} onHide={api.blur} />, document.body)}
     </motion.section>
+  )
+}
+
+function useDismiss(open: boolean, ref: RefObject<HTMLElement>, close: () => void) {
+  useEffect(() => {
+    if (!open) return
+    const d = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) close() }
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    document.addEventListener('pointerdown', d)
+    window.addEventListener('keydown', k)
+    return () => { document.removeEventListener('pointerdown', d); window.removeEventListener('keydown', k) }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+const pop = 'absolute right-0 top-11 z-30 rounded-xl bg-[#171a20] p-1 shadow-xl ring-1 ring-white/10'
+const popAnim = { initial: { opacity: 0, y: -6, scale: 0.96 }, animate: { opacity: 1, y: 0, scale: 1 }, exit: { opacity: 0, y: -6, scale: 0.96 }, transition: { duration: 0.15 } }
+
+/** Shows only the active terminal position; click to reveal the other three. */
+function DockPicker({ dock, termOpen, onPick }: { dock: Dock; termOpen: boolean; onPick: (d: Dock) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useDismiss(open, ref, () => setOpen(false))
+  const Active = DOCKS.find(([d]) => d === dock)![1]
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label="Terminal position" {...tip(`Terminal: ${dock}`, undefined, `${keyLabel('dock')} cycles`)} onClick={() => setOpen(!open)}
+        className={`${ib} ${termOpen ? 'text-sky-400' : ''}`}><Active size={16} aria-hidden /></button>
+      <AnimatePresence>
+        {open && (
+          <motion.div role="menu" aria-label="Move terminal to" {...popAnim} className={`${pop} w-36`}>
+            {DOCKS.filter(([d]) => d !== dock).map(([d, Icon, label]) => (
+              <button key={d} type="button" role="menuitem" aria-label={`Dock terminal ${label.toLowerCase()}`} onClick={() => { onPick(d); setOpen(false) }}
+                className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-sm text-slate-300 hover:bg-white/10 hover:text-white"><Icon size={16} aria-hidden /> {label}</button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+/** Editor-only view options: text size and line wrapping (the app itself is untouched). */
+function ViewOptions({ fontSize, wrap, onFont, onFontReset, onWrap, narrow, onReset }: {
+  fontSize: number; wrap: boolean; onFont: (d: number) => void; onFontReset: () => void; onWrap: (w: boolean) => void; narrow: boolean; onReset: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useDismiss(open, ref, () => setOpen(false))
+  const step = 'grid h-8 w-8 place-items-center rounded-lg bg-white/5 text-slate-300 hover:bg-white/10 disabled:opacity-30'
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" aria-haspopup="dialog" aria-expanded={open} aria-label="Editor text options" {...tip('Text size and wrapping')} onClick={() => setOpen(!open)} className={`${ib} ${open ? 'text-sky-400' : ''}`}><Type size={17} aria-hidden /></button>
+      <AnimatePresence>
+        {open && (
+          <motion.div role="dialog" aria-label="Editor text options" {...popAnim} className={`${pop} w-64 space-y-3 p-3 text-sm`}>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-300">Text size</span>
+              <span className="flex items-center gap-1">
+                <button type="button" aria-label="Smaller text" {...tip('Smaller text', 'fontSmaller')} disabled={fontSize <= MIN_FONT} onClick={() => onFont(-1)} className={step}><Minus size={14} aria-hidden /></button>
+                <button type="button" aria-label="Reset text size" {...tip('Reset text size')} onClick={onFontReset} className="min-w-[3.25rem] rounded-lg px-1 py-1 text-center font-mono text-slate-200 hover:bg-white/5">{fontSize}px</button>
+                <button type="button" aria-label="Bigger text" {...tip('Bigger text', 'fontBigger')} disabled={fontSize >= MAX_FONT} onClick={() => onFont(1)} className={step}><Plus size={14} aria-hidden /></button>
+              </span>
+            </div>
+            <button type="button" role="switch" aria-checked={wrap} {...tip('Wrap long lines', 'wrap')} onClick={() => onWrap(!wrap)} className="flex w-full items-center justify-between rounded-lg py-1 text-left">
+              <span className="inline-flex items-center gap-2 text-slate-300"><WrapText size={16} aria-hidden /> Wrap lines</span>
+              <span className={`relative h-5 w-9 rounded-full transition-colors ${wrap ? 'bg-sky-500' : 'bg-white/15'}`}>
+                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${wrap ? 'left-[1.15rem]' : 'left-0.5'}`} />
+              </span>
+            </button>
+            {narrow && <button type="button" onClick={() => { onReset(); setOpen(false) }} className="flex h-9 w-full items-center gap-2 rounded-lg px-1 text-slate-300 hover:bg-white/10"><RotateCcw size={15} aria-hidden /> Reset code to starter</button>}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
 

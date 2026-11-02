@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { content } from '../lib/content'
+import { usePersisted } from './usePersisted'
 
 export type Dock = 'bottom' | 'right' | 'top' | 'left'
 
@@ -12,6 +13,10 @@ type Ctx = {
   dock: Dock                 // where the terminal sits
   termOpen: boolean
   phoneW: number
+  fontSize: number           // editor text size (px)
+  wrap: boolean | null       // editor line wrapping; null = automatic (on for small screens)
+  setFontSize: (n: number | ((prev: number) => number)) => void
+  setWrap: (w: boolean) => void
   termH: number              // terminal height when docked top/bottom
   termW: number              // terminal width when docked left/right
   openFor: (n: number | null) => void
@@ -35,19 +40,21 @@ const put = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch
 const num = (k: string, d: number) => { const v = Number(get(k)); return v > 0 ? v : d }
 
 export function IdeProvider({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false)
-  const [qn, setQn] = useState<number | null>(null)
-  const [hidden, setHidden] = useState(false)
+  const [open, setOpen] = usePersisted('ide:open', false)
+  const [qn, setQn] = usePersisted<number | null>('ide:qn', null)
+  const [hidden, setHidden] = usePersisted('ide:hidden', false)
   const [dock, setDockState] = useState<Dock>((get('ide:dock') as Dock) || 'bottom')
-  const [termOpen, setTermOpen] = useState(true)
+  const [termOpen, setTermOpen] = usePersisted('ide:termOpen', true)
+  const [fontSize, setFontSize] = usePersisted('ide:fontSize', 13)
+  const [wrap, setWrap] = usePersisted<boolean | null>('ide:wrap', null)
   const [phoneW, setPhone] = useState(() => num('ide:phoneW', DEFAULTS.phoneW))
   const [termH, setH] = useState(() => num('ide:termH', DEFAULTS.termH))
   const [termW, setW] = useState(() => num('ide:termW', DEFAULTS.termW))
 
-  const openFor = useCallback((n: number | null) => { setQn(n); setOpen(true) }, [])
+  const openFor = useCallback((n: number | null) => { setQn(n); setOpen(true) }, [setQn, setOpen])
   const go = useCallback((delta: number) => {
     setQn((cur) => Math.min(content.questions.length, Math.max(1, (cur ?? (delta > 0 ? 0 : 2)) + delta)))
-  }, [])
+  }, [setQn])
   const setDock = useCallback((d: Dock) => { setDockState(d); put('ide:dock', d) }, [])
   const setPhoneW = useCallback((n: number) => { setPhone(n); put('ide:phoneW', String(Math.round(n))) }, [])
   const setTermSize = useCallback((axis: 'h' | 'w', n: number) => {
@@ -55,7 +62,7 @@ export function IdeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<Ctx>(() => ({
-    open, qn, hidden, dock, termOpen, phoneW, termH, termW,
+    open, qn, hidden, dock, termOpen, phoneW, termH, termW, fontSize, wrap, setFontSize, setWrap,
     openFor, go, setDock, setTermOpen, setPhoneW, setTermSize,
     toggle: () => setOpen((o) => !o),
     toggleSmart: (narrow: boolean) => { if (narrow && open && !hidden) setHidden(true); else setOpen((o) => !o) },
@@ -63,7 +70,7 @@ export function IdeProvider({ children }: { children: ReactNode }) {
     close: () => { setOpen(false); setHidden(false) },
     toggleHidden: () => setHidden((h) => !h),
     toggleTerm: () => setTermOpen((t) => !t),
-  }), [open, qn, hidden, dock, termOpen, phoneW, termH, termW, openFor, go, setDock, setPhoneW, setTermSize])
+  }), [open, qn, hidden, dock, termOpen, phoneW, termH, termW, fontSize, wrap, setFontSize, setWrap, setOpen, setQn, setHidden, setTermOpen, openFor, go, setDock, setPhoneW, setTermSize])
   return <C.Provider value={value}>{children}</C.Provider>
 }
 export const useIde = () => useContext(C)
