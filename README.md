@@ -76,3 +76,8 @@ Hover or focus any button (or long-press on touch) to see its tooltip with the s
 | Jump to search (Question Bank) | / |
 
 Resize handles (between the two screens and between editor and terminal): drag, double-click to reset, or focus and use the arrow keys (Enter resets). Sizes are remembered.
+
+### Layout behaviour
+- **Sidebar**: on a wide screen with the IDE closed it sits beside the content and shares the space (no dimming). On small screens, or whenever the IDE is open (so the app is phone-sized), it opens as an overlay covering the app view, and closes when you pick something, tap outside it, press Esc or use the menu button.
+- **Small screens**: the app and the IDE are two full-screen views. The panel icon in the IDE header (or the terminal icon in the top bar) switches between them. A symbol keyboard (brackets, operators, `->`, Tab, caret arrows and common Java snippets) sits above the native keyboard while you edit.
+- **Errors**: lines named in compiler errors or stack traces are highlighted in the editor and the line number turns red; `Main.java:12` in the terminal jumps to that line. Editing clears the highlight.

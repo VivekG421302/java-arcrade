@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight, Loader2, PanelBottom, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelTop, Play, RotateCcw, SquareTerminal, X } from 'lucide-react'
 import { content, leetUrl } from '../lib/content'
-import { runJava, type RunResult } from '../lib/runner'
+import { errorLines, runJava, type RunResult } from '../lib/runner'
 import { DEFAULTS, useIde, type Dock } from '../hooks/useIde'
+import { NARROW, useKeyboardInset, useMedia } from '../hooks/useMedia'
 import { useTips } from '../hooks/useTips'
 import { keyLabel, matches, tip } from '../lib/shortcuts'
-import CodeEditor from './CodeEditor'
+import CodeEditor, { type EditorApi, type Jump } from './CodeEditor'
 import Resizer from './Resizer'
+import SymbolBar from './SymbolBar'
 
 const spring = { type: 'spring', stiffness: 240, damping: 30 } as const
 const slide = { duration: 0.34, ease: [0.32, 0.72, 0, 1] } as const   // smooth in both directions
@@ -25,44 +28,51 @@ public class Main {
 
 type Res = { state: 'idle' } | { state: 'running' } | { state: 'error'; message: string } | ({ state: 'done' } & RunResult)
 
-/** One screen, two views: the app shrinks to a phone-sized view and the IDE appears beside it. Both are resizable. */
+/**
+ * One screen, two views. Wide screens: the app shrinks to a phone-sized view with the IDE beside it (both resizable).
+ * Narrow screens: the app and the IDE are two full-screen views that you switch between.
+ */
 export default function Workspace({ children }: { children: ReactNode }) {
-  const { open, hidden, phoneW, setPhoneW, toggle } = useIde()
+  const { open, hidden, phoneW, setPhoneW, setHidden, toggleSmart } = useIde()
+  const narrow = useMedia(NARROW)
   const root = useRef<HTMLDivElement>(null)
   const phone = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState(false)
   useTips()
 
   useEffect(() => { if (phone.current) phone.current.inert = hidden }, [hidden])   // no tabbing into the hidden view
+  useEffect(() => { if (open && narrow) setHidden(true) }, [open, narrow, setHidden])   // small screens: land on the IDE
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (matches(e, 'ide')) { e.preventDefault(); toggle() } }
+    const h = (e: KeyboardEvent) => { if (matches(e, 'ide')) { e.preventDefault(); toggleSmart(narrow) } }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [toggle])
+  }, [toggleSmart, narrow])
 
   const clamp = (w: number) => Math.max(MIN_PHONE, Math.min(w, (root.current?.clientWidth ?? 1400) - GAP * 2 - MIN_IDE))
   const t = dragging ? instant : spring
+  const gap = narrow ? 8 : GAP
+  const phoneWidth = !open ? '100%' : hidden ? 0 : narrow ? '100%' : clamp(phoneW)
+  const innerWidth = open && !narrow ? clamp(phoneW) : '100%'
 
   return (
     <motion.div
-      ref={root} initial={false} animate={{ padding: open ? GAP : 0 }} transition={spring}
+      ref={root} initial={false} animate={{ padding: open ? gap : 0 }} transition={spring}
       className={`relative flex h-dvh overflow-hidden transition-colors duration-500 ${open ? 'bg-slate-200 dark:bg-[#050608]' : ''}`}
     >
       <motion.div
-        ref={phone} initial={false}
-        animate={{ width: !open ? '100%' : hidden ? 0 : clamp(phoneW), borderRadius: open ? 28 : 0 }} transition={t}
+        ref={phone} initial={false} animate={{ width: phoneWidth, borderRadius: open ? (narrow ? 20 : 28) : 0 }} transition={t}
         className={`relative shrink-0 overflow-hidden ${open ? 'shadow-2xl ring-1 ring-black/5 dark:ring-white/10' : ''}`}
       >
         {/* anchored to the right edge, so shrinking the container looks like the screen sliding out to the left */}
-        <motion.div initial={false} animate={{ width: open ? clamp(phoneW) : '100%' }} transition={t} className="absolute inset-y-0 right-0 bg-white dark:bg-[#0f1115]">
-          {/* a plain div (framer would override transform): makes `position: fixed` children, like the drawers, relative to this view */}
+        <motion.div initial={false} animate={{ width: innerWidth }} transition={t} className="absolute inset-y-0 right-0 bg-white dark:bg-[#0f1115]">
+          {/* a plain div (framer would override transform): makes `position: fixed` children relative to this view */}
           <div className="h-full w-full [transform:translateZ(0)]">{children}</div>
         </motion.div>
       </motion.div>
 
-      {/* drag handle between the two screens */}
-      <motion.div initial={false} animate={{ width: open && !hidden ? GAP : 0 }} transition={t} className="relative shrink-0">
-        {open && !hidden && (
+      {/* drag handle between the two screens (wide screens only) */}
+      <motion.div initial={false} animate={{ width: open && !hidden && !narrow ? GAP : 0 }} transition={t} className="relative shrink-0">
+        {open && !hidden && !narrow && (
           <Resizer axis="x" label="Resize app view"
             onStart={() => setDragging(true)} onEnd={() => setDragging(false)}
             onDrag={(x) => setPhoneW(clamp(x - (root.current?.getBoundingClientRect().left ?? 0) - GAP - GAP / 2))}
@@ -70,35 +80,49 @@ export default function Workspace({ children }: { children: ReactNode }) {
         )}
       </motion.div>
 
-      <AnimatePresence>{open && <IdePanel key="ide" />}</AnimatePresence>
+      <AnimatePresence>{open && <IdePanel key="ide" narrow={narrow} />}</AnimatePresence>
     </motion.div>
   )
 }
 
-const ib = 'grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent'
+const ib = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent'
 const DOCKS: [Dock, typeof PanelBottom, string][] = [['bottom', PanelBottom, 'Terminal at bottom'], ['right', PanelRight, 'Terminal on right'], ['top', PanelTop, 'Terminal on top'], ['left', PanelLeft, 'Terminal on left']]
 
-function IdePanel() {
+function IdePanel({ narrow }: { narrow: boolean }) {
   const ide = useIde()
-  const { qn, hidden, dock, termOpen, termH, termW, phoneW, go, setPhoneW, setDock, setTermOpen, setTermSize } = ide
+  const { qn, hidden, termOpen, termH, termW, phoneW, go, setPhoneW, setDock, setTermOpen, setTermSize } = ide
+  const dock: Dock = narrow ? 'bottom' : ide.dock                     // small screens always use the bottom dock
   const q = qn ? content.questions.find((x) => x.n === qn) : undefined
   const starter = q?.starter ?? SCRATCH
   const key = `code:${qn ?? 'scratch'}`
   const read = () => { try { return localStorage.getItem(key) ?? starter } catch { return starter } }
   const [code, setCode] = useState(read)
   const [res, setRes] = useState<Res>({ state: 'idle' })
+  const [errLines, setErrLines] = useState<number[]>([])
+  const [jump, setJump] = useState<Jump | undefined>()
   const [dragT, setDragT] = useState(false)
+  const [focused, setFocused] = useState(false)
   const body = useRef<HTMLDivElement>(null)
+  const editor = useRef<EditorApi>(null)
   const swap = useRef<number>()
-  useEffect(() => { setCode(read()); setRes({ state: 'idle' }) }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  const touchy = useMedia(`${NARROW}, (pointer: coarse)`)
+  const inset = useKeyboardInset(touchy && focused)
+  useEffect(() => { setCode(read()); setRes({ state: 'idle' }); setErrLines([]) }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => window.clearTimeout(swap.current), [])
 
-  const change = (v: string) => { setCode(v); try { localStorage.setItem(key, v) } catch { /* ignore */ } }
+  const change = (v: string) => { setCode(v); setErrLines([]); try { localStorage.setItem(key, v) } catch { /* ignore */ } }   // line numbers shift when you edit
   const reset = () => change(starter)
   const run = async () => {
     if (res.state === 'running') return
     setRes({ state: 'running' })
-    try { setRes({ state: 'done', ...(await runJava(code)) }) } catch (e) { setRes({ state: 'error', message: e instanceof Error ? e.message : String(e) }) }
+    setErrLines([])
+    try {
+      const r = await runJava(code)
+      const lines = errorLines(r)
+      setRes({ state: 'done', ...r })
+      setErrLines(lines)
+      if (lines.length) setJump({ line: lines[0], id: Date.now() })   // scroll the first error into view
+    } catch (e) { setRes({ state: 'error', message: e instanceof Error ? e.message : String(e) }) }
   }
 
   const col = dock === 'bottom' || dock === 'top'
@@ -145,39 +169,45 @@ function IdePanel() {
   const hiddenTerm = col ? { height: 0, opacity: 0 } : { width: 0, opacity: 0 }
   const shownTerm = col ? { height: size, opacity: 1 } : { width: size, opacity: 1 }
   const tt = dragT ? instant : slide
+  const visible = !narrow || hidden                                    // narrow: the IDE and the app take turns on screen
+  const api = useMemo(() => ({ insert: (t: string, b?: number) => editor.current?.insert(t, b), move: (d: number) => editor.current?.move(d), blur: () => editor.current?.blur() }), [])
 
   return (
     <motion.section
       initial={{ opacity: 0, x: 90 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 90 }} transition={spring}
-      className="dark-surface relative flex min-w-0 flex-1 flex-col rounded-[28px] bg-[#0b0c10] p-2 text-slate-200 shadow-2xl ring-1 ring-white/10"
+      className={`dark-surface relative min-w-0 flex-1 flex-col rounded-[28px] bg-[#0b0c10] p-2 text-slate-200 shadow-2xl ring-1 ring-white/10 ${visible ? 'flex' : 'hidden'}`}
     >
-      <header className="flex shrink-0 items-center gap-1 px-2 pb-2 pt-1">
+      <header className="flex shrink-0 items-center gap-1 px-1 pb-2 pt-1">
         <button type="button" onClick={ide.toggleHidden} aria-label={hidden ? 'Show the app view' : 'Hide the app view'} {...tip(hidden ? 'Bring back the app' : 'Hide the app', 'hideApp')} data-tip-start="" className={ib}>
           {hidden ? <PanelLeftOpen size={18} aria-hidden /> : <PanelLeftClose size={18} aria-hidden />}
         </button>
         <button type="button" onClick={() => go(-1)} disabled={qn !== null && qn <= 1} aria-label="Previous problem" {...tip('Previous problem', 'prev')} className={ib}><ChevronLeft size={18} aria-hidden /></button>
         <p className="min-w-0 flex-1 truncate text-center font-sans text-sm text-slate-300">
           {q ? <><span className="font-mono text-slate-500">{q.n}/{total}</span> {q.title}</> : 'Scratch pad'}
-          <span className="ml-2 rounded-md bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-slate-500">Main.java</span>
+          {!narrow && <span className="ml-2 rounded-md bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-slate-500">Main.java</span>}
         </p>
         <button type="button" onClick={() => go(1)} disabled={qn !== null && qn >= total} aria-label="Next problem" {...tip('Next problem', 'next')} className={ib}><ChevronRight size={18} aria-hidden /></button>
-        <div className="ml-1 flex items-center gap-0.5 rounded-xl bg-white/5 p-0.5" role="group" aria-label="Terminal position">
-          {DOCKS.map(([d, Icon, label]) => (
-            <button key={d} type="button" aria-pressed={dock === d} aria-label={label} {...tip(label, undefined, `${keyLabel('dock')} cycles`)} onClick={() => moveDock(d)}
-              className={`${ib} h-8 w-8 ${dock === d && termOpen ? 'bg-white/10 text-sky-400' : ''}`}><Icon size={16} aria-hidden /></button>
-          ))}
-        </div>
+        {!narrow && (
+          <div className="ml-1 flex items-center gap-0.5 rounded-xl bg-white/5 p-0.5" role="group" aria-label="Terminal position">
+            {DOCKS.map(([d, Icon, label]) => (
+              <button key={d} type="button" aria-pressed={dock === d} aria-label={label} {...tip(label, undefined, `${keyLabel('dock')} cycles`)} onClick={() => moveDock(d)}
+                className={`${ib} !h-8 !w-8 ${dock === d && termOpen ? 'bg-white/10 text-sky-400' : ''}`}><Icon size={16} aria-hidden /></button>
+            ))}
+          </div>
+        )}
         <button type="button" onClick={() => setTermOpen(!termOpen)} aria-pressed={termOpen} aria-label="Toggle terminal" {...tip('Toggle terminal', 'terminal')} className={`${ib} ${termOpen ? 'text-sky-400' : ''}`}><SquareTerminal size={18} aria-hidden /></button>
         <button type="button" onClick={reset} aria-label="Reset code" {...tip('Reset to starter', 'reset')} className={ib}><RotateCcw size={16} aria-hidden /></button>
         <button id="ide-run" type="button" onClick={run} disabled={res.state === 'running'} aria-label="Run code" {...tip('Run', 'run')}
-          className="ml-1 inline-flex h-9 items-center gap-2 rounded-lg bg-emerald-600 px-3.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60">
-          {res.state === 'running' ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Play size={16} aria-hidden />} Run
+          className="ml-0.5 inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60">
+          {res.state === 'running' ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Play size={16} aria-hidden />}{!narrow && ' Run'}
         </button>
-        <button type="button" onClick={ide.close} aria-label="Close IDE" {...tip('Close IDE', 'ide')} data-tip-end="" className={`${ib} ml-1`}><X size={18} aria-hidden /></button>
+        <button type="button" onClick={ide.close} aria-label="Close IDE" {...tip('Close IDE', 'ide')} data-tip-end="" className={ib}><X size={18} aria-hidden /></button>
       </header>
 
       <div ref={body} className={`flex min-h-0 flex-1 ${dir}`}>
-        <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl"><CodeEditor value={code} onChange={change} /></div>
+        <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl">
+          <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} />
+        </div>
         <AnimatePresence initial={false}>
           {termOpen && (
             <motion.div key="grip" initial={{ [col ? 'height' : 'width']: 0 }} animate={{ [col ? 'height' : 'width']: 8 }} exit={{ [col ? 'height' : 'width']: 0 }} transition={slide} className="relative shrink-0">
@@ -190,17 +220,33 @@ function IdePanel() {
               style={col ? { maxHeight: '70%' } : { maxWidth: '70%' }} className="relative shrink-0 overflow-hidden rounded-2xl bg-[#14161b]">
               {/* fixed size, anchored to the dock edge: the terminal slides in from / out to that edge instead of squashing */}
               <div className={`absolute ${anchor}`} style={col ? { height: size } : { width: size }}>
-                <Terminal res={res} onClear={() => setRes({ state: 'idle' })} />
+                <Terminal res={res} onClear={() => { setRes({ state: 'idle' }); setErrLines([]) }} onJump={(line) => setJump({ line, id: Date.now(), focus: true })} />
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
+
+      {touchy && focused && createPortal(<SymbolBar editor={api} inset={inset} onHide={api.blur} />, document.body)}
     </motion.section>
   )
 }
 
-function Terminal({ res, onClear }: { res: Res; onClear: () => void }) {
+/** Turns `Main.java:12` into a button that jumps the editor to that line. */
+function Linked({ text, onJump }: { text: string; onJump: (line: number) => void }) {
+  return (
+    <>
+      {text.split(/(Main\.java:\d+)/g).map((part, i) => {
+        const m = part.match(/^Main\.java:(\d+)$/)
+        return m
+          ? <button key={i} type="button" aria-label={`Go to line ${m[1]}`} onClick={() => onJump(Number(m[1]))} className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-red-300">{part}</button>
+          : part
+      })}
+    </>
+  )
+}
+
+function Terminal({ res, onClear, onJump }: { res: Res; onClear: () => void; onJump: (line: number) => void }) {
   const dim = 'text-slate-500'
   return (
     <div className="flex h-full flex-col text-[13px]">
@@ -215,9 +261,9 @@ function Terminal({ res, onClear }: { res: Res; onClear: () => void }) {
         {res.state === 'done' && (
           <>
             <span className="text-emerald-400">$ </span>javac Main.java &amp;&amp; java Main{'\n'}
-            {res.compile && <span className="text-red-400">{res.compile}{'\n'}</span>}
+            {res.compile && <span className="text-red-400"><Linked text={res.compile} onJump={onJump} />{'\n'}</span>}
             {res.stdout}
-            {res.stderr && <span className="text-red-400">{res.stderr}{'\n'}</span>}
+            {res.stderr && <span className="text-red-400"><Linked text={res.stderr} onJump={onJump} />{'\n'}</span>}
             {'\n'}<span className={dim}>{res.status}{res.time ? ` · ${res.time}s` : ''}{res.memory ? ` · ${(res.memory / 1024).toFixed(1)} MB` : ''}</span>
           </>
         )}

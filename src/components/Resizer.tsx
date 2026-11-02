@@ -37,9 +37,9 @@ export default function Resizer({ axis, label, onDrag, onNudge, onReset, onStart
     <div
       role="separator" tabIndex={0} aria-label={`${label} (arrow keys to resize, Enter to reset)`} aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={key} onDoubleClick={onReset}
-      className={`group absolute inset-0 z-10 flex touch-none items-center justify-center outline-none ${axis === 'x' ? 'cursor-col-resize' : 'cursor-row-resize'}`}
+      className={`group absolute z-10 flex touch-none items-center justify-center outline-none ${axis === 'x' ? '-inset-x-1 inset-y-0 cursor-col-resize' : 'inset-x-0 -inset-y-1 cursor-row-resize'}`}
     >
-      <span className={`rounded-full bg-sky-500/0 transition-colors duration-200 group-hover:bg-sky-500/60 group-focus-visible:bg-sky-500/80 group-active:bg-sky-500 ${axis === 'x' ? 'h-10 w-1' : 'h-1 w-10'}`} />
+      <span className={`rounded-full bg-slate-400/40 transition-colors duration-200 group-hover:bg-sky-500/70 group-focus-visible:bg-sky-500 group-active:bg-sky-500 dark:bg-white/20 ${axis === 'x' ? 'h-10 w-1' : 'h-1 w-10'}`} />
     </div>
   )
 }
