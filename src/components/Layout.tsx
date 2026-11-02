@@ -1,10 +1,12 @@
-import { Bell, BellOff, CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, LogIn, LogOut, Menu, MoreHorizontal, RefreshCw, SquareTerminal } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { Bell, BellOff, CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, LogIn, LogOut, Menu, MoreHorizontal, RefreshCw, SquareTerminal, X } from 'lucide-react'
+import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom'
 import { content, PHASES } from '../lib/content'
 import { useAuth } from '../hooks/useAuth'
 import { useProgress } from '../hooks/useProgress'
 import { useIde } from '../hooks/useIde'
+import { NARROW, useMedia } from '../hooks/useMedia'
 import { ThemeToggle } from './ui'
 import { tip, matches } from '../lib/shortcuts'
 import { disableReminders, enableReminders, reminderBlocked, reminderEnabled, reminderSupported, startLocalScheduler, subscribePush } from '../lib/reminder'
@@ -78,7 +80,8 @@ function AuthModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-function TopBar({ onMenu, onToc, tocAvailable }: { onMenu: () => void; onToc: () => void; tocAvailable: boolean }) {
+function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void; menuOpen: boolean; onToc: () => void; tocAvailable: boolean }) {
+  const narrow = useMedia(NARROW)
   const { user, enabled, signOut } = useAuth()
   const { streak } = useProgress()
   const ide = useIde()
@@ -87,11 +90,11 @@ function TopBar({ onMenu, onToc, tocAvailable }: { onMenu: () => void; onToc: ()
   const btn = 'grid h-11 w-11 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-slate-100'
   return (
     <header className={`relative z-30 flex h-14 shrink-0 items-center gap-1 px-2 ${ide.open ? '' : 'md:px-4'}`}>
-      <button type="button" onClick={onMenu} aria-label="Open navigation" {...tip('Menu', 'menu')} data-tip-start="" className={btn}><Menu size={20} aria-hidden /></button>
+      <button type="button" onClick={onMenu} data-menu-toggle="" aria-expanded={menuOpen} aria-controls="app-menu" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} {...tip(menuOpen ? 'Close menu' : 'Menu', 'menu')} data-tip-start="" className={btn}>{menuOpen ? <X size={20} aria-hidden /> : <Menu size={20} aria-hidden />}</button>
       <Link to="/" aria-label="Home" data-tip="Home" className={btn}><Coffee size={18} aria-hidden /></Link>
       <div className="ml-auto flex items-center gap-1">
         {tocAvailable && <button type="button" onClick={onToc} aria-label="Contents of this phase" data-tip="Contents" className={btn}><ListTree size={20} aria-hidden /></button>}
-        <button type="button" onClick={ide.toggle} aria-pressed={ide.open} aria-label="Java IDE" {...tip('Java IDE', 'ide')} className={`${btn} ${ide.open ? 'text-sky-500' : ''}`}><SquareTerminal size={20} aria-hidden /></button>
+        <button type="button" onClick={() => ide.toggleSmart(narrow)} aria-pressed={ide.open && (!narrow || ide.hidden)} aria-label="Java IDE" {...tip('Java IDE', 'ide')} className={`${btn} ${ide.open && (!narrow || ide.hidden) ? 'text-sky-500' : ''}`}><SquareTerminal size={20} aria-hidden /></button>
         <button type="button" onClick={() => setMore(!more)} aria-expanded={more} aria-label="Settings" data-tip="Settings" data-tip-end="" className={btn}><MoreHorizontal size={20} aria-hidden /></button>
       </div>
       {more && (
@@ -111,20 +114,19 @@ function TopBar({ onMenu, onToc, tocAvailable }: { onMenu: () => void; onToc: ()
   )
 }
 
-function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; onClose: () => void }) {
   const { statusOf, readPct } = useProgress()
   const loc = useLocation()
   const m = useMatch('/phase/:id/*')
   const [expanded, setExpanded] = useState<number[]>([])
   const [qOpen, setQOpen] = useState(false)
+  const dock = useRef<HTMLElement>(null)
+  useEffect(() => { if (dock.current) dock.current.inert = !open }, [open, overlay])   // closed docked sidebar: not focusable
   useEffect(() => { if (!open) return; const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [open, onClose])
   useEffect(() => { if (m?.params.id) setExpanded((e) => Array.from(new Set([...e, Number(m.params.id)]))) }, [m?.params.id])
   const heading = 'px-4 pb-1 pt-5 text-xs font-semibold uppercase tracking-wider text-slate-500'
-  return (
-    <>
-      {open && <div className="fixed inset-0 z-30 bg-black/40" onClick={onClose} aria-hidden />}
-      <aside aria-label="Sidebar" className={`fixed bottom-0 left-0 top-14 z-40 w-[300px] max-w-[85vw] overflow-y-auto bg-white pb-10 shadow-xl transition-transform dark:bg-[#12151b] ${open ? 'translate-x-0' : '-translate-x-full'}`}>
-        <nav aria-label="Primary">
+  const nav = (
+        <nav aria-label="Primary" onClick={(e) => { if (overlay && (e.target as Element).closest('a')) onClose() }}>
           <h2 className={heading}>Part 1 · Roadmap</h2>
           {PHASES.map((p) => {
             const st = statusOf(p.id)
@@ -174,8 +176,27 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           <h2 className={heading}>Part 4 · Production</h2>
           <NavLink to="/scenarios" className={({ isActive }) => `${link} ${isActive ? active : idle}`}>Scenarios (30)</NavLink>
         </nav>
-      </aside>
-    </>
+  )
+
+  if (overlay) {
+    // narrow screens or IDE open: the menu covers the whole app view and closes on selection / outside tap / the menu button
+    return (
+      <AnimatePresence>
+        {open && (
+          <motion.aside key="menu" id="app-menu" aria-label="Sidebar" initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
+            transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }} className="absolute inset-0 z-20 overflow-y-auto bg-white pb-10 dark:bg-[#0f1115]">
+            {nav}
+          </motion.aside>
+        )}
+      </AnimatePresence>
+    )
+  }
+  // wide screen, IDE closed: the sidebar takes its own space next to the content
+  return (
+    <motion.aside ref={dock} id="app-menu" aria-label="Sidebar" initial={false} animate={{ width: open ? 300 : 0 }}
+      transition={{ type: 'spring', stiffness: 240, damping: 30 }} className="relative shrink-0 overflow-hidden">
+      <div className="h-full w-[300px] overflow-y-auto border-r border-slate-200/70 bg-slate-50 pb-10 dark:border-white/5 dark:bg-[#12151b]">{nav}</div>
+    </motion.aside>
   )
 }
 
@@ -200,26 +221,46 @@ function TOC({ onClose }: { onClose: () => void }) {
 export default function Layout() {
   const [open, setOpen] = useState(false)
   const [toc, setToc] = useState(false)
-  const { pathname, hash } = useLocation()
+  const { pathname, hash, search } = useLocation()
   const ide = useIde()
+  const narrow = useMedia(NARROW)
+  const overlay = ide.open || narrow
   const scroller = useRef<HTMLDivElement>(null)
   const onPhase = !!useMatch('/phase/:id')
   const close = useCallback(() => setOpen(false), [])
-  useEffect(() => { setOpen(false); setToc(false); if (!hash) scroller.current?.scrollTo(0, 0) }, [pathname, hash])
+
+  useEffect(() => { if (!hash) scroller.current?.scrollTo(0, 0) }, [pathname, hash])
+  useEffect(() => { setToc(false); if (overlay) setOpen(false) }, [pathname, hash, search])   // picking something closes the overlay menu
+  useEffect(() => { setOpen(false) }, [overlay])                                              // layout mode changed (IDE opened/closed, resize)
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (matches(e, 'menu')) { e.preventDefault(); setOpen((o) => !o) } }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [])
+  useEffect(() => {                                                                           // tap anywhere outside closes the overlay menu
+    if (!overlay || !open) return
+    const h = (e: PointerEvent) => {
+      const t = e.target as Element
+      if (!t.closest('#app-menu') && !t.closest('[data-menu-toggle]')) setOpen(false)
+    }
+    document.addEventListener('pointerdown', h)
+    return () => document.removeEventListener('pointerdown', h)
+  }, [overlay, open])
+
   return (
     <div className="relative flex h-full flex-col">
       <ReminderEngine />
-      <TopBar onMenu={() => setOpen(true)} onToc={() => setToc(!toc)} tocAvailable={onPhase} />
-      <Sidebar open={open} onClose={close} />
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <main className={`pb-24 pt-4 ${ide.open ? 'px-5' : 'px-5 md:px-10'}`}>
-          <div className="mx-auto max-w-[760px]"><Outlet /></div>
-        </main>
+      <TopBar onMenu={() => setOpen((o) => !o)} menuOpen={open} onToc={() => setToc(!toc)} tocAvailable={onPhase} />
+      <div className="relative flex min-h-0 flex-1">
+        <Sidebar open={open} overlay={overlay} onClose={close} />
+        <div ref={scroller} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+          <main className={`pb-24 pt-4 ${ide.open ? 'px-5' : 'px-5 md:px-10'}`}>
+            <div className="mx-auto max-w-[760px]">
+              {/* only the page area shows a loading state; the top bar and sidebar never get swapped out */}
+              <Suspense fallback={<p className="py-8 text-slate-500" role="status">Loading…</p>}><Outlet /></Suspense>
+            </div>
+          </main>
+        </div>
       </div>
       {toc && onPhase && <TOC onClose={() => setToc(false)} />}
     </div>

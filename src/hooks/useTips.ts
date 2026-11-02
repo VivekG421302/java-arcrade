@@ -11,7 +11,7 @@ export function useTips() {
         if (l) el.setAttribute('data-tip', l)
       }
     }
-    const target = (e: Event) => (e.target as Element | null)?.closest?.('[data-tip],button,a,[role=button],[role=separator]') ?? null
+    const target = (e: Event) => (e.target as Element | null)?.closest?.('[data-tip],button,a,[role=button]') ?? null
 
     const over = (e: Event) => { const el = target(e); if (el) fill(el) }
     const down = (e: PointerEvent) => {

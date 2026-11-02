@@ -37,3 +37,11 @@ export async function runJava(source: string, stdin = ''): Promise<RunResult> {
   }
   throw new Error('Timed out waiting for the compiler service.')
 }
+
+/** Line numbers mentioned in compiler errors (`Main.java:12: error: ...`) or stack traces (`at Main.main(Main.java:7)`). */
+export function errorLines(r: Pick<RunResult, 'stderr' | 'compile' | 'status'>): number[] {
+  if (/^accepted$/i.test(r.status)) return []
+  const lines = new Set<number>()
+  for (const m of `${r.compile}\n${r.stderr}`.matchAll(/Main\.java:(\d+)/g)) lines.add(Number(m[1]))
+  return [...lines].sort((a, b) => a - b)
+}

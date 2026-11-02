@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import Workspace from './components/Workspace'
@@ -13,7 +13,6 @@ const Scenarios = lazy(() => import('./pages/Scenarios'))
 export default function App() {
   return (
     <Workspace>
-    <Suspense fallback={<p className="p-8 text-slate-500" role="status">Loading…</p>}>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Landing />} />
@@ -25,7 +24,6 @@ export default function App() {
           <Route path="*" element={<Landing />} />
         </Route>
       </Routes>
-    </Suspense>
     </Workspace>
   )
 }

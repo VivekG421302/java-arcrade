@@ -17,6 +17,9 @@ type Ctx = {
   openFor: (n: number | null) => void
   go: (delta: number) => void
   toggle: () => void
+  /** top-bar / Alt+I behaviour: on small screens it switches between the app and the IDE instead of closing */
+  toggleSmart: (narrow: boolean) => void
+  setHidden: (h: boolean) => void
   close: () => void
   toggleHidden: () => void
   setDock: (d: Dock) => void
@@ -55,6 +58,8 @@ export function IdeProvider({ children }: { children: ReactNode }) {
     open, qn, hidden, dock, termOpen, phoneW, termH, termW,
     openFor, go, setDock, setTermOpen, setPhoneW, setTermSize,
     toggle: () => setOpen((o) => !o),
+    toggleSmart: (narrow: boolean) => { if (narrow && open && !hidden) setHidden(true); else setOpen((o) => !o) },
+    setHidden,
     close: () => { setOpen(false); setHidden(false) },
     toggleHidden: () => setHidden((h) => !h),
     toggleTerm: () => setTermOpen((t) => !t),
