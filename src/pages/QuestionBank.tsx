@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ExternalLink, Eye, EyeOff, SquareTerminal } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { content, leetUrl, type LcQuestion } from '../lib/content'
 import { Accordion } from '../components/ui'
 import { CodeBlock, Inline } from '../components/content'
 import ChipScroller from '../components/ChipScroller'
+import { LeetCodeLogo, VsCodeLogo } from '../components/logos'
 import { useIde } from '../hooks/useIde'
 import { usePersisted } from '../hooks/usePersisted'
 import { tip } from '../lib/shortcuts'
@@ -24,7 +25,6 @@ function QuestionBody({ q }: { q: LcQuestion }) {
   const [show, setShow] = useState(false)
   const ide = useIde()
   const current = ide.open && ide.qn === q.n          // shortcuts act on the question open in the IDE
-  const btn = 'inline-flex min-h-[44px] items-center gap-2 rounded-md border border-slate-400 px-4 text-sm font-medium hover:bg-slate-100 dark:hover:bg-white/5'
 
   useEffect(() => {
     const h = (e: Event) => { if ((e as CustomEvent).detail === q.n) setShow((s) => !s) }
@@ -57,15 +57,13 @@ function QuestionBody({ q }: { q: LcQuestion }) {
       <Label>Expected complexity</Label>
       <p className="font-serif leading-7"><Inline md={q.target} /></p>
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        <button type="button" onClick={() => ide.openFor(q.n)} {...tip('Open this problem in the IDE')} className={`${btn} border-sky-500 text-sky-600 dark:text-sky-400`}>
-          <SquareTerminal size={16} aria-hidden /> Practice in IDE
-        </button>
-        <button type="button" aria-expanded={show} onClick={() => setShow(!show)} {...(current ? tip(show ? 'Hide solution' : 'Show solution', 'solution') : tip(show ? 'Hide solution' : 'Show solution'))} className={btn}>
+      <div className="mt-6 flex justify-center">
+        <button type="button" aria-expanded={show} onClick={() => setShow(!show)}
+          {...tip(show ? 'Hide solution' : 'Show solution', current ? 'solution' : undefined)}
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-[#6b84ad] px-8 text-sm font-medium text-white shadow-sm hover:bg-[#7b94bd]">
           {show ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
-          {show ? 'Hide Java solution' : 'Show Java solution'}
+          {show ? 'Hide Solution' : 'Show Solution'}
         </button>
-        <a href={leetUrl(q.title)} target="_blank" rel="noreferrer" {...(current ? tip('Open on LeetCode', 'leetcode') : tip('Open on LeetCode'))} className={btn}><ExternalLink size={16} aria-hidden /> LeetCode</a>
       </div>
 
       {show && (
@@ -151,15 +149,27 @@ export default function QuestionBank() {
         onKeyDown={(e) => e.key === 'Escape' && e.currentTarget.blur()}
         className="mt-3 min-h-[44px] w-full rounded-md border border-slate-300 bg-transparent px-3 dark:border-white/15" />
       <div className="mt-6">
-        {list.slice(0, limit).map((q) => (
-          <div key={q.n} id={`q-${q.n}`} className="scroll-mt-2">
-            <Accordion open={openN.has(q.n)} onToggle={(o) => toggle(q.n, o)}
-              title={<span><span className="mr-2 font-mono text-sm text-slate-500">{q.n}.</span>{q.title}</span>}
-              meta={<span className={`rounded-full px-2 py-0.5 text-xs ${diffColor[q.difficulty] ?? ''}`}>{q.difficulty}</span>}>
-              <QuestionBody q={q} />
-            </Accordion>
-          </div>
-        ))}
+        {list.slice(0, limit).map((q) => {
+          const current = ide.open && ide.qn === q.n
+          const act = 'q-btn inline-flex h-11 items-center gap-2 rounded-lg border px-3.5 text-sm font-medium'
+          return (
+            <div key={q.n} id={`q-${q.n}`} className="scroll-mt-2">
+              <Accordion open={openN.has(q.n)} onToggle={(o) => toggle(q.n, o)}
+                title={<span><span className="mr-2 font-mono text-sm text-slate-500">{q.n}.</span>{q.title}</span>}
+                meta={<span className={`inline-block rounded-full px-2 py-0.5 text-xs ${diffColor[q.difficulty] ?? ''}`}>{q.difficulty}</span>}
+                actions={
+                  <>
+                    <a href={leetUrl(q.title)} target="_blank" rel="noreferrer" aria-label="Open on LeetCode" {...(current ? tip('Open on LeetCode', 'leetcode') : tip('Open on LeetCode'))}
+                      className={`${act} border-amber-500/70 text-amber-500 hover:bg-amber-500/10`}><LeetCodeLogo /><span className="q-label">LeetCode</span></a>
+                    <button type="button" onClick={() => ide.openFor(q.n)} aria-label="Open in IDE" {...tip('Open this problem in the IDE')} data-tip-end=""
+                      className={`${act} border-sky-500/70 text-sky-500 hover:bg-sky-500/10`}><VsCodeLogo /><span className="q-label">Open IDE</span></button>
+                  </>
+                }>
+                <QuestionBody q={q} />
+              </Accordion>
+            </div>
+          )
+        })}
       </div>
       {limit < list.length && <button className="mt-4 min-h-[44px] rounded-md border border-slate-400 px-5" onClick={() => setLimit(limit + PAGE)}>Show more ({list.length - limit} left)</button>}
     </div>

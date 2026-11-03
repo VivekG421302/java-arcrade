@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* question header: labels collapse to icon-only buttons when the header is narrow */
+.qhead { container-type: inline-size; }
+@container (max-width: 480px) {
+  .q-label { display: none; }
+  .q-btn { width: 2.75rem; padding-inline: 0; justify-content: center; }
+}
+
 /* action-specific cursors */
 button:disabled, [aria-disabled='true'] { cursor: not-allowed; }
 [aria-busy='true'] { cursor: progress; }
