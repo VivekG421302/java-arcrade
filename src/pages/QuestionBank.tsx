@@ -57,12 +57,12 @@ function QuestionBody({ q }: { q: LcQuestion }) {
       <Label>Expected complexity</Label>
       <p className="font-serif leading-7"><Inline md={q.target} /></p>
 
-      <div className="mt-6 flex justify-center">
-        <button type="button" aria-expanded={show} onClick={() => setShow(!show)}
+      <div className="qhead mt-6 flex justify-center">
+        <button type="button" aria-expanded={show} aria-label={show ? 'Hide solution' : 'Show solution'} onClick={() => setShow(!show)}
           {...tip(show ? 'Hide solution' : 'Show solution', current ? 'solution' : undefined)}
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-[#6b84ad] px-8 text-sm font-medium text-white shadow-sm hover:bg-[#7b94bd]">
-          {show ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
-          {show ? 'Hide Solution' : 'Show Solution'}
+          className="q-btn inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-[#6b84ad] px-8 text-sm font-medium text-white shadow-sm hover:bg-[#7b94bd]">
+          {show ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+          <span className="q-label">{show ? 'Hide Solution' : 'Show Solution'}</span>
         </button>
       </div>
 
