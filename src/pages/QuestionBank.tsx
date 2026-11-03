@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, SquareTerminal } from 'lucide-react'
 import { content, leetUrl, type LcQuestion } from '../lib/content'
 import { Accordion } from '../components/ui'
 import { CodeBlock, Inline } from '../components/content'
 import ChipScroller from '../components/ChipScroller'
-import { LeetCodeLogo, VsCodeLogo } from '../components/logos'
+import { LeetCodeLogo } from '../components/logos'
 import { useIde } from '../hooks/useIde'
 import { usePersisted } from '../hooks/usePersisted'
 import { tip } from '../lib/shortcuts'
@@ -57,14 +57,12 @@ function QuestionBody({ q }: { q: LcQuestion }) {
       <Label>Expected complexity</Label>
       <p className="font-serif leading-7"><Inline md={q.target} /></p>
 
-      <div className="qhead mt-6 flex justify-center">
-        <button type="button" aria-expanded={show} aria-label={show ? 'Hide solution' : 'Show solution'} onClick={() => setShow(!show)}
-          {...tip(show ? 'Hide solution' : 'Show solution', current ? 'solution' : undefined)}
-          className="q-btn inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-[#6b84ad] px-8 text-sm font-medium text-white shadow-sm hover:bg-[#7b94bd]">
-          {show ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
-          <span className="q-label">{show ? 'Hide Solution' : 'Show Solution'}</span>
-        </button>
-      </div>
+      <button type="button" aria-expanded={show} onClick={() => setShow(!show)}
+        {...tip(show ? 'Hide solution' : 'Show solution', current ? 'solution' : undefined)}
+        className="mt-6 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg bg-slate-200/60 text-sm font-medium text-slate-700 transition-colors hover:bg-sky-500/15 hover:text-sky-600 focus-visible:bg-sky-500/15 dark:bg-white/5 dark:text-slate-200 dark:hover:text-sky-400">
+        {show ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+        {show ? 'Hide Solution' : 'Show Solution'}
+      </button>
 
       {show && (
         <div>
@@ -151,7 +149,7 @@ export default function QuestionBank() {
       <div className="mt-6">
         {list.slice(0, limit).map((q) => {
           const current = ide.open && ide.qn === q.n
-          const act = 'q-btn inline-flex h-11 items-center gap-2 rounded-lg border px-3.5 text-sm font-medium'
+          const act = 'q-btn inline-flex h-11 items-center gap-2 rounded-lg border px-3.5 text-sm font-medium transition-colors [&_svg]:opacity-70 hover:[&_svg]:opacity-100'
           return (
             <div key={q.n} id={`q-${q.n}`} className="scroll-mt-2">
               <Accordion open={openN.has(q.n)} onToggle={(o) => toggle(q.n, o)}
@@ -160,9 +158,9 @@ export default function QuestionBank() {
                 actions={
                   <>
                     <a href={leetUrl(q.title)} target="_blank" rel="noreferrer" aria-label="Open on LeetCode" {...(current ? tip('Open on LeetCode', 'leetcode') : tip('Open on LeetCode'))}
-                      className={`${act} border-amber-500/70 text-amber-500 hover:bg-amber-500/10`}><LeetCodeLogo /><span className="q-label">LeetCode</span></a>
+                      className={`${act} border-amber-500/30 text-amber-500/80 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400`}><LeetCodeLogo /><span className="q-label">LeetCode</span></a>
                     <button type="button" onClick={() => ide.openFor(q.n)} aria-label="Open in IDE" {...tip('Open this problem in the IDE')} data-tip-end=""
-                      className={`${act} border-sky-500/70 text-sky-500 hover:bg-sky-500/10`}><VsCodeLogo /><span className="q-label">Open IDE</span></button>
+                      className={`${act} border-sky-500/30 text-sky-500/80 hover:border-sky-500/50 hover:bg-sky-500/10 hover:text-sky-400`}><SquareTerminal size={20} aria-hidden /><span className="q-label">Open IDE</span></button>
                   </>
                 }>
                 <QuestionBody q={q} />

@@ -6,11 +6,3 @@ export function LeetCodeLogo({ size = 20 }: { size?: number }) {
     </svg>
   )
 }
-
-export function VsCodeLogo({ size = 20 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" focusable="false">
-      <path fill="#3b9de8" d="M17 2.5 9.5 9.4 4.6 5.7 3 6.6v10.8l1.6.9 4.9-3.7L17 21.5l4-1.9V4.4zM4.8 14.8V9.2l3.1 2.8zM17 7.3v9.4l-5.4-4.7z" />
-    </svg>
-  )
-}
