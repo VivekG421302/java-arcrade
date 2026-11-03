@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* labelled buttons keep only their symbol on small screens: .q-btn on the button, .q-label on its text.
+   Container rule = the phone-sized view beside the IDE; media rule = real small screens (and a fallback). */
+.qhead { container-type: inline-size; }
+@container (max-width: 480px) {
+  .q-label { display: none; }
+  .q-btn { width: 2.75rem; padding-inline: 0; justify-content: center; }
+}
+@media (max-width: 520px) {
+  .q-label { display: none; }
+  .q-btn { width: 2.75rem; padding-inline: 0; justify-content: center; }
+}
+
 /* action-specific cursors */
 button:disabled, [aria-disabled='true'] { cursor: not-allowed; }
 [aria-busy='true'] { cursor: progress; }

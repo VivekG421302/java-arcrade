@@ -21,18 +21,26 @@ export function PhaseBadge({ status, score }: { status: Status; score?: number |
   return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-sans text-xs font-medium ${cls}`}><Icon size={13} aria-hidden />{label}</span>
 }
 
-export function Accordion({ title, meta, children, defaultOpen = false, open: controlled, onToggle }: { title: ReactNode; meta?: ReactNode; children: ReactNode; defaultOpen?: boolean; open?: boolean; onToggle?: (open: boolean) => void }) {
+export function Accordion({ title, meta, actions, children, defaultOpen = false, open: controlled, onToggle }: {
+  title: ReactNode; meta?: ReactNode; actions?: ReactNode; children: ReactNode; defaultOpen?: boolean; open?: boolean; onToggle?: (open: boolean) => void
+}) {
   const [inner, setInner] = useState(defaultOpen)
   const open = controlled ?? inner
   const setOpen = (o: boolean) => (onToggle ? onToggle(o) : setInner(o))
   return (
     <div className="my-3 rounded-lg bg-slate-50 dark:bg-white/[0.03]">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
-        className="flex min-h-[44px] w-full items-center gap-3 px-4 py-3 text-left font-sans font-semibold hover:bg-slate-100 dark:hover:bg-white/5">
-        <ChevronRight size={16} aria-hidden className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
-        <span className="flex-1">{title}</span>
-        {meta}
-      </button>
+      {/* actions are siblings of the toggle (a button cannot contain buttons) and only show while open */}
+      <div className="qhead flex items-start gap-2 pr-3">
+        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
+          className="flex min-h-[44px] min-w-0 flex-1 items-start gap-3 rounded-lg px-4 py-3 text-left font-sans font-semibold hover:bg-slate-100 dark:hover:bg-white/5">
+          <ChevronRight size={16} aria-hidden className={`mt-1 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+          <span className="min-w-0 flex-1">
+            <span className="block">{title}</span>
+            {meta && <span className="mt-1.5 block">{meta}</span>}
+          </span>
+        </button>
+        {open && actions && <div className="flex shrink-0 items-center gap-2 py-2.5">{actions}</div>}
+      </div>
       {open && <div className="px-4 pb-4 pt-1">{children}</div>}
     </div>
   )
