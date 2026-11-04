@@ -9,6 +9,7 @@ const TestView = lazy(() => import('./pages/TestView'))
 const QuestionBank = lazy(() => import('./pages/QuestionBank'))
 const AntiPatterns = lazy(() => import('./pages/AntiPatterns'))
 const Scenarios = lazy(() => import('./pages/Scenarios'))
+const Projects = lazy(() => import('./pages/Projects'))
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="questions" element={<QuestionBank />} />
           <Route path="anti-patterns" element={<AntiPatterns />} />
           <Route path="scenarios" element={<Scenarios />} />
+          <Route path="projects" element={<Projects />} />
           <Route path="*" element={<Landing />} />
         </Route>
       </Routes>

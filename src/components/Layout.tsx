@@ -177,6 +177,9 @@ function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; 
 
           <h2 className={heading}>Part 4 · Production</h2>
           <NavLink to="/scenarios" className={({ isActive }) => `${link} ${isActive ? active : idle}`}>Scenarios (30)</NavLink>
+
+          <h2 className={heading}>Part 5 · Projects</h2>
+          <NavLink to="/projects" className={({ isActive }) => `${link} ${isActive ? active : idle}`}>Projects to build ({content.projects.length})</NavLink>
         </nav>
   )
 
