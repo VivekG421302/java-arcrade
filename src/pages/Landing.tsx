@@ -11,6 +11,7 @@ export default function Landing() {
     ['/questions', 'Question Bank', content.questions.length],
     ['/anti-patterns', 'Code Review Anti-Patterns', content.antiPatterns.length + content.antiMatrix.length],
     ['/scenarios', 'Production Scenarios', content.scenarios.length + content.scenarioMatrix.length],
+    ['/projects', 'Projects to Build', content.projects.length],
   ] as const
   return (
     <div>

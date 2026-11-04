@@ -11,6 +11,7 @@ export type AntiPattern = { n: number; title: string; lang: string; bad: string;
 export type AntiRow = { n: number; domain: string; pattern: string; severity: string; cause: string; fix: string }
 export type Scenario = { n: number; title: string; question: string; answer: string }
 export type ScenarioRow = { n: number; symptom: string; cause: string; fix: string }
+export type Project = { n: number; title: string; level: string; stack: string[]; what: string; flow: string; solves: string }
 
 export const content = data as unknown as {
   phases: Phase[]
@@ -19,6 +20,7 @@ export const content = data as unknown as {
   antiMatrix: AntiRow[]
   scenarios: Scenario[]
   scenarioMatrix: ScenarioRow[]
+  projects: Project[]
 }
 export const PHASES = content.phases
 export const leetUrl = (title: string) => `https://leetcode.com/problemset/?search=${encodeURIComponent(title.replace(/\s*\(.*\)/, ''))}`

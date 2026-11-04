@@ -149,10 +149,24 @@ const scenarios = p4
   .filter(Boolean)
 const scenarioMatrix = rows(p4).map(([n, symptom, cause, fix]) => ({ n: +n, symptom, cause, fix }))
 
-const out = { phases, questions, antiPatterns, antiMatrix, scenarios, scenarioMatrix }
+// ---- projects (content/projects/java.md)
+const loadProjects = (file) =>
+  fs.existsSync(file)
+    ? fs.readFileSync(file, 'utf8').replace(/\r/g, '').split(/^## /m).slice(1).map((blk, i) => {
+        const [title, ...rest] = blk.split('\n')
+        const body = rest.join('\n')
+        const meta = (k) => (body.match(new RegExp(`^${k}: (.*)$`, 'm')) || [])[1]?.trim() ?? ''
+        const sec = (name) => (body.split(new RegExp(`^### ${name}\\s*$`, 'm'))[1] || '').split(/^### /m)[0].trim()
+        return { n: i + 1, title: title.trim(), level: meta('Level'), stack: meta('Stack').split(',').map((x) => x.trim()).filter(Boolean),
+          what: sec('What it should do'), flow: sec('How the tech flows'), solves: sec('Problems it solves') }
+      })
+    : []
+const projects = loadProjects('content/projects/java.md')
+
+const out = { phases, questions, antiPatterns, antiMatrix, scenarios, scenarioMatrix, projects }
 fs.writeFileSync('src/content.json', JSON.stringify(out))
 console.log(
   `phases=${phases.length} sections=${phases.reduce((s, p) => s + p.sections.length, 0)} ` +
     `questions=${questions.length} antiPatterns=${antiPatterns.length}+${antiMatrix.length} ` +
-    `scenarios=${scenarios.length}+${scenarioMatrix.length}`
+    `scenarios=${scenarios.length}+${scenarioMatrix.length} projects=${projects.length}`
 )
