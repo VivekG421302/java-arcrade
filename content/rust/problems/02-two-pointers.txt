@@ -1,0 +1,225 @@
+=== 13
+A: Two indices from both ends. Skip non-alphanumeric bytes on each side, compare the lowercase bytes, and move inward. No extra string is built, so space is O(1).
+C: Solution::is_palindrome("A man, a plan, a canal: Panama".to_string()) && !Solution::is_palindrome("race a car".to_string()) && Solution::is_palindrome(" ".to_string())
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn is_palindrome(s: String) -> bool {
+        let b = s.as_bytes();
+        let (mut l, mut r) = (0, b.len()); // r is exclusive
+        while l < r {
+            if !b[l].is_ascii_alphanumeric() {
+                l += 1;
+            } else if !b[r - 1].is_ascii_alphanumeric() {
+                r -= 1;
+            } else {
+                if b[l].to_ascii_lowercase() != b[r - 1].to_ascii_lowercase() {
+                    return false;
+                }
+                l += 1;
+                r -= 1;
+            }
+        }
+        true
+    }
+}
+```
+=== 14
+A: Start one index at each end. If the sum is too small, move the left index right; if too large, move the right index left. Sorting guarantees each move rules out a whole row of pairs.
+C: Solution::two_sum(vec![2,7,11,15], 9) == vec![1,2] && Solution::two_sum(vec![2,3,4], 6) == vec![1,3] && Solution::two_sum(vec![-1,0], -1) == vec![1,2]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn two_sum(numbers: Vec<i32>, target: i32) -> Vec<i32> {
+        let (mut l, mut r) = (0usize, numbers.len() - 1);
+        while l < r {
+            let sum = numbers[l] + numbers[r];
+            if sum == target {
+                return vec![l as i32 + 1, r as i32 + 1]; // 1-indexed
+            } else if sum < target {
+                l += 1;
+            } else {
+                r -= 1;
+            }
+        }
+        vec![]
+    }
+}
+```
+=== 15
+A: Sort the vector. Fix the first value `nums[i]`, then solve a two-sum with two indices on the rest. Skip repeated values for `i`, `l` and `r` so no duplicate triplet is produced.
+C: Solution::three_sum(vec![-1,0,1,2,-1,-4]) == vec![vec![-1,-1,2], vec![-1,0,1]] && Solution::three_sum(vec![0,1,1]).is_empty() && Solution::three_sum(vec![0,0,0]) == vec![vec![0,0,0]]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn three_sum(mut nums: Vec<i32>) -> Vec<Vec<i32>> {
+        nums.sort();
+        let n = nums.len();
+        let mut res = Vec::new();
+        for i in 0..n {
+            if nums[i] > 0 {
+                break; // smallest value positive: no zero sum
+            }
+            if i > 0 && nums[i] == nums[i - 1] {
+                continue; // skip duplicate anchors
+            }
+            let (mut l, mut r) = (i + 1, n - 1);
+            while l < r {
+                let sum = nums[i] + nums[l] + nums[r];
+                if sum < 0 {
+                    l += 1;
+                } else if sum > 0 {
+                    r -= 1;
+                } else {
+                    res.push(vec![nums[i], nums[l], nums[r]]);
+                    l += 1;
+                    r -= 1;
+                    while l < r && nums[l] == nums[l - 1] {
+                        l += 1;
+                    }
+                    while l < r && nums[r] == nums[r + 1] {
+                        r -= 1;
+                    }
+                }
+            }
+        }
+        res
+    }
+}
+```
+=== 16
+A: Start with the widest container (both ends). The area is limited by the shorter line, so moving the taller line can never help; move the shorter one inward and keep the best area seen.
+C: Solution::max_area(vec![1,8,6,2,5,4,8,3,7]) == 49 && Solution::max_area(vec![1,1]) == 1 && Solution::max_area(vec![4,3,2,1,4]) == 16
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn max_area(height: Vec<i32>) -> i32 {
+        let (mut l, mut r) = (0usize, height.len() - 1);
+        let mut best = 0;
+        while l < r {
+            let area = height[l].min(height[r]) * (r - l) as i32;
+            best = best.max(area);
+            if height[l] < height[r] {
+                l += 1; // the shorter side limits the area
+            } else {
+                r -= 1;
+            }
+        }
+        best
+    }
+}
+```
+=== 17
+A: Water above a bar equals the lower of the tallest bars on its left and right, minus its own height. Two indices track the running left max and right max; always process the side with the smaller bar, since its limit is already known.
+C: Solution::trap(vec![0,1,0,2,1,0,1,3,2,1,2,1]) == 6 && Solution::trap(vec![4,2,0,3,2,5]) == 9 && Solution::trap(vec![3]) == 0 && Solution::trap(vec![]) == 0
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn trap(height: Vec<i32>) -> i32 {
+        if height.is_empty() {
+            return 0;
+        }
+        let (mut l, mut r) = (0usize, height.len() - 1);
+        let (mut left_max, mut right_max, mut water) = (0, 0, 0);
+        while l < r {
+            if height[l] < height[r] {
+                left_max = left_max.max(height[l]);
+                water += left_max - height[l];
+                l += 1;
+            } else {
+                right_max = right_max.max(height[r]);
+                water += right_max - height[r];
+                r -= 1;
+            }
+        }
+        water
+    }
+}
+```
+=== 18
+A: A write index marks where the next unique value goes; a scanning index walks the vector. Whenever the scanned value differs from the last kept one, copy it to the write position.
+C: { let mut a = vec![1,1,2]; let k = Solution::remove_duplicates(&mut a); let mut b = vec![0,0,1,1,1,2,2,3,3,4]; let k2 = Solution::remove_duplicates(&mut b); k == 2 && a[..2] == [1,2] && k2 == 5 && b[..5] == [0,1,2,3,4] }
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn remove_duplicates(nums: &mut Vec<i32>) -> i32 {
+        if nums.is_empty() {
+            return 0;
+        }
+        let mut k = 1; // next write position
+        for i in 1..nums.len() {
+            if nums[i] != nums[k - 1] {
+                nums[k] = nums[i];
+                k += 1;
+            }
+        }
+        k as i32
+    }
+}
+```
+=== 19
+A: Keep a write index for the next non-zero value. Scan the vector, swapping each non-zero element into the write position. Zeros are pushed back automatically.
+C: { let mut a = vec![0,1,0,3,12]; Solution::move_zeroes(&mut a); let mut b = vec![1,0,0,2]; Solution::move_zeroes(&mut b); a == vec![1,3,12,0,0] && b == vec![1,2,0,0] }
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn move_zeroes(nums: &mut Vec<i32>) {
+        let mut write = 0;
+        for read in 0..nums.len() {
+            if nums[read] != 0 {
+                nums.swap(write, read);
+                write += 1;
+            }
+        }
+    }
+}
+```
+=== 20
+A: Walk both strings from the end. For each, skip characters that are cancelled by a `#` (count pending backspaces), then compare the next real bytes. No stacks or rebuilt strings, so O(1) space.
+C: Solution::backspace_compare("ab#c".to_string(), "ad#c".to_string()) && Solution::backspace_compare("ab##".to_string(), "c#d#".to_string()) && !Solution::backspace_compare("a#c".to_string(), "b".to_string())
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn backspace_compare(s: String, t: String) -> bool {
+        let (a, b) = (s.as_bytes(), t.as_bytes());
+        let (mut i, mut j) = (a.len() as isize - 1, b.len() as isize - 1);
+        loop {
+            i = Self::next_valid(a, i);
+            j = Self::next_valid(b, j);
+            if i < 0 || j < 0 {
+                return i < 0 && j < 0;
+            }
+            if a[i as usize] != b[j as usize] {
+                return false;
+            }
+            i -= 1;
+            j -= 1;
+        }
+    }
+
+    // index of the next byte (going left) that survives the backspaces, or -1
+    fn next_valid(s: &[u8], mut i: isize) -> isize {
+        let mut skip = 0;
+        while i >= 0 {
+            if s[i as usize] == b'#' {
+                skip += 1;
+                i -= 1;
+            } else if skip > 0 {
+                skip -= 1;
+                i -= 1;
+            } else {
+                break;
+            }
+        }
+        i
+    }
+}
+```

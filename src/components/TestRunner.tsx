@@ -2,8 +2,9 @@ import { CheckCircle2, XCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { PASS_THRESHOLD, PHASES } from '../lib/content'
-import { TESTS, type TestQ } from '../lib/tests'
+import { PASS_THRESHOLD } from '../lib/content'
+import { testsFor, type TestQ } from '../lib/tests'
+import { useCourse } from '../hooks/useCourse'
 import { useProgress, MAX_ATTEMPTS } from '../hooks/useProgress'
 import { CodeBlock } from './content'
 
@@ -24,7 +25,9 @@ function Confetti() {
 }
 
 export default function TestRunner({ phaseId }: { phaseId: number }) {
-  const qs = TESTS[phaseId]
+  const { course, data } = useCourse()
+  const qs = testsFor(course)[phaseId]
+  const PHASES = data.phases
   const { submit, attemptsLeft, lockedUntil } = useProgress()
   const [idx, setIdx] = useState(0)
   const [ans, setAns] = useState<Ans[]>(Array(qs.length).fill(undefined))

@@ -2,6 +2,7 @@ import { lazy } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import Workspace from './components/Workspace'
+import { useCourse } from './hooks/useCourse'
 
 const Landing = lazy(() => import('./pages/Landing'))
 const PhaseView = lazy(() => import('./pages/PhaseView'))
@@ -12,9 +13,10 @@ const Scenarios = lazy(() => import('./pages/Scenarios'))
 const Projects = lazy(() => import('./pages/Projects'))
 
 export default function App() {
+  const { course } = useCourse()
   return (
     <Workspace>
-      <Routes>
+      <Routes key={course}>
         <Route element={<Layout />}>
           <Route index element={<Landing />} />
           <Route path="phase/:id" element={<PhaseView />} />

@@ -1,0 +1,294 @@
+=== 1
+A: Store each value's index in a `HashMap` as you scan. For the current number, look up `target - n`; if it was seen earlier you have the pair. One pass, constant-time lookups.
+C: Solution::two_sum(vec![2,7,11,15], 9) == vec![0,1] && Solution::two_sum(vec![3,2,4], 6) == vec![1,2] && Solution::two_sum(vec![3,3], 6) == vec![0,1]
+```rust
+use std::collections::HashMap;
+
+struct Solution;
+
+impl Solution {
+    pub fn two_sum(nums: Vec<i32>, target: i32) -> Vec<i32> {
+        let mut seen: HashMap<i32, usize> = HashMap::new(); // value -> index
+        for (i, &n) in nums.iter().enumerate() {
+            if let Some(&j) = seen.get(&(target - n)) {
+                return vec![j as i32, i as i32];
+            }
+            seen.insert(n, i);
+        }
+        vec![]
+    }
+}
+```
+=== 2
+A: `HashSet::insert` returns `false` when the value is already present, so the first failed insert is a duplicate. Sorting would give O(1) extra space at O(N log N) time.
+C: Solution::contains_duplicate(vec![1,2,3,1]) && !Solution::contains_duplicate(vec![1,2,3,4]) && Solution::contains_duplicate(vec![1,1,1,3,3,4,3,2,4,2])
+```rust
+use std::collections::HashSet;
+
+struct Solution;
+
+impl Solution {
+    pub fn contains_duplicate(nums: Vec<i32>) -> bool {
+        let mut seen = HashSet::new();
+        for n in nums {
+            if !seen.insert(n) {
+                return true; // insert() is false if already present
+            }
+        }
+        false
+    }
+}
+```
+=== 3
+A: Count letters of `s` up and letters of `t` down in one `[i32; 26]`. If the lengths match and every count ends at zero, they are anagrams. Constant space because the alphabet is fixed.
+C: Solution::is_anagram("anagram".to_string(), "nagaram".to_string()) && !Solution::is_anagram("rat".to_string(), "car".to_string()) && !Solution::is_anagram("a".to_string(), "ab".to_string())
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn is_anagram(s: String, t: String) -> bool {
+        if s.len() != t.len() {
+            return false;
+        }
+        let mut count = [0i32; 26];
+        for (a, b) in s.bytes().zip(t.bytes()) {
+            count[(a - b'a') as usize] += 1;
+            count[(b - b'a') as usize] -= 1;
+        }
+        count.iter().all(|&c| c == 0)
+    }
+}
+```
+=== 4
+A: Anagrams share the same letter-count signature. Use that signature (an array of 26 counts, which is `Hash`) as the map key, then push each word into its bucket. Sorting the letters of each word also works but costs O(K log K).
+C: { let r = Solution::group_anagrams(strs(&["eat","tea","tan","ate","nat","bat"])); let mut sizes: Vec<usize> = r.iter().map(|g| g.len()).collect(); sizes.sort(); sizes == vec![1, 2, 3] && Solution::group_anagrams(strs(&[""])).len() == 1 }
+```rust
+use std::collections::HashMap;
+
+struct Solution;
+
+impl Solution {
+    pub fn group_anagrams(strs: Vec<String>) -> Vec<Vec<String>> {
+        let mut groups: HashMap<[u8; 26], Vec<String>> = HashMap::new();
+        for word in strs {
+            let mut key = [0u8; 26];
+            for b in word.bytes() {
+                key[(b - b'a') as usize] += 1;
+            }
+            groups.entry(key).or_insert_with(Vec::new).push(word);
+        }
+        groups.into_iter().map(|(_, v)| v).collect()
+    }
+}
+```
+=== 5
+A: Count frequencies in a map, then bucket values by frequency (index = count, at most N). Walk the buckets from the highest frequency down until you have `k` values. That is O(N) with no sorting; a `BinaryHeap` of size `k` is the O(N log K) alternative.
+C: { let mut r = Solution::top_k_frequent(vec![1,1,1,2,2,3], 2); r.sort(); r == vec![1,2] && Solution::top_k_frequent(vec![1], 1) == vec![1] && Solution::top_k_frequent(vec![4,4,4,5,5,6,6,6,6], 1) == vec![6] }
+```rust
+use std::collections::HashMap;
+
+struct Solution;
+
+impl Solution {
+    pub fn top_k_frequent(nums: Vec<i32>, k: i32) -> Vec<i32> {
+        let mut freq: HashMap<i32, usize> = HashMap::new();
+        for &n in &nums {
+            *freq.entry(n).or_insert(0) += 1;
+        }
+        // bucket[f] = values that appear exactly f times
+        let mut bucket: Vec<Vec<i32>> = vec![Vec::new(); nums.len() + 1];
+        for (&n, &f) in &freq {
+            bucket[f].push(n);
+        }
+        let mut result = Vec::new();
+        for f in (1..bucket.len()).rev() {
+            for &n in &bucket[f] {
+                if result.len() < k as usize {
+                    result.push(n);
+                }
+            }
+        }
+        result
+    }
+}
+```
+=== 6
+A: Two passes. First fill `answer[i]` with the product of everything to the left of `i`. Then sweep right-to-left, multiplying by a running product of everything to the right. The output vector is the only storage, so auxiliary space is O(1).
+C: Solution::product_except_self(vec![1,2,3,4]) == vec![24,12,8,6] && Solution::product_except_self(vec![-1,1,0,-3,3]) == vec![0,0,9,0,0] && Solution::product_except_self(vec![2,3]) == vec![3,2]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn product_except_self(nums: Vec<i32>) -> Vec<i32> {
+        let n = nums.len();
+        let mut answer = vec![1; n];
+        for i in 1..n {
+            answer[i] = answer[i - 1] * nums[i - 1]; // prefix products
+        }
+        let mut suffix = 1;
+        for i in (0..n).rev() {
+            answer[i] *= suffix; // multiply by product of everything to the right
+            suffix *= nums[i];
+        }
+        answer
+    }
+}
+```
+=== 7
+A: Walk all 81 cells once and record each digit together with its row, column and box in a `HashSet` of tuples. A failed `insert` means a repeat. The board size is fixed, so time and space are O(1).
+C: { let mut b = grid(&["53..7....","6..195...",".98....6.","8...6...3","4..8.3..1","7...2...6",".6....28.","...419..5","....8..79"]); let ok = Solution::is_valid_sudoku(b.clone()); b[0][0] = '8'; ok && !Solution::is_valid_sudoku(b) }
+```rust
+use std::collections::HashSet;
+
+struct Solution;
+
+impl Solution {
+    pub fn is_valid_sudoku(board: Vec<Vec<char>>) -> bool {
+        let mut seen: HashSet<(char, u8, usize)> = HashSet::new();
+        for r in 0..9 {
+            for c in 0..9 {
+                let ch = board[r][c];
+                if ch == '.' {
+                    continue;
+                }
+                // (digit, kind, index): kind 0 = row, 1 = column, 2 = 3x3 box
+                if !seen.insert((ch, 0, r)) || !seen.insert((ch, 1, c)) || !seen.insert((ch, 2, (r / 3) * 3 + c / 3)) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+}
+```
+=== 8
+A: Prefix every string with its byte length and a `#`. When decoding, read the number up to the next `#`, then take exactly that many bytes. Because you always skip by length, a `#` inside the data is harmless.
+C: { let c = Codec::new(); let input = strs(&["lint","code","love","you","","a#b"]); c.decode(c.encode(input.clone())) == input && c.encode(strs(&["", "a#b"])) == "0#3#a#b" }
+```rust
+struct Codec;
+
+impl Codec {
+    pub fn new() -> Self {
+        Codec
+    }
+
+    pub fn encode(&self, strs: Vec<String>) -> String {
+        let mut out = String::new();
+        for s in &strs {
+            out.push_str(&s.len().to_string());
+            out.push('#');
+            out.push_str(s);
+        }
+        out
+    }
+
+    pub fn decode(&self, s: String) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i < s.len() {
+            let hash = i + s[i..].find('#').unwrap(); // end of the length prefix
+            let len: usize = s[i..hash].parse().unwrap();
+            out.push(s[hash + 1..hash + 1 + len].to_string()); // take exactly len bytes
+            i = hash + 1 + len;
+        }
+        out
+    }
+}
+```
+=== 9
+A: Put every value in a `HashSet`. Only start counting from numbers that have no predecessor (`n - 1` absent); from there walk upward while `n + 1` exists. Each element is visited a constant number of times.
+C: Solution::longest_consecutive(vec![100,4,200,1,3,2]) == 4 && Solution::longest_consecutive(vec![0,3,7,2,5,8,4,6,0,1]) == 9 && Solution::longest_consecutive(vec![]) == 0
+```rust
+use std::collections::HashSet;
+
+struct Solution;
+
+impl Solution {
+    pub fn longest_consecutive(nums: Vec<i32>) -> i32 {
+        let set: HashSet<i32> = nums.into_iter().collect();
+        let mut best = 0;
+        for &n in &set {
+            if set.contains(&(n - 1)) {
+                continue; // not the start of a run
+            }
+            let mut len = 1;
+            while set.contains(&(n + len)) {
+                len += 1;
+            }
+            best = best.max(len);
+        }
+        best
+    }
+}
+```
+=== 10
+A: Keep a running prefix sum and a map of how many times each prefix sum has occurred. A subarray ending here sums to `k` exactly when an earlier prefix equals `sum - k`, so add that count to the answer. Seed the map with `0 -> 1`.
+C: Solution::subarray_sum(vec![1,1,1], 2) == 2 && Solution::subarray_sum(vec![1,2,3], 3) == 2 && Solution::subarray_sum(vec![1,-1,0], 0) == 3
+```rust
+use std::collections::HashMap;
+
+struct Solution;
+
+impl Solution {
+    pub fn subarray_sum(nums: Vec<i32>, k: i32) -> i32 {
+        let mut prefix_count: HashMap<i32, i32> = HashMap::new();
+        prefix_count.insert(0, 1); // empty prefix
+        let (mut sum, mut count) = (0, 0);
+        for n in nums {
+            sum += n;
+            count += prefix_count.get(&(sum - k)).copied().unwrap_or(0);
+            *prefix_count.entry(sum).or_insert(0) += 1;
+        }
+        count
+    }
+}
+```
+=== 11
+A: Dutch National Flag: keep `lo` (next spot for 0), `hi` (next spot for 2) and a scanner `i`. Swap 0s to the front and 2s to the back; do not advance `i` after swapping with `hi`, because the swapped-in value is unchecked.
+C: { let mut a = vec![2,0,2,1,1,0]; Solution::sort_colors(&mut a); let mut b = vec![2,0,1]; Solution::sort_colors(&mut b); a == vec![0,0,1,1,2,2] && b == vec![0,1,2] }
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn sort_colors(nums: &mut Vec<i32>) {
+        if nums.is_empty() {
+            return;
+        }
+        let (mut lo, mut i, mut hi) = (0usize, 0usize, nums.len() - 1);
+        while i <= hi {
+            if nums[i] == 0 {
+                nums.swap(i, lo);
+                lo += 1;
+                i += 1;
+            } else if nums[i] == 2 {
+                nums.swap(i, hi); // re-check nums[i] next loop
+                if hi == 0 {
+                    break;
+                }
+                hi -= 1;
+            } else {
+                i += 1;
+            }
+        }
+    }
+}
+```
+=== 12
+A: Boyer-Moore voting: keep a candidate and a counter. Matching values increment it, others decrement it, and at zero the next value becomes the candidate. A true majority outvotes everything else combined, so it survives. O(1) space.
+C: Solution::majority_element(vec![3,2,3]) == 3 && Solution::majority_element(vec![2,2,1,1,1,2,2]) == 2 && Solution::majority_element(vec![7]) == 7
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn majority_element(nums: Vec<i32>) -> i32 {
+        let (mut candidate, mut votes) = (0, 0);
+        for n in nums {
+            if votes == 0 {
+                candidate = n;
+            }
+            votes += if n == candidate { 1 } else { -1 };
+        }
+        candidate
+    }
+}
+```

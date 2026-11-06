@@ -4,6 +4,7 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-java'
+import 'prismjs/components/prism-rust'
 import 'prismjs/components/prism-sql'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-yaml'
@@ -13,8 +14,9 @@ import 'prismjs/components/prism-json'
 // IDE-style Java colouring: variables/fields light blue, control-flow keywords purple (VS Code Dark+).
 if (!('variable' in Prism.languages.java)) {
   Prism.languages.insertBefore('java', 'punctuation', { variable: /\b[a-z_]\w*\b/ })
+  Prism.languages.insertBefore('rust', 'punctuation', { variable: /\b[a-z_]\w*\b/ })
   Prism.hooks.add('wrap', (env) => {
-    if (env.type === 'keyword' && /^(if|else|for|while|do|return|break|continue|switch|case|default|try|catch|finally|throw|throws|yield)$/.test(env.content)) env.classes.push('control')
+    if (env.type === 'keyword' && /^(if|else|for|while|do|return|break|continue|switch|case|default|try|catch|finally|throw|throws|yield|loop|match|in)$/.test(env.content)) env.classes.push('control')
   })
 }
 

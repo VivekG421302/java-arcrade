@@ -72,6 +72,7 @@ Hover or focus any button (or long-press on touch) to see its tooltip with the s
 | Reset code to starter | Alt+Z |
 | Smaller / bigger editor text | Alt+, / Alt+. |
 | Wrap long lines | Alt+W |
+| Switch course (Java / Rust) | Alt+O |
 | Focus the editor / leave it | Alt+C / Esc |
 | Toggle Java solution / open LeetCode (for the problem in the IDE) | Alt+S / Alt+L |
 | Open the app menu | Alt+M |
@@ -88,3 +89,22 @@ Resize handles (between the two screens and between editor and terminal): drag, 
 Everything you adjust is remembered per browser: theme, reminder on/off, the docked sidebar and its expanded sections, the IDE (open/closed, current problem, app-view width, terminal position, size and open state, editor text size and wrapping), the Question Bank difficulty filter, your code per problem, reading progress and test results. Line wrapping defaults to on for small screens until you choose otherwise. The reset button in the top-bar settings menu clears the layout and preference keys (not your code or progress).
 
 Cursors follow the action: grab/grabbing on scrollable chip rows (drag to scroll), resize cursors on the drag handles, not-allowed on disabled controls, progress while code is running.
+
+## Courses: Java and Rust
+The app hosts two complete, independent courses. Pick one on the home page, in the sidebar, or with Alt+O; the choice is remembered.
+
+| | Java | Rust |
+| --- | --- | --- |
+| Roadmap | `content/roadmap.md` | `content/rust/roadmap.md` (6 phases, 17 sections) |
+| 100 problems | `content/problems/*.txt` | `content/rust/problems/*.txt` (statements and test cases are shared; each course has its own solutions, approaches and starters) |
+| Anti-patterns / scenarios | in the roadmap file (Parts 3 and 4) | in the Rust roadmap file (Parts 3 and 4) |
+| Projects | `content/projects/java.md` | `content/rust/projects.md` |
+| Phase tests | `JAVA_TESTS` in `src/lib/tests.ts` | `RUST_TESTS` in `src/lib/tests.ts` |
+
+- **Separate progress and code.** Rust phases are stored as phase ids 101-106 in `phase_progress` / `test_attempts` (no schema change), locally under `rows:<user>:rust`. Your code is kept per course (`code:<n>` for Java, `code:rust:<n>` for Rust).
+- **Rust in the IDE.** Rust highlighting, a Rust starter per problem (stubbed `impl` plus a `main` with the sample tests as comments), `rustc main.rs` in the terminal and error lines parsed from `--> main.rs:LINE`. Judge0 CE's default Rust is 1.40, so the solutions avoid newer APIs (they use `std::i32::MAX`, no `matches!`, etc.); set `VITE_RUST_LANG_ID` if your Judge0 has a newer toolchain.
+- **Index-based variants.** A few problems cannot be written with safe owning pointers, so the Rust course changes their representation and says so in the statement: Copy List with Random Pointer (arena), both Linked List Cycle problems (`next` index vector) and Clone Graph (`Rc<RefCell<Node>>`).
+- **Verification.** `node scripts/verify-rust.mjs` compiles every Rust solution (each in its own module) and runs its test check; all 100 pass on editions 2015, 2018 and 2021 (`--edition 2015|2018|2021`). The Java equivalent is `node scripts/verify-problems.mjs`. Rust code samples in the roadmap were compiled as well.
+
+## Projects (Part 5)
+Each course ends with eight projects to build, each describing **what it should do**, **how the tech flows** through it and **the problems it solves**.

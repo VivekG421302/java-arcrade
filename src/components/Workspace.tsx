@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } 
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight, Loader2, PanelBottom, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelTop, Play, RotateCcw, SquareTerminal, Type, WrapText, X, Minus, Plus } from 'lucide-react'
-import { content, leetUrl } from '../lib/content'
-import { errorLines, runJava, type RunResult } from '../lib/runner'
+import { leetUrl, type CourseMeta } from '../lib/content'
+import { errorLines, runCode, type RunResult } from '../lib/runner'
+import { useCourse } from '../hooks/useCourse'
 import { DEFAULTS, useIde, type Dock } from '../hooks/useIde'
 import { NARROW, useKeyboardInset, useMedia } from '../hooks/useMedia'
 import { useTips } from '../hooks/useTips'
@@ -17,14 +18,20 @@ const slide = { duration: 0.34, ease: [0.32, 0.72, 0, 1] } as const   // smooth 
 const instant = { duration: 0 } as const
 const MIN_PHONE = 320, MIN_IDE = 560, MIN_PANE = 96
 const GAP = 12
-const SCRATCH = `import java.util.*;
+const SCRATCH = {
+  java: `import java.util.*;
 
 public class Main {
     public static void main(String[] args) {
         System.out.println("Hello, Java!");
     }
 }
-`
+`,
+  rust: `fn main() {
+    println!("Hello, Rust!");
+}
+`,
+}
 
 type Res = { state: 'idle' } | { state: 'running' } | { state: 'error'; message: string } | ({ state: 'done' } & RunResult)
 
@@ -91,13 +98,14 @@ const MIN_FONT = 10, MAX_FONT = 24, DEFAULT_FONT = 13
 
 function IdePanel({ narrow }: { narrow: boolean }) {
   const ide = useIde()
+  const { data: content, meta, course } = useCourse()
   const { qn, hidden, termOpen, termH, termW, phoneW, go, setPhoneW, setDock, setTermOpen, setTermSize, fontSize, setFontSize } = ide
   const wrapOn = ide.wrap ?? narrow                                   // automatic: wrap on small screens
   const bumpFont = (d: number) => setFontSize((n) => Math.max(MIN_FONT, Math.min(MAX_FONT, n + d)))
   const dock: Dock = narrow ? 'bottom' : ide.dock                     // small screens always use the bottom dock
   const q = qn ? content.questions.find((x) => x.n === qn) : undefined
-  const starter = q?.starter ?? SCRATCH
-  const key = `code:${qn ?? 'scratch'}`
+  const starter = q?.starter ?? SCRATCH[meta.lang]
+  const key = `code:${course === 'rust' ? 'rust:' : ''}${qn ?? 'scratch'}`          // Java keys keep their old names
   const read = () => { try { return localStorage.getItem(key) ?? starter } catch { return starter } }
   const [code, setCode] = useState(read)
   const [res, setRes] = useState<Res>({ state: 'idle' })
@@ -120,7 +128,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
     setRes({ state: 'running' })
     setErrLines([])
     try {
-      const r = await runJava(code)
+      const r = await runCode(meta.lang, code)
       const lines = errorLines(r)
       setRes({ state: 'done', ...r })
       setErrLines(lines)
@@ -188,7 +196,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
         <button type="button" onClick={() => go(-1)} disabled={qn !== null && qn <= 1} aria-label="Previous problem" {...tip('Previous problem', 'prev')} className={ib}><ChevronLeft size={18} aria-hidden /></button>
         <p className="min-w-0 flex-1 truncate text-center font-sans text-sm text-slate-300">
           {q ? <><span className="font-mono text-slate-500">{q.n}/{total}</span> {q.title}</> : 'Scratch pad'}
-          {!narrow && <span className="ml-2 rounded-md bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-slate-500">Main.java</span>}
+          {!narrow && <span className="ml-2 rounded-md bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-slate-500">{meta.file}</span>}
         </p>
         <button type="button" onClick={() => go(1)} disabled={qn !== null && qn >= total} aria-label="Next problem" {...tip('Next problem', 'next')} className={ib}><ChevronRight size={18} aria-hidden /></button>
         {!narrow && <DockPicker dock={dock} termOpen={termOpen} onPick={moveDock} />}
@@ -204,7 +212,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
 
       <div ref={body} className={`flex min-h-0 flex-1 ${dir}`}>
         <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl">
-          <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} fontSize={fontSize} wrap={wrapOn} />
+          <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} fontSize={fontSize} wrap={wrapOn} lang={meta.lang} />
         </div>
         <AnimatePresence initial={false}>
           {termOpen && (
@@ -218,14 +226,14 @@ function IdePanel({ narrow }: { narrow: boolean }) {
               style={col ? { maxHeight: '70%' } : { maxWidth: '70%' }} className="relative shrink-0 overflow-hidden rounded-2xl bg-[#14161b]">
               {/* fixed size, anchored to the dock edge: the terminal slides in from / out to that edge instead of squashing */}
               <div className={`absolute ${anchor}`} style={col ? { height: size } : { width: size }}>
-                <Terminal res={res} onClear={() => { setRes({ state: 'idle' }); setErrLines([]) }} onJump={(line) => setJump({ line, id: Date.now(), focus: true })} />
+                <Terminal meta={meta} res={res} onClear={() => { setRes({ state: 'idle' }); setErrLines([]) }} onJump={(line) => setJump({ line, id: Date.now(), focus: true })} />
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {touchy && focused && createPortal(<SymbolBar editor={api} inset={inset} onHide={api.blur} />, document.body)}
+      {touchy && focused && createPortal(<SymbolBar editor={api} inset={inset} onHide={api.blur} lang={meta.lang} />, document.body)}
     </motion.section>
   )
 }
@@ -304,12 +312,12 @@ function ViewOptions({ fontSize, wrap, onFont, onFontReset, onWrap, narrow, onRe
   )
 }
 
-/** Turns `Main.java:12` into a button that jumps the editor to that line. */
+/** Turns `Main.java:12` / `main.rs:12` into a button that jumps the editor to that line. */
 function Linked({ text, onJump }: { text: string; onJump: (line: number) => void }) {
   return (
     <>
-      {text.split(/(Main\.java:\d+)/g).map((part, i) => {
-        const m = part.match(/^Main\.java:(\d+)$/)
+      {text.split(/((?:Main\.java|main\.rs):\d+)/g).map((part, i) => {
+        const m = part.match(/^(?:Main\.java|main\.rs):(\d+)$/)
         return m
           ? <button key={i} type="button" aria-label={`Go to line ${m[1]}`} onClick={() => onJump(Number(m[1]))} className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-red-300">{part}</button>
           : part
@@ -318,7 +326,7 @@ function Linked({ text, onJump }: { text: string; onJump: (line: number) => void
   )
 }
 
-function Terminal({ res, onClear, onJump }: { res: Res; onClear: () => void; onJump: (line: number) => void }) {
+function Terminal({ meta, res, onClear, onJump }: { meta: CourseMeta; res: Res; onClear: () => void; onJump: (line: number) => void }) {
   const dim = 'text-slate-500'
   return (
     <div className="flex h-full flex-col text-[13px]">
@@ -327,12 +335,12 @@ function Terminal({ res, onClear, onJump }: { res: Res; onClear: () => void; onJ
         {res.state !== 'idle' && <button type="button" onClick={onClear} aria-label="Clear terminal" className="rounded px-2 py-1 hover:bg-white/10 hover:text-white">Clear</button>}
       </div>
       <pre tabIndex={0} className="m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words px-4 pb-4 font-mono leading-6 text-[#d4d4d4] outline-none" aria-live="polite">
-        {res.state === 'idle' && <span className={dim}>Press Run ({keyLabel('run')}) to compile and run Main.java</span>}
-        {res.state === 'running' && <><span className="text-emerald-400">$ </span>javac Main.java &amp;&amp; java Main{'\n'}<span className={dim}>Compiling and running…</span></>}
+        {res.state === 'idle' && <span className={dim}>Press Run ({keyLabel('run')}) to compile and run {meta.file}</span>}
+        {res.state === 'running' && <><span className="text-emerald-400">$ </span>{meta.build}{'\n'}<span className={dim}>Compiling and running…</span></>}
         {res.state === 'error' && <span className="text-red-400">{res.message}</span>}
         {res.state === 'done' && (
           <>
-            <span className="text-emerald-400">$ </span>javac Main.java &amp;&amp; java Main{'\n'}
+            <span className="text-emerald-400">$ </span>{meta.build}{'\n'}
             {res.compile && <span className="text-red-400"><Linked text={res.compile} onJump={onJump} />{'\n'}</span>}
             {res.stdout}
             {res.stderr && <span className="text-red-400"><Linked text={res.stderr} onJump={onJump} />{'\n'}</span>}

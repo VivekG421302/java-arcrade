@@ -5,7 +5,7 @@ export type TestQ =
 
 const mcq = (q: string, opts: string[], answer: number, why: string): TestQ => ({ type: 'mcq', q, opts, answer, why })
 
-export const TESTS: Record<number, TestQ[]> = {
+export const JAVA_TESTS: Record<number, TestQ[]> = {
   1: [
     mcq('At what bucket chain length does HashMap convert a bucket into a Red-Black tree (table capacity ≥ 64)?', ['4', '6', '8', '16'], 2, 'TREEIFY_THRESHOLD = 8; UNTREEIFY_THRESHOLD = 6; the table must be at least 64 wide or it resizes instead.'),
     mcq('By what factor does ArrayList grow when full?', ['1.5×', '2×', '+10 slots', '3×'], 0, 'newCapacity = oldCapacity + (oldCapacity >> 1), i.e. 1.5×, copied with System.arraycopy().'),
@@ -49,3 +49,50 @@ export const TESTS: Record<number, TestQ[]> = {
     { type: 'code', q: 'Which command lists a process’s open file descriptors to diagnose this error?', lang: 'bash', code: 'java.net.SocketException: Too many open files', accept: ['lsof'], why: 'lsof -p <pid> (and ensure clients are closed with try-with-resources).' },
   ],
 }
+
+export const RUST_TESTS: Record<number, TestQ[]> = {
+  1: [
+    mcq('What happens when you compile `let x = 5; x = 6;`?', ['It compiles and x becomes 6', 'Compile error: variables are immutable unless declared `let mut`', 'A runtime panic', 'It silently shadows x'], 1, 'Bindings are immutable by default. Use `let mut x` to allow reassignment, or shadow with a new `let`.'),
+    mcq('After `let a = String::from("hi"); let b = a;` which statement is true?', ['Both a and b own the string', 'a was moved into b; using a afterwards is a compile error', 'The string is copied, so both are valid', 'b borrows a'], 1, 'String does not implement Copy, so assignment moves ownership. Use `.clone()` for a real copy or borrow with `&a`.'),
+    mcq('At any one time you may have…', ['Any number of `&T` and `&mut T` together', 'Either one `&mut T` or any number of `&T`, never both', 'Exactly one `&T`', 'Only `&mut T` references'], 1, 'This exclusivity rule is what prevents data races and iterator invalidation at compile time.'),
+    mcq('How does Rust represent "maybe a value"?', ['null', 'Option<T> with Some / None', 'A special sentinel like -1', 'Result<T, E>'], 1, 'There is no null: absence is `Option<T>`, and the compiler forces you to handle `None`.'),
+    { type: 'code', q: 'The compiler rejects this function. Which language feature must you add to its signature to say how long the returned reference is valid?', lang: 'rust', code: 'fn longest(a: &str, b: &str) -> &str {\n    if a.len() > b.len() { a } else { b }\n}', accept: ['lifetime'], why: 'Add a lifetime parameter: `fn longest<\'a>(a: &\'a str, b: &\'a str) -> &\'a str`. It tells the compiler the result lives no longer than both inputs.' },
+  ],
+  2: [
+    mcq('Which HashMap call inserts a default only when the key is missing and gives you a mutable reference?', ['map.get_or_default(k)', 'map.entry(k).or_insert(v)', 'map.put_if_absent(k, v)', 'map.insert(k, v) twice'], 1, 'The entry API does a single lookup: `*map.entry(k).or_insert(0) += 1`.'),
+    mcq('`Box<dyn Shape>` calls methods through…', ['Static dispatch resolved at compile time', 'Dynamic dispatch with a vtable', 'Reflection', 'Macros'], 1, 'Trait objects use a vtable at run time; generics (`T: Shape`) are monomorphised and statically dispatched.'),
+    mcq('What is the key difference between `Rc<T>` and `Arc<T>`?', ['Rc is faster and thread-safe', 'Arc uses atomic reference counts and can be shared across threads; Rc cannot', 'Arc can be mutated freely', 'There is no difference'], 1, 'Rc is not `Send`; use Arc when the value crosses threads.'),
+    mcq('Which closure trait describes a closure that may only be called once?', ['Fn', 'FnMut', 'FnOnce', 'Copy'], 2, 'FnOnce consumes the values it captured, so it can run a single time.'),
+    { type: 'code', q: 'Which iterator method turns this lazy `map` into a `Vec<i32>`?', lang: 'rust', code: 'let v: Vec<i32> = (1..=5).map(|x| x * 2)\n    /* ??? */;', accept: ['collect'], why: '`.collect()` consumes the iterator and builds the collection named by the type annotation.' },
+  ],
+  3: [
+    mcq('Which pair of marker traits makes a type safe to move to, and share between, threads?', ['Copy and Clone', 'Send and Sync', 'Sized and Unpin', 'Eq and Hash'], 1, '`Send` = may be moved to another thread; `Sync` = `&T` may be shared across threads. The compiler checks them automatically.'),
+    mcq('Why is holding a `std::sync::MutexGuard` across `.await` a problem?', ['It is a syntax error', 'The future stops being Send and the held lock can stall other tasks', 'It makes the mutex faster', 'Guards are free to hold'], 1, 'A guard held over a suspension point blocks other tasks needing the lock and breaks `tokio::spawn`. Drop it before awaiting.'),
+    mcq('What does a bounded channel give you that an unbounded one does not?', ['Faster sends', 'Back-pressure: producers wait when the queue is full', 'Ordered delivery', 'Multiple consumers'], 1, 'Bounded queues stop a fast producer from exhausting memory.'),
+    mcq('How do you run blocking or CPU-heavy code from async code without starving the runtime?', ['Call it directly in the async fn', 'tokio::task::spawn_blocking', 'Add more await points', 'Use std::thread::sleep'], 1, '`spawn_blocking` moves the work to a dedicated pool so runtime workers stay free.'),
+    { type: 'code', q: 'This fails to compile because the value cannot be sent between threads. Which smart pointer should replace `Rc`?', lang: 'rust', code: 'let counter = Rc::new(Mutex::new(0));\nlet c = Rc::clone(&counter);\nthread::spawn(move || { *c.lock().unwrap() += 1; });', accept: ['arc'], why: 'Use `Arc<Mutex<_>>`: `Arc` has an atomic reference count and is `Send + Sync` when its contents are.' },
+  ],
+  4: [
+    mcq('What does `unsafe` actually allow?', ['Disables the borrow checker everywhere', 'A few extra operations such as dereferencing raw pointers and calling unsafe functions', 'Skips type checking', 'Allows null references'], 1, 'The borrow checker still runs; `unsafe` only lets you do five specific things, and you promise the invariants hold.'),
+    mcq('What is `#[repr(C)]` for?', ['Making a struct copyable', 'Giving a type a C-compatible memory layout for FFI', 'Enabling reference counting', 'Compressing the struct'], 1, 'Rust may reorder fields by default; `repr(C)` fixes the layout so C code can read the struct.'),
+    mcq('Which tool can detect undefined behaviour in unsafe Rust?', ['rustfmt', 'Miri', 'cargo doc', 'cargo tree'], 1, 'Miri interprets your code and reports UB such as out-of-bounds access or invalid references.'),
+    mcq('What should you do first when code is slow?', ['Rewrite it in unsafe', 'Profile a release build to find the real hot spot', 'Add clones', 'Disable optimisations'], 1, 'Measure with `--release`, criterion and flamegraphs before changing anything.'),
+    { type: 'code', q: 'Cargo builds in debug mode by default. Which flag produces the optimised build you should benchmark?', lang: 'bash', code: 'cargo build --???', accept: ['release'], why: '`cargo build --release` (or `cargo run --release`) enables optimisations; debug builds can be 10-100x slower.' },
+  ],
+  5: [
+    mcq('Which crate is the de-facto framework for (de)serialisation in Rust?', ['serde', 'rustfmt', 'tokio', 'clap'], 0, '`serde` with `#[derive(Serialize, Deserialize)]` powers JSON, TOML, YAML and more.'),
+    mcq('What do SQLx `query!` macros give you?', ['An ORM', 'SQL that is checked against the database at compile time', 'Automatic migrations', 'Connection pooling'], 1, 'The macro connects to a database (or uses offline data) and verifies the SQL and column types when you compile.'),
+    mcq('Which Axum extractor parses a JSON request body into a struct?', ['Path<T>', 'Query<T>', 'Json<T>', 'State<T>'], 2, '`Json<T>` deserialises the body with serde; `Path` and `Query` read URL parts.'),
+    mcq('What does the `tracing` crate add compared with plain `log`?', ['Nothing', 'Structured events and spans that carry context across async code', 'Faster printing', 'A web UI'], 1, 'Spans track a unit of work (like a request) and attach fields to every event inside it.'),
+    { type: 'code', q: 'Which crate provides the derive macro for tidy custom error enums (`#[derive(Error)]`)?', lang: 'rust', code: '#[derive(Debug, ???::Error)]\nenum AppError {\n    #[error("not found")]\n    NotFound,\n}', accept: ['thiserror'], why: '`thiserror` generates `Display` and `Error` impls for library-style error enums; `anyhow` is the application-side companion.' },
+  ],
+  6: [
+    mcq('Which command runs the official linter?', ['cargo lint', 'cargo clippy', 'cargo check-style', 'rustc --lint'], 1, '`cargo clippy -- -D warnings` in CI turns lints into build failures.'),
+    mcq('Which tool checks your dependencies against known security advisories?', ['cargo audit', 'cargo bench', 'cargo expand', 'cargo tree'], 0, '`cargo audit` uses the RustSec database; `cargo deny` adds licence and ban checks.'),
+    mcq('Which target is typically used for small, fully static Docker images?', ['x86_64-pc-windows-msvc', 'x86_64-unknown-linux-musl', 'wasm32-unknown-unknown', 'aarch64-apple-darwin'], 1, 'musl links libc statically; pair it with `rustls` so you do not need OpenSSL.'),
+    mcq('Which release-profile setting enables whole-program optimisation across crates?', ['debug = true', 'lto = true', 'incremental = true', 'overflow-checks = true'], 1, 'Link-time optimisation (with `codegen-units = 1`) usually shrinks and speeds up the binary at the cost of compile time.'),
+    { type: 'code', q: 'Which cargo subcommand formats your code?', lang: 'bash', code: 'cargo ???  --all', accept: ['fmt'], why: '`cargo fmt --all` runs rustfmt over the whole workspace; `-- --check` makes it fail in CI instead of rewriting files.' },
+  ],
+}
+
+export const testsFor = (course: 'java' | 'rust'): Record<number, TestQ[]> => (course === 'rust' ? RUST_TESTS : JAVA_TESTS)

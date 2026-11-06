@@ -5,6 +5,7 @@ import App from './App'
 import { AuthProvider } from './hooks/useAuth'
 import { ProgressProvider } from './hooks/useProgress'
 import { IdeProvider } from './hooks/useIde'
+import { CourseProvider } from './hooks/useCourse'
 import './index.css'
 
 if (localStorage.getItem('theme') === 'light') document.documentElement.classList.remove('dark')
@@ -16,13 +17,15 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <ProgressProvider>
-          <IdeProvider>
-            <App />
-          </IdeProvider>
-        </ProgressProvider>
-      </AuthProvider>
+      <CourseProvider>
+        <AuthProvider>
+          <ProgressProvider>
+            <IdeProvider>
+              <App />
+            </IdeProvider>
+          </ProgressProvider>
+        </AuthProvider>
+      </CourseProvider>
     </BrowserRouter>
   </React.StrictMode>
 )

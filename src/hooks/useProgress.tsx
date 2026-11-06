@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
-import { PHASES, PASS_THRESHOLD, type Phase } from '../lib/content'
+import { PASS_THRESHOLD, type Phase } from '../lib/content'
 import { useAuth } from './useAuth'
+import { useCourse } from './useCourse'
 
 export type Status = 'locked' | 'in_progress' | 'completed'
 export type Row = { phase_id: number; status: Status; test_score: number | null; attempts: number; completed_at: string | null }
@@ -31,14 +32,18 @@ const C = createContext<Ctx>(null!)
 
 export function ProgressProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
+  const { course, data: courseData } = useCourse()
+  const PHASES = courseData.phases
   const uid = user?.id ?? 'guest'
+  const off = course === 'rust' ? 100 : 0          // Supabase phase_id offset so both courses share one table
+  const sfx = course === 'rust' ? ':rust' : ''      // localStorage suffix (Java keys stay unchanged)
   const [rows, setRows] = useState<Record<number, Row>>({})
   const [read, setRead] = useState<Record<string, boolean>>({})
   const [streak, setStreak] = useState(1)
   const [, bump] = useState(0)
 
   useEffect(() => {
-    setRows(load(`rows:${uid}`, {}))
+    setRows(load(`rows:${uid}${sfx}`, {}))
     setRead(load(`read:${uid}`, {}))
     const days = Array.from(new Set([...load<string[]>(`days:${uid}`, []), today()])).sort()
     save(`days:${uid}`, days)
@@ -49,11 +54,11 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       supabase.from('phase_progress').select('*').eq('user_id', user.id).then(({ data }) => {
         if (!data) return
         const r: Record<number, Row> = {}
-        data.forEach((d) => (r[d.phase_id] = d as Row))
+        data.filter((d) => (off ? d.phase_id > off : d.phase_id <= 100)).forEach((d) => (r[d.phase_id - off] = { ...(d as Row), phase_id: d.phase_id - off }))
         setRows((prev) => ({ ...prev, ...r }))
       })
     }
-  }, [uid]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [uid, course]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const statusOf = useCallback(
     (id: number): Status =>
@@ -62,10 +67,10 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   )
 
   const lockedUntil = (id: number) => {
-    const u = load<number>(`lock:${uid}:${id}`, 0)
+    const u = load<number>(`lock:${uid}${sfx}:${id}`, 0)
     return u > Date.now() ? u : 0
   }
-  const sessKey = (id: number) => `att:${uid}:${id}`
+  const sessKey = (id: number) => `att:${uid}${sfx}:${id}`
   const attemptsLeft = (id: number) =>
     lockedUntil(id) ? 0 : MAX_ATTEMPTS - Number(sessionStorage.getItem(sessKey(id)) ?? 0)
 
@@ -73,7 +78,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     const passed = score >= PASS_THRESHOLD
     const n = Number(sessionStorage.getItem(sessKey(phaseId)) ?? 0) + 1
     if (!passed && n >= MAX_ATTEMPTS) {
-      save(`lock:${uid}:${phaseId}`, Date.now() + LOCK_MS)
+      save(`lock:${uid}${sfx}:${phaseId}`, Date.now() + LOCK_MS)
       sessionStorage.removeItem(sessKey(phaseId))
     } else sessionStorage.setItem(sessKey(phaseId), String(passed ? 0 : n))
 
@@ -88,15 +93,15 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     }
     const all = { ...rows, [phaseId]: next }
     setRows(all)
-    save(`rows:${uid}`, all)
+    save(`rows:${uid}${sfx}`, all)
     bump((x) => x + 1)
 
     if (supabase && user) {
-      const upserts: object[] = [{ user_id: user.id, ...next }]
+      const upserts: object[] = [{ user_id: user.id, ...next, phase_id: off + phaseId }]
       if (passed && PHASES.some((p) => p.id === phaseId + 1) && !rows[phaseId + 1])
-        upserts.push({ user_id: user.id, phase_id: phaseId + 1, status: 'in_progress', attempts: 0 })
+        upserts.push({ user_id: user.id, phase_id: off + phaseId + 1, status: 'in_progress', attempts: 0 })
       await supabase.from('phase_progress').upsert(upserts, { onConflict: 'user_id,phase_id' })
-      await supabase.from('test_attempts').insert({ user_id: user.id, phase_id: phaseId, answers, score: pct, passed })
+      await supabase.from('test_attempts').insert({ user_id: user.id, phase_id: off + phaseId, answers, score: pct, passed })
     }
     return passed
   }
@@ -118,7 +123,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       streak,
       current: PHASES.find((p) => statusOf(p.id) === 'in_progress')?.id ?? PHASES.length,
     }),
-    [rows, read, streak, statusOf, uid] // eslint-disable-line react-hooks/exhaustive-deps
+    [rows, read, streak, statusOf, uid, course] // eslint-disable-line react-hooks/exhaustive-deps
   )
   return <C.Provider value={value}>{children}</C.Provider>
 }

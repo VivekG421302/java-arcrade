@@ -1,0 +1,191 @@
+=== 90
+A: The ways to reach step `i` equal the ways to reach `i-1` plus the ways to reach `i-2` (the Fibonacci recurrence). Only the last two values are needed, so space is O(1).
+C: Solution::climb_stairs(2) == 2 && Solution::climb_stairs(3) == 3 && Solution::climb_stairs(5) == 8 && Solution::climb_stairs(1) == 1
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn climb_stairs(n: i32) -> i32 {
+        let (mut prev, mut cur) = (1, 1); // ways to reach step 0 and step 1
+        for _ in 2..=n {
+            let next = prev + cur;
+            prev = cur;
+            cur = next;
+        }
+        cur
+    }
+}
+```
+=== 91
+A: At each house choose the better of skipping it (keep the previous best) or robbing it (value plus the best from two houses back). Two rolling variables are enough.
+C: Solution::rob(vec![1,2,3,1]) == 4 && Solution::rob(vec![2,7,9,3,1]) == 12 && Solution::rob(vec![2,1]) == 2
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn rob(nums: Vec<i32>) -> i32 {
+        let (mut skip, mut take) = (0, 0); // best total up to the previous house / the one before
+        for money in nums {
+            let best = take.max(skip + money);
+            skip = take;
+            take = best;
+        }
+        take
+    }
+}
+```
+=== 92
+A: Because the first and last houses cannot both be robbed, the answer is the better of two linear problems: houses `0..n-1` and houses `1..n`. Handle a single house separately.
+C: Solution::rob(vec![2,3,2]) == 3 && Solution::rob(vec![1,2,3,1]) == 4 && Solution::rob(vec![1,2,3]) == 3 && Solution::rob(vec![1]) == 1
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn rob(nums: Vec<i32>) -> i32 {
+        let n = nums.len();
+        if n == 1 {
+            return nums[0];
+        }
+        Self::rob_line(&nums[..n - 1]).max(Self::rob_line(&nums[1..]))
+    }
+
+    fn rob_line(nums: &[i32]) -> i32 {
+        let (mut skip, mut take) = (0, 0);
+        for &money in nums {
+            let best = take.max(skip + money);
+            skip = take;
+            take = best;
+        }
+        take
+    }
+}
+```
+=== 93
+A: Expand around every possible centre: each byte (odd length) and each gap between bytes (even length). Grow while both ends match and remember the longest span. O(N²) time, O(1) space. The input is treated as ASCII bytes; slicing a `&str` by byte offsets is only safe at character boundaries.
+C: Solution::longest_palindrome("babad".to_string()) == "bab" && Solution::longest_palindrome("cbbd".to_string()) == "bb" && Solution::longest_palindrome("a".to_string()) == "a"
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn longest_palindrome(s: String) -> String {
+        let b = s.as_bytes();
+        let (mut start, mut max_len) = (0usize, 1usize);
+        for center in 0..b.len() {
+            let odd = Self::expand(b, center as isize, center as isize);
+            let even = Self::expand(b, center as isize, center as isize + 1);
+            let len = odd.max(even);
+            if len > max_len {
+                max_len = len;
+                start = center - (len - 1) / 2;
+            }
+        }
+        s[start..start + max_len].to_string()
+    }
+
+    fn expand(b: &[u8], mut l: isize, mut r: isize) -> usize {
+        while l >= 0 && (r as usize) < b.len() && b[l as usize] == b[r as usize] {
+            l -= 1;
+            r += 1;
+        }
+        (r - l - 1) as usize // length of the palindrome found
+    }
+}
+```
+=== 94
+A: `dp[i]` is the number of ways to decode the first `i` characters. A single digit adds `dp[i-1]` if it is 1-9; a two-digit number 10-26 adds `dp[i-2]`. Keep only the last two values.
+C: Solution::num_decodings("12".to_string()) == 2 && Solution::num_decodings("226".to_string()) == 3 && Solution::num_decodings("06".to_string()) == 0 && Solution::num_decodings("10".to_string()) == 1
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn num_decodings(s: String) -> i32 {
+        let b = s.as_bytes();
+        let (mut prev2, mut prev1) = (1, if b[0] == b'0' { 0 } else { 1 }); // dp[0], dp[1]
+        for i in 2..=b.len() {
+            let mut cur = 0;
+            if b[i - 1] != b'0' {
+                cur += prev1; // single digit 1-9
+            }
+            let two = (b[i - 2] - b'0') as i32 * 10 + (b[i - 1] - b'0') as i32;
+            if two >= 10 && two <= 26 {
+                cur += prev2; // pair 10-26
+            }
+            prev2 = prev1;
+            prev1 = cur;
+        }
+        prev1
+    }
+}
+```
+=== 95
+A: Bottom-up DP: `dp[a]` is the minimum coins for amount `a`. For each amount try every coin: `dp[a] = min(dp[a - coin] + 1)`. Initialise with a value larger than any answer to mark unreachable amounts.
+C: Solution::coin_change(vec![1,2,5], 11) == 3 && Solution::coin_change(vec![2], 3) == -1 && Solution::coin_change(vec![1], 0) == 0
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn coin_change(coins: Vec<i32>, amount: i32) -> i32 {
+        let amount = amount as usize;
+        let mut dp = vec![amount + 1; amount + 1]; // "infinity"
+        dp[0] = 0;
+        for a in 1..=amount {
+            for &coin in &coins {
+                let coin = coin as usize;
+                if coin <= a {
+                    dp[a] = dp[a].min(dp[a - coin] + 1);
+                }
+            }
+        }
+        if dp[amount] > amount { -1 } else { dp[amount] as i32 }
+    }
+}
+```
+=== 96
+A: Patience sorting: keep `tails[k]`, the smallest possible last value of an increasing subsequence of length `k+1`. For each number, binary search the first tail that is at least it and replace that tail (or push). The length of `tails` is the answer.
+C: Solution::length_of_lis(vec![10,9,2,5,3,7,101,18]) == 4 && Solution::length_of_lis(vec![0,1,0,3,2,3]) == 4 && Solution::length_of_lis(vec![7,7,7,7]) == 1
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn length_of_lis(nums: Vec<i32>) -> i32 {
+        let mut tails: Vec<i32> = Vec::new();
+        for x in nums {
+            // Ok(i) = equal value found, Err(i) = insertion point: both are the first tail >= x
+            let i = match tails.binary_search(&x) {
+                Ok(i) | Err(i) => i,
+            };
+            if i == tails.len() {
+                tails.push(x); // extended the longest subsequence
+            } else {
+                tails[i] = x;
+            }
+        }
+        tails.len() as i32
+    }
+}
+```
+=== 97
+A: `dp[i]` is true if the first `i` bytes can be segmented. For each `i`, look for a split point `j` where `dp[j]` is true and `s[j..i]` is a dictionary word. Put the dictionary in a `HashSet` for O(1) lookups.
+C: Solution::word_break("leetcode".to_string(), strs(&["leet","code"])) && Solution::word_break("applepenapple".to_string(), strs(&["apple","pen"])) && !Solution::word_break("catsandog".to_string(), strs(&["cats","dog","sand","and","cat"]))
+```rust
+use std::collections::HashSet;
+
+struct Solution;
+
+impl Solution {
+    pub fn word_break(s: String, word_dict: Vec<String>) -> bool {
+        let words: HashSet<&str> = word_dict.iter().map(|w| w.as_str()).collect();
+        let mut dp = vec![false; s.len() + 1];
+        dp[0] = true; // empty prefix
+        for i in 1..=s.len() {
+            for j in 0..i {
+                if dp[j] && words.contains(&s[j..i]) {
+                    dp[i] = true;
+                    break;
+                }
+            }
+        }
+        dp[s.len()]
+    }
+}
+```

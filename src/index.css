@@ -38,6 +38,8 @@ code[class*='language-'], pre code { background: none; }
 .token.class-name, .token.namespace { color: #4ec9b0; }
 .token.operator, .token.punctuation { color: #d4d4d4; }
 .token.annotation { color: #dcdcaa; }
+.token.macro, .token.macro-rules { color: #dcdcaa; }
+.token.attribute, .token.lifetime-annotation { color: #4ec9b0; }
 .token.tag, .token.selector { color: #569cd6; }
 .token.attr-name, .token.property, .token.variable, .token.constant { color: #9cdcfe; }
 

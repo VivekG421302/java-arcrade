@@ -1,7 +1,7 @@
 // One place for every keyboard shortcut. Matching uses e.code, so Alt+letter works on macOS too.
 export type ShortcutId =
   | 'ide' | 'menu' | 'run' | 'terminal' | 'hideApp' | 'next' | 'prev' | 'dock' | 'reset' | 'focus'
-  | 'solution' | 'leetcode' | 'appNarrower' | 'appWider' | 'termSmaller' | 'termBigger' | 'fontSmaller' | 'fontBigger' | 'wrap'
+  | 'solution' | 'leetcode' | 'appNarrower' | 'appWider' | 'termSmaller' | 'termBigger' | 'fontSmaller' | 'fontBigger' | 'wrap' | 'course'
 
 type Def = { code: string; alt?: boolean; mod?: boolean }
 const DEFS: Record<ShortcutId, Def> = {
@@ -24,6 +24,7 @@ const DEFS: Record<ShortcutId, Def> = {
   fontSmaller: { code: 'Comma', alt: true },
   fontBigger: { code: 'Period', alt: true },
   wrap: { code: 'KeyW', alt: true },
+  course: { code: 'KeyO', alt: true },
 }
 const NAMES: Record<string, string> = { Enter: 'Enter', BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=', Comma: ',', Period: '.' }
 

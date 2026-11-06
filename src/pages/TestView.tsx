@@ -1,11 +1,12 @@
 import { ArrowLeft } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { PHASES } from '../lib/content'
+import { useCourse } from '../hooks/useCourse'
 import { useProgress } from '../hooks/useProgress'
 import TestRunner from '../components/TestRunner'
 
 export default function TestView() {
   const { id } = useParams()
+  const PHASES = useCourse().data.phases
   const { statusOf } = useProgress()
   const phase = PHASES.find((p) => p.id === Number(id))
   if (!phase || statusOf(phase.id) === 'locked') return <Navigate to="/" replace />
