@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
-import { content } from '../lib/content'
+import { useCourse } from './useCourse'
 import { usePersisted } from './usePersisted'
 
 export type Dock = 'bottom' | 'right' | 'top' | 'left'
@@ -40,6 +40,7 @@ const put = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch
 const num = (k: string, d: number) => { const v = Number(get(k)); return v > 0 ? v : d }
 
 export function IdeProvider({ children }: { children: ReactNode }) {
+  const { data } = useCourse()
   const [open, setOpen] = usePersisted('ide:open', false)
   const [qn, setQn] = usePersisted<number | null>('ide:qn', null)
   const [hidden, setHidden] = usePersisted('ide:hidden', false)
@@ -53,8 +54,8 @@ export function IdeProvider({ children }: { children: ReactNode }) {
 
   const openFor = useCallback((n: number | null) => { setQn(n); setOpen(true) }, [setQn, setOpen])
   const go = useCallback((delta: number) => {
-    setQn((cur) => Math.min(content.questions.length, Math.max(1, (cur ?? (delta > 0 ? 0 : 2)) + delta)))
-  }, [setQn])
+    setQn((cur) => Math.min(data.questions.length, Math.max(1, (cur ?? (delta > 0 ? 0 : 2)) + delta)))
+  }, [setQn, data.questions.length])
   const setDock = useCallback((d: Dock) => { setDockState(d); put('ide:dock', d) }, [])
   const setPhoneW = useCallback((n: number) => { setPhone(n); put('ide:phoneW', String(Math.round(n))) }, [])
   const setTermSize = useCallback((axis: 'h' | 'w', n: number) => {

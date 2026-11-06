@@ -1,13 +1,14 @@
 import { Check, Lock } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
-import { PHASES } from '../lib/content'
+import { useCourse } from '../hooks/useCourse'
 import { useProgress } from '../hooks/useProgress'
 import { Markdown } from '../components/content'
 import { PhaseBadge, ProgressBar } from '../components/ui'
 
 export default function PhaseView() {
   const { id } = useParams()
+  const PHASES = useCourse().data.phases
   const { hash } = useLocation()
   const { statusOf, row, readPct, isRead, toggleRead } = useProgress()
   const phase = PHASES.find((p) => p.id === Number(id))

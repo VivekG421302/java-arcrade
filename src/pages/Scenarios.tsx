@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { content } from '../lib/content'
+import { useCourse } from '../hooks/useCourse'
 import { Accordion } from '../components/ui'
 import { Inline, Markdown } from '../components/content'
 
 export default function Scenarios() {
+  const { data: content } = useCourse()
   const [text, setText] = useState('')
   const t = text.toLowerCase()
   const full = content.scenarios.filter((s) => `${s.title} ${s.question} ${s.answer}`.toLowerCase().includes(t))

@@ -1,4 +1,4 @@
-import { content } from '../lib/content'
+import { useCourse } from '../hooks/useCourse'
 import { Accordion } from '../components/ui'
 import { Markdown } from '../components/content'
 
@@ -10,9 +10,10 @@ function Label({ children }: { children: string }) {
 }
 
 export default function Projects() {
+  const { data: content, meta } = useCourse()
   return (
     <div>
-      <h1 className="text-3xl font-bold tracking-tight">Projects to Build</h1>
+      <h1 className="text-3xl font-bold tracking-tight">{meta.name} Projects to Build</h1>
       <p className="mt-1 font-serif text-slate-600 dark:text-slate-400">Build these after the roadmap, roughly in order. Each one lists what it must do, how the technology flows through it, and which real problems it teaches you to solve.</p>
       <div className="mt-6">
         {content.projects.map((p) => (

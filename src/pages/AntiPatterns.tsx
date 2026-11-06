@@ -1,16 +1,17 @@
 import { useMemo, useState } from 'react'
-import { content } from '../lib/content'
+import { useCourse } from '../hooks/useCourse'
 import { Accordion, } from '../components/ui'
 import { DiffView, Inline, Markdown } from '../components/content'
 
 const sev: Record<string, string> = { Critical: 'bg-red-500/15 text-red-500', High: 'bg-orange-500/15 text-orange-500', Medium: 'bg-amber-500/15 text-amber-500', Low: 'bg-slate-500/15 text-slate-500' }
 
 export default function AntiPatterns() {
+  const { data: content } = useCourse()
   const [s, setS] = useState('All')
   const [text, setText] = useState('')
   const rows = useMemo(
     () => content.antiMatrix.filter((r) => (s === 'All' || r.severity === s) && `${r.domain} ${r.pattern} ${r.cause} ${r.fix}`.toLowerCase().includes(text.toLowerCase())),
-    [s, text]
+    [s, text, content]
   )
   return (
     <div>

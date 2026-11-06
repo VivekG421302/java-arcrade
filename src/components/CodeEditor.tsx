@@ -14,6 +14,7 @@ type Props = {
   onFocusChange?: (focused: boolean) => void
   fontSize?: number
   wrap?: boolean
+  lang?: 'java' | 'rust'
 }
 
 /** Splits Prism's HTML into one HTML string per source line, closing and reopening spans across line breaks. */
@@ -37,10 +38,10 @@ function splitLines(html: string): string[] {
 }
 
 /** IDE-style editor: a transparent textarea over Prism-highlighted rows (one row per line, so wrapping keeps numbers aligned). */
-const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onChange, errorLines = [], jump, onFocusChange, fontSize = 13, wrap = false }, ref) {
+const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onChange, errorLines = [], jump, onFocusChange, fontSize = 13, wrap = false, lang = 'java' }, ref) {
   const ta = useRef<HTMLTextAreaElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
-  const rows = useMemo(() => splitLines(highlight(value, 'java')), [value])
+  const rows = useMemo(() => splitLines(highlight(value, lang)), [value, lang])
   const errSet = useMemo(() => new Set(errorLines), [errorLines])
   const lh = Math.round(fontSize * 1.85)
   const gutter = Math.ceil(String(rows.length).length * fontSize * 0.62) + 28
@@ -132,7 +133,7 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
         <textarea
           ref={ta} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown}
           onFocus={() => onFocusChange?.(true)} onBlur={() => onFocusChange?.(false)}
-          id="ide-editor" spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" wrap={wrap ? 'soft' : 'off'} aria-label="Java code editor"
+          id="ide-editor" spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" wrap={wrap ? 'soft' : 'off'} aria-label={`${lang === 'rust' ? 'Rust' : 'Java'} code editor`}
           className={`absolute bottom-0 right-0 top-0 resize-none overflow-hidden bg-transparent py-4 pr-8 font-mono text-transparent caret-white outline-none selection:bg-sky-500/30 ${wrapCls}`}
           style={{ left: gutter, fontSize, lineHeight: `${lh}px`, tabSize: 4 }}
         />

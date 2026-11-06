@@ -1,8 +1,10 @@
 import { Bell, BellOff, CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, LogIn, LogOut, Menu, MoreHorizontal, RefreshCw, RotateCcw, SquareTerminal, X } from 'lucide-react'
-import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom'
-import { content, PHASES } from '../lib/content'
+import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom'
+import { COURSE_IDS } from '../lib/content'
+import { useCourse } from '../hooks/useCourse'
+import CourseSwitcher from './CourseSwitcher'
 import { useAuth } from '../hooks/useAuth'
 import { useProgress } from '../hooks/useProgress'
 import { useIde } from '../hooks/useIde'
@@ -49,7 +51,6 @@ const statusColor = { locked: 'text-slate-400', in_progress: 'text-sky-500', com
 const link = 'flex min-h-[44px] items-center gap-2 border-l-2 px-4 py-2 text-sm'
 const active = 'border-sky-500 bg-sky-500/10 font-medium text-sky-600 dark:text-sky-400'
 const idle = 'border-transparent hover:bg-slate-200/70 dark:hover:bg-white/5'
-const cats = Array.from(new Set(content.questions.map((q) => q.category)))
 
 function AuthModal({ onClose }: { onClose: () => void }) {
   const { signIn, signUp } = useAuth()
@@ -118,6 +119,9 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
 
 function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; onClose: () => void }) {
   const { statusOf, readPct } = useProgress()
+  const { data: content } = useCourse()
+  const PHASES = content.phases
+  const cats = useMemo(() => Array.from(new Set(content.questions.map((q) => q.category))), [content])
   const loc = useLocation()
   const m = useMatch('/phase/:id/*')
   const [expanded, setExpanded] = usePersisted<number[]>('ui:expanded', [])
@@ -129,6 +133,7 @@ function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; 
   const heading = 'px-4 pb-1 pt-5 text-xs font-semibold uppercase tracking-wider text-slate-500'
   const nav = (
         <nav aria-label="Primary" onClick={(e) => { if (overlay && (e.target as Element).closest('a')) onClose() }}>
+          <CourseSwitcher variant="pills" />
           <h2 className={heading}>Part 1 · Roadmap</h2>
           {PHASES.map((p) => {
             const st = statusOf(p.id)
@@ -207,7 +212,7 @@ function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; 
 
 function TOC({ onClose }: { onClose: () => void }) {
   const m = useMatch('/phase/:id')
-  const phase = PHASES.find((p) => p.id === Number(m?.params.id))
+  const phase = useCourse().data.phases.find((p) => p.id === Number(m?.params.id))
   if (!phase) return null
   return (
     <>
@@ -234,12 +239,24 @@ export default function Layout() {
   const open = overlay ? pop : docked
   const toggleMenu = useCallback(() => (overlay ? setPop((o) => !o) : setDocked((o) => !o)), [overlay, setDocked])
   const scroller = useRef<HTMLDivElement>(null)
+  const nav = useNavigate()
+  const { course, setCourse } = useCourse()
   const onPhase = !!useMatch('/phase/:id')
   const close = useCallback(() => (overlay ? setPop(false) : setDocked(false)), [overlay, setDocked])
 
   useEffect(() => { if (!hash) scroller.current?.scrollTo(0, 0) }, [pathname, hash])
   useEffect(() => { setToc(false); if (overlay) setPop(false) }, [pathname, hash, search])   // picking something closes the overlay menu
-  useEffect(() => { setPop(false) }, [overlay])                                              // layout mode changed (IDE opened/closed, resize)
+  useEffect(() => { setPop(false) }, [overlay])
+  useEffect(() => {                                                                           // Alt+O: switch course
+    const h = (e: KeyboardEvent) => {
+      if (!matches(e, 'course')) return
+      e.preventDefault()
+      setCourse(COURSE_IDS[(COURSE_IDS.indexOf(course) + 1) % COURSE_IDS.length])
+      nav('/')
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [course, setCourse, nav])                                              // layout mode changed (IDE opened/closed, resize)
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (matches(e, 'menu')) { e.preventDefault(); toggleMenu() } }
     window.addEventListener('keydown', h)

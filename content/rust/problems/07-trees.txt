@@ -1,0 +1,393 @@
+=== 54
+A: Take the two children out of the node (`take()`), invert each subtree recursively, and put them back swapped. Every node is visited once; the call stack depth equals the tree height. The tree is owned, so it is rebuilt in place with no cloning.
+C: ts(&Solution::invert_tree(tree("[4,2,7,1,3,6,9]"))) == "[4,7,2,9,6,3,1]" && ts(&Solution::invert_tree(tree("[2,1,3]"))) == "[2,3,1]" && Solution::invert_tree(None).is_none()
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn invert_tree(root: Option<Box<TreeNode>>) -> Option<Box<TreeNode>> {
+        root.map(|mut node| {
+            let (left, right) = (node.left.take(), node.right.take());
+            node.left = Self::invert_tree(right);
+            node.right = Self::invert_tree(left);
+            node
+        })
+    }
+}
+```
+=== 55
+A: The depth of a node is 1 plus the larger depth of its two subtrees; an empty tree has depth 0. The tree is only read, so it is borrowed (`&Option<Box<TreeNode>>`).
+C: Solution::max_depth(&tree("[3,9,20,null,null,15,7]")) == 3 && Solution::max_depth(&tree("[1,null,2]")) == 2 && Solution::max_depth(&None) == 0
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn max_depth(root: &Option<Box<TreeNode>>) -> i32 {
+        match root {
+            None => 0,
+            Some(node) => 1 + Self::max_depth(&node.left).max(Self::max_depth(&node.right)),
+        }
+    }
+}
+```
+=== 56
+A: For each node, the longest path through it is `height(left) + height(right)`. Compute heights bottom-up in one DFS and update a best-so-far value (passed as `&mut`) as you go.
+C: Solution::diameter_of_binary_tree(&tree("[1,2,3,4,5]")) == 3 && Solution::diameter_of_binary_tree(&tree("[1,2]")) == 1 && Solution::diameter_of_binary_tree(&tree("[1]")) == 0
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn diameter_of_binary_tree(root: &Option<Box<TreeNode>>) -> i32 {
+        let mut best = 0;
+        Self::height(root, &mut best);
+        best
+    }
+
+    fn height(node: &Option<Box<TreeNode>>, best: &mut i32) -> i32 {
+        match node {
+            None => 0,
+            Some(n) => {
+                let (left, right) = (Self::height(&n.left, best), Self::height(&n.right, best));
+                *best = (*best).max(left + right); // path bending at this node
+                1 + left.max(right)
+            }
+        }
+    }
+}
+```
+=== 57
+A: Compute heights bottom-up and return -1 as soon as any subtree is unbalanced, so each node is processed once instead of recomputing heights at every level.
+C: Solution::is_balanced(&tree("[3,9,20,null,null,15,7]")) && !Solution::is_balanced(&tree("[1,2,2,3,3,null,null,4,4]")) && Solution::is_balanced(&None)
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn is_balanced(root: &Option<Box<TreeNode>>) -> bool {
+        Self::height(root) != -1
+    }
+
+    // returns the height, or -1 if the subtree is unbalanced
+    fn height(node: &Option<Box<TreeNode>>) -> i32 {
+        match node {
+            None => 0,
+            Some(n) => {
+                let left = Self::height(&n.left);
+                if left == -1 {
+                    return -1;
+                }
+                let right = Self::height(&n.right);
+                if right == -1 || (left - right).abs() > 1 {
+                    return -1;
+                }
+                1 + left.max(right)
+            }
+        }
+    }
+}
+```
+=== 58
+A: Compare roots, then recurse on both left children and both right children. Matching on the pair `(p, q)` handles all four cases: two empty trees match, one empty and one not does not.
+C: Solution::is_same_tree(&tree("[1,2,3]"), &tree("[1,2,3]")) && !Solution::is_same_tree(&tree("[1,2]"), &tree("[1,null,2]")) && !Solution::is_same_tree(&tree("[1,2,1]"), &tree("[1,1,2]"))
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn is_same_tree(p: &Option<Box<TreeNode>>, q: &Option<Box<TreeNode>>) -> bool {
+        match (p, q) {
+            (None, None) => true,
+            (Some(a), Some(b)) => a.val == b.val && Self::is_same_tree(&a.left, &b.left) && Self::is_same_tree(&a.right, &b.right),
+            _ => false,
+        }
+    }
+}
+```
+=== 59
+A: For every node in `root`, check whether the tree rooted there is identical to `sub_root` using a same-tree comparison. Worst case O(N · M).
+C: Solution::is_subtree(&tree("[3,4,5,1,2]"), &tree("[4,1,2]")) && !Solution::is_subtree(&tree("[3,4,5,1,2,null,null,null,null,0]"), &tree("[4,1,2]"))
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn is_subtree(root: &Option<Box<TreeNode>>, sub_root: &Option<Box<TreeNode>>) -> bool {
+        match root {
+            None => false,
+            Some(n) => Self::same(root, sub_root) || Self::is_subtree(&n.left, sub_root) || Self::is_subtree(&n.right, sub_root),
+        }
+    }
+
+    fn same(a: &Option<Box<TreeNode>>, b: &Option<Box<TreeNode>>) -> bool {
+        match (a, b) {
+            (None, None) => true,
+            (Some(x), Some(y)) => x.val == y.val && Self::same(&x.left, &y.left) && Self::same(&x.right, &y.right),
+            _ => false,
+        }
+    }
+}
+```
+=== 60
+S: In a binary search tree, return the value of the lowest common ancestor of the two nodes holding the values `p` and `q`: the deepest node that has both as descendants (a node counts as a descendant of itself). Both values are in the tree.
+T: `root = [6,2,8,0,4,7,9,null,null,3,5], p = 2, q = 8` => `6`
+T: `root = [6,2,8,0,4,7,9,null,null,3,5], p = 2, q = 4` => `2`
+A: Use the BST ordering. If both values are smaller than the current node, go left; if both are larger, go right; otherwise the current node is where the paths split, so it is the LCA. Iterative, O(H), walking down with shared references.
+C: { let t = tree("[6,2,8,0,4,7,9,null,null,3,5]"); Solution::lowest_common_ancestor(&t, 2, 8) == 6 && Solution::lowest_common_ancestor(&t, 2, 4) == 2 && Solution::lowest_common_ancestor(&t, 3, 5) == 4 }
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn lowest_common_ancestor(root: &Option<Box<TreeNode>>, p: i32, q: i32) -> i32 {
+        let mut node = root.as_ref();
+        while let Some(n) = node {
+            if p < n.val && q < n.val {
+                node = n.left.as_ref();
+            } else if p > n.val && q > n.val {
+                node = n.right.as_ref();
+            } else {
+                return n.val; // split point (or one of them)
+            }
+        }
+        -1
+    }
+}
+```
+=== 61
+A: Breadth-first search with a `VecDeque`. Process exactly `queue.len()` nodes per round so each round is one level, pushing children for the next round.
+C: Solution::level_order(&tree("[3,9,20,null,null,15,7]")) == vec![vec![3], vec![9,20], vec![15,7]] && Solution::level_order(&tree("[1]")) == vec![vec![1]] && Solution::level_order(&None).is_empty()
+```rust
+use std::collections::VecDeque;
+
+struct Solution;
+
+impl Solution {
+    pub fn level_order(root: &Option<Box<TreeNode>>) -> Vec<Vec<i32>> {
+        let mut result = Vec::new();
+        let mut queue: VecDeque<&TreeNode> = VecDeque::new();
+        if let Some(r) = root {
+            queue.push_back(r);
+        }
+        while !queue.is_empty() {
+            let mut level = Vec::new();
+            for _ in 0..queue.len() {
+                // nodes on this level
+                let node = queue.pop_front().unwrap();
+                level.push(node.val);
+                if let Some(l) = &node.left {
+                    queue.push_back(l);
+                }
+                if let Some(r) = &node.right {
+                    queue.push_back(r);
+                }
+            }
+            result.push(level);
+        }
+        result
+    }
+}
+```
+=== 62
+A: Level-order BFS; the last node of each level is the one visible from the right. A DFS visiting the right child first and recording the first node at each depth also works.
+C: Solution::right_side_view(&tree("[1,2,3,null,5,null,4]")) == vec![1,3,4] && Solution::right_side_view(&tree("[1,null,3]")) == vec![1,3] && Solution::right_side_view(&None).is_empty()
+```rust
+use std::collections::VecDeque;
+
+struct Solution;
+
+impl Solution {
+    pub fn right_side_view(root: &Option<Box<TreeNode>>) -> Vec<i32> {
+        let mut view = Vec::new();
+        let mut queue: VecDeque<&TreeNode> = VecDeque::new();
+        if let Some(r) = root {
+            queue.push_back(r);
+        }
+        while !queue.is_empty() {
+            let size = queue.len();
+            for i in 0..size {
+                let node = queue.pop_front().unwrap();
+                if i == size - 1 {
+                    view.push(node.val); // last node on this level
+                }
+                if let Some(l) = &node.left {
+                    queue.push_back(l);
+                }
+                if let Some(r) = &node.right {
+                    queue.push_back(r);
+                }
+            }
+        }
+        view
+    }
+}
+```
+=== 63
+A: DFS carrying the maximum value seen on the path so far. A node is good when its value is at least that maximum; then pass the updated maximum to its children.
+C: Solution::good_nodes(&tree("[3,1,4,3,null,1,5]")) == 4 && Solution::good_nodes(&tree("[3,3,null,4,2]")) == 3 && Solution::good_nodes(&tree("[1]")) == 1
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn good_nodes(root: &Option<Box<TreeNode>>) -> i32 {
+        Self::dfs(root, std::i32::MIN)
+    }
+
+    fn dfs(node: &Option<Box<TreeNode>>, max_so_far: i32) -> i32 {
+        match node {
+            None => 0,
+            Some(n) => {
+                let good = if n.val >= max_so_far { 1 } else { 0 };
+                let new_max = max_so_far.max(n.val);
+                good + Self::dfs(&n.left, new_max) + Self::dfs(&n.right, new_max)
+            }
+        }
+    }
+}
+```
+=== 64
+A: Pass down an allowed `(min, max)` range. Each node must lie strictly inside it; going left tightens the max, going right tightens the min. Checking only direct children is not enough (see the third case). Use `i64` bounds so `std::i32::MIN` and `std::i32::MAX` nodes work.
+C: Solution::is_valid_bst(&tree("[2,1,3]")) && !Solution::is_valid_bst(&tree("[5,1,4,null,null,3,6]")) && !Solution::is_valid_bst(&tree("[5,4,6,null,null,3,7]")) && Solution::is_valid_bst(&tree("[2147483647]"))
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn is_valid_bst(root: &Option<Box<TreeNode>>) -> bool {
+        Self::valid(root, std::i64::MIN, std::i64::MAX)
+    }
+
+    fn valid(node: &Option<Box<TreeNode>>, min: i64, max: i64) -> bool {
+        match node {
+            None => true,
+            Some(n) => {
+                let v = n.val as i64;
+                v > min && v < max && Self::valid(&n.left, min, v) && Self::valid(&n.right, v, max)
+            }
+        }
+    }
+}
+```
+=== 65
+A: In-order traversal of a BST visits values in ascending order. Walk it iteratively with a stack of references and stop at the `k`-th node, which costs O(H + K).
+C: Solution::kth_smallest(&tree("[3,1,4,null,2]"), 1) == 1 && Solution::kth_smallest(&tree("[5,3,6,2,4,null,null,1]"), 3) == 3 && Solution::kth_smallest(&tree("[5,3,6,2,4,null,null,1]"), 6) == 6
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn kth_smallest(root: &Option<Box<TreeNode>>, k: i32) -> i32 {
+        let mut stack: Vec<&TreeNode> = Vec::new();
+        let mut node = root.as_deref();
+        let mut k = k;
+        while node.is_some() || !stack.is_empty() {
+            while let Some(n) = node {
+                // go as far left as possible
+                stack.push(n);
+                node = n.left.as_deref();
+            }
+            let n = stack.pop().unwrap();
+            k -= 1;
+            if k == 0 {
+                return n.val; // the k-th in-order node
+            }
+            node = n.right.as_deref();
+        }
+        -1
+    }
+}
+```
+=== 66
+A: The first preorder value is the root. Its position in the inorder sequence splits left and right subtrees. A map from value to inorder index gives O(1) splits, and a moving preorder cursor picks each next root.
+C: ts(&Solution::build_tree(vec![3,9,20,15,7], vec![9,3,15,20,7])) == "[3,9,20,null,null,15,7]" && ts(&Solution::build_tree(vec![-1], vec![-1])) == "[-1]"
+```rust
+use std::collections::HashMap;
+
+struct Solution;
+
+impl Solution {
+    pub fn build_tree(preorder: Vec<i32>, inorder: Vec<i32>) -> Option<Box<TreeNode>> {
+        let index: HashMap<i32, usize> = inorder.iter().enumerate().map(|(i, &v)| (v, i)).collect();
+        let mut pre = 0;
+        Self::build(&preorder, &index, &mut pre, 0, inorder.len() as isize - 1)
+    }
+
+    fn build(preorder: &[i32], index: &HashMap<i32, usize>, pre: &mut usize, lo: isize, hi: isize) -> Option<Box<TreeNode>> {
+        if lo > hi {
+            return None;
+        }
+        let val = preorder[*pre];
+        *pre += 1;
+        let mid = index[&val] as isize; // split point in inorder
+        let left = Self::build(preorder, index, pre, lo, mid - 1);
+        let right = Self::build(preorder, index, pre, mid + 1, hi);
+        Some(Box::new(TreeNode { val, left, right }))
+    }
+}
+```
+=== 67
+A: For each node compute the best downward path starting there (`node + max(0, left, right)`). The best path bending at the node is `node + max(0, left) + max(0, right)`; track the global maximum. Negative branches are ignored.
+C: Solution::max_path_sum(&tree("[1,2,3]")) == 6 && Solution::max_path_sum(&tree("[-10,9,20,null,null,15,7]")) == 42 && Solution::max_path_sum(&tree("[-3]")) == -3
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn max_path_sum(root: &Option<Box<TreeNode>>) -> i32 {
+        let mut best = std::i32::MIN;
+        Self::gain(root, &mut best);
+        best
+    }
+
+    // best sum of a downward path that starts at this node
+    fn gain(node: &Option<Box<TreeNode>>, best: &mut i32) -> i32 {
+        match node {
+            None => 0,
+            Some(n) => {
+                let left = Self::gain(&n.left, best).max(0); // drop negative branches
+                let right = Self::gain(&n.right, best).max(0);
+                *best = (*best).max(n.val + left + right); // path bending here
+                n.val + left.max(right)
+            }
+        }
+    }
+}
+```
+=== 68
+A: Pre-order DFS, writing `#` for empty children. Because pre-order plus explicit empties is unambiguous, deserialization consumes the tokens in the same order and rebuilds recursively from a single iterator.
+C: { let c = TreeCodec::new(); let s = c.serialize(&tree("[1,2,3,null,null,4,5]")); s == "1,2,#,#,3,4,#,#,5,#,#" && ts(&c.deserialize(s)) == "[1,2,3,null,null,4,5]" && c.serialize(&None) == "#" && c.deserialize("#".to_string()).is_none() }
+```rust
+struct TreeCodec;
+
+impl TreeCodec {
+    pub fn new() -> Self {
+        TreeCodec
+    }
+
+    pub fn serialize(&self, root: &Option<Box<TreeNode>>) -> String {
+        let mut out: Vec<String> = Vec::new();
+        Self::write(root, &mut out);
+        out.join(",")
+    }
+
+    fn write(node: &Option<Box<TreeNode>>, out: &mut Vec<String>) {
+        match node {
+            None => out.push("#".to_string()),
+            Some(n) => {
+                out.push(n.val.to_string());
+                Self::write(&n.left, out);
+                Self::write(&n.right, out);
+            }
+        }
+    }
+
+    pub fn deserialize(&self, data: String) -> Option<Box<TreeNode>> {
+        let mut tokens = data.split(',');
+        Self::read(&mut tokens)
+    }
+
+    fn read(tokens: &mut std::str::Split<char>) -> Option<Box<TreeNode>> {
+        match tokens.next() {
+            None | Some("#") => None,
+            Some(t) => {
+                let val: i32 = t.parse().unwrap();
+                let left = Self::read(tokens);
+                let right = Self::read(tokens);
+                Some(Box::new(TreeNode { val, left, right }))
+            }
+        }
+    }
+}
+```

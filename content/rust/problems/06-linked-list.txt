@@ -1,0 +1,410 @@
+=== 43
+A: Walk the list once, taking each node out of its place (`take()` leaves `None` behind) and pointing it at the node before it. Ownership moves along with the nodes, so no `unsafe` is needed. O(1) extra space.
+C: lv(&Solution::reverse_list(list(&[1,2,3,4,5]))) == vec![5,4,3,2,1] && lv(&Solution::reverse_list(list(&[1,2]))) == vec![2,1] && Solution::reverse_list(None).is_none()
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn reverse_list(head: Option<Box<ListNode>>) -> Option<Box<ListNode>> {
+        let mut prev = None;
+        let mut cur = head;
+        while let Some(mut node) = cur {
+            cur = node.next.take(); // detach the rest
+            node.next = prev; // flip the pointer
+            prev = Some(node);
+        }
+        prev
+    }
+}
+```
+=== 44
+A: Use a dummy head and a `tail` reference. Repeatedly detach the smaller front node of the two lists and append it. When one list runs out, attach the remainder of the other.
+C: lv(&Solution::merge_two_lists(list(&[1,2,4]), list(&[1,3,4]))) == vec![1,1,2,3,4,4] && Solution::merge_two_lists(None, None).is_none() && lv(&Solution::merge_two_lists(None, list(&[0]))) == vec![0]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn merge_two_lists(list1: Option<Box<ListNode>>, list2: Option<Box<ListNode>>) -> Option<Box<ListNode>> {
+        let mut dummy = Box::new(ListNode { val: 0, next: None });
+        let mut tail = &mut dummy;
+        let (mut a, mut b) = (list1, list2);
+        while a.is_some() && b.is_some() {
+            let take_a = a.as_ref().unwrap().val <= b.as_ref().unwrap().val;
+            let src = if take_a { &mut a } else { &mut b };
+            let mut node = src.take().unwrap();
+            *src = node.next.take(); // advance that list
+            tail.next = Some(node);
+            tail = tail.next.as_mut().unwrap();
+        }
+        tail.next = if a.is_some() { a } else { b }; // attach the leftover
+        dummy.next
+    }
+}
+```
+=== 45
+A: Three steps: find the middle by counting nodes, split off and reverse the second half, then interleave the two halves node by node. Every node is moved, never copied, and no extra collection is built.
+C: { let mut a = list(&[1,2,3,4]); Solution::reorder_list(&mut a); let mut b = list(&[1,2,3,4,5]); Solution::reorder_list(&mut b); lv(&a) == vec![1,4,2,3] && lv(&b) == vec![1,5,2,4,3] }
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn reorder_list(head: &mut Option<Box<ListNode>>) {
+        let mut len = 0;
+        let mut c = head.as_ref();
+        while let Some(n) = c {
+            len += 1;
+            c = n.next.as_ref();
+        }
+        if len < 3 {
+            return;
+        }
+
+        // 1. split: the first half keeps (len + 1) / 2 nodes
+        let keep = (len + 1) / 2;
+        let mut cur = head.as_mut().unwrap();
+        for _ in 1..keep {
+            cur = cur.next.as_mut().unwrap();
+        }
+        let second = cur.next.take();
+
+        // 2. reverse the second half
+        let mut prev = None;
+        let mut c = second;
+        while let Some(mut n) = c {
+            c = n.next.take();
+            n.next = prev;
+            prev = Some(n);
+        }
+        let mut second = prev;
+
+        // 3. interleave
+        let mut first = head.take();
+        let mut dummy = Box::new(ListNode { val: 0, next: None });
+        let mut tail = &mut dummy;
+        while first.is_some() || second.is_some() {
+            if let Some(mut f) = first.take() {
+                first = f.next.take();
+                tail.next = Some(f);
+                tail = tail.next.as_mut().unwrap();
+            }
+            if let Some(mut s) = second.take() {
+                second = s.next.take();
+                tail.next = Some(s);
+                tail = tail.next.as_mut().unwrap();
+            }
+        }
+        *head = dummy.next;
+    }
+}
+```
+=== 46
+A: Count the nodes, then walk to the node just before the one to delete and splice it out with `take()`. A dummy head handles removing the first node. (A fast/slow pointer pair is awkward under Rust's single mutable borrow, so two passes are the idiomatic choice.)
+C: lv(&Solution::remove_nth_from_end(list(&[1,2,3,4,5]), 2)) == vec![1,2,3,5] && Solution::remove_nth_from_end(list(&[1]), 1).is_none() && lv(&Solution::remove_nth_from_end(list(&[1,2]), 1)) == vec![1]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn remove_nth_from_end(head: Option<Box<ListNode>>, n: i32) -> Option<Box<ListNode>> {
+        let mut dummy = Box::new(ListNode { val: 0, next: head });
+        let mut len = 0;
+        let mut c = dummy.next.as_ref();
+        while let Some(x) = c {
+            len += 1;
+            c = x.next.as_ref();
+        }
+        let mut cur = &mut dummy;
+        for _ in 0..(len - n as usize) {
+            cur = cur.next.as_mut().unwrap();
+        }
+        let removed = cur.next.take(); // the target node
+        cur.next = removed.and_then(|r| r.next); // splice it out
+        dummy.next
+    }
+}
+```
+=== 47
+S: A linked list is stored in an arena `Vec<Node>`. Each node has a value, a `next` index and a `random` index (any node, or none). Given the arena and the index of the head, return a deep copy: a new arena holding only the nodes reachable from the head, laid out in list order (the head at index 0), with `next` and `random` rewritten to the new indices.
+T: `nodes: 7 -> 13 -> 11, random links: 13 -> 7, 11 -> 13` => `new arena with the same values and links (7, 13, 11 at indices 0, 1, 2)`
+T: `nodes: 11, 13, 7 stored out of order, head = 7` => `new arena in list order: 7, 13, 11 with every index translated`
+T: `empty list (no head)` => `empty arena, no head`
+A: Safe Rust cannot hold aliasing pointers, so nodes refer to each other by index. Pass 1 walks the list and records `old index -> new index` in a `HashMap`. Pass 2 copies each node, translating `next` and `random` through that map.
+C: { let arena = vec![Node { val: 11, next: None, random: Some(2) }, Node { val: 13, next: Some(0), random: Some(2) }, Node { val: 7, next: Some(1), random: None }]; let (copy, head) = Solution::copy_random_list(&arena, Some(2)); let want = vec![Node { val: 7, next: Some(1), random: None }, Node { val: 13, next: Some(2), random: Some(0) }, Node { val: 11, next: None, random: Some(0) }]; let (empty, h) = Solution::copy_random_list(&vec![], None); copy == want && head == Some(0) && empty.is_empty() && h.is_none() }
+```defs
+#[derive(Clone, Debug, PartialEq)]
+pub struct Node {
+    pub val: i32,
+    pub next: Option<usize>,
+    pub random: Option<usize>,
+}
+```
+```rust
+use std::collections::HashMap;
+
+struct Solution;
+
+impl Solution {
+    pub fn copy_random_list(nodes: &Vec<Node>, head: Option<usize>) -> (Vec<Node>, Option<usize>) {
+        // pass 1: walk the list and give every node its new index
+        let mut new_index: HashMap<usize, usize> = HashMap::new();
+        let mut cur = head;
+        while let Some(i) = cur {
+            let id = new_index.len();
+            new_index.insert(i, id);
+            cur = nodes[i].next;
+        }
+        // pass 2: copy node by node, translating next / random through the map
+        let mut copy = Vec::with_capacity(new_index.len());
+        let mut cur = head;
+        while let Some(i) = cur {
+            let n = &nodes[i];
+            copy.push(Node { val: n.val, next: n.next.map(|x| new_index[&x]), random: n.random.map(|x| new_index[&x]) });
+            cur = n.next;
+        }
+        (copy, head.map(|h| new_index[&h]))
+    }
+}
+```
+=== 48
+A: Add digit by digit like grade-school addition, carrying into the next node. Keep going while either list has digits or a carry remains, treating missing digits as 0.
+C: lv(&Solution::add_two_numbers(list(&[2,4,3]), list(&[5,6,4]))) == vec![7,0,8] && lv(&Solution::add_two_numbers(list(&[0]), list(&[0]))) == vec![0] && lv(&Solution::add_two_numbers(list(&[9,9,9,9,9,9,9]), list(&[9,9,9,9]))) == vec![8,9,9,9,0,0,0,1]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn add_two_numbers(l1: Option<Box<ListNode>>, l2: Option<Box<ListNode>>) -> Option<Box<ListNode>> {
+        let mut dummy = Box::new(ListNode { val: 0, next: None });
+        let mut tail = &mut dummy;
+        let (mut a, mut b) = (l1, l2);
+        let mut carry = 0;
+        while a.is_some() || b.is_some() || carry != 0 {
+            let mut sum = carry;
+            if let Some(n) = a {
+                sum += n.val;
+                a = n.next;
+            }
+            if let Some(n) = b {
+                sum += n.val;
+                b = n.next;
+            }
+            tail.next = Some(Box::new(ListNode { val: sum % 10, next: None }));
+            tail = tail.next.as_mut().unwrap();
+            carry = sum / 10;
+        }
+        dummy.next
+    }
+}
+```
+=== 49
+S: A singly linked list is stored as a vector: `next[i]` is the index of the node after node `i`, or `-1` if node `i` is the tail. The head is node 0 (an empty vector is an empty list). Return whether the list contains a cycle.
+T: `next = [1,2,3,1] (node 3 points back to node 1)` => `true`
+T: `next = [1,-1]` => `false`
+T: `next = []` => `false`
+A: Floyd's tortoise and hare: move one index by 1 and another by 2. If there is a cycle the fast index eventually laps the slow one; otherwise it reaches the `-1` tail. (A cycle cannot be built from owning `Box` nodes, which is why the list is index-based here.)
+C: Solution::has_cycle(vec![1,2,3,1]) && !Solution::has_cycle(vec![1,-1]) && !Solution::has_cycle(vec![])
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn has_cycle(next: Vec<i32>) -> bool {
+        if next.is_empty() {
+            return false;
+        }
+        let (mut slow, mut fast) = (0i32, 0i32);
+        loop {
+            for _ in 0..2 {
+                if fast < 0 {
+                    return false;
+                }
+                fast = next[fast as usize];
+            }
+            if fast < 0 {
+                return false;
+            }
+            slow = next[slow as usize];
+            if slow == fast {
+                return true;
+            }
+        }
+    }
+}
+```
+=== 50
+S: A singly linked list is stored as a vector: `next[i]` is the index of the node after node `i`, or `-1` for the tail; the head is node 0. If the list has a cycle, return the index of the node where the cycle begins, otherwise `-1`.
+T: `next = [1,2,3,1]` => `1`
+T: `next = [1,-1]` => `-1`
+A: Use Floyd's algorithm to detect a meeting point. Then restart one index from the head and move both one step at a time; they meet exactly at the cycle entrance, because the distance from the head to the entrance equals the distance from the meeting point to it around the loop.
+C: Solution::detect_cycle(vec![1,2,3,1]) == 1 && Solution::detect_cycle(vec![1,-1]) == -1 && Solution::detect_cycle(vec![]) == -1 && Solution::detect_cycle(vec![0]) == 0
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn detect_cycle(next: Vec<i32>) -> i32 {
+        if next.is_empty() {
+            return -1;
+        }
+        let (mut slow, mut fast) = (0i32, 0i32);
+        loop {
+            for _ in 0..2 {
+                if fast < 0 {
+                    return -1;
+                }
+                fast = next[fast as usize];
+            }
+            if fast < 0 {
+                return -1;
+            }
+            slow = next[slow as usize];
+            if slow == fast {
+                let mut entry = 0i32; // met inside the cycle
+                while entry != slow {
+                    entry = next[entry as usize];
+                    slow = next[slow as usize];
+                }
+                return entry;
+            }
+        }
+    }
+}
+```
+=== 51
+A: Treat `i -> nums[i]` as a linked list. A duplicate means two indices point to the same next node, so the list has a cycle and the duplicate value is the cycle entrance. Find it with Floyd's two phases; the vector is never modified.
+C: Solution::find_duplicate(vec![1,3,4,2,2]) == 2 && Solution::find_duplicate(vec![3,1,3,4,2]) == 3 && Solution::find_duplicate(vec![3,3,3,3,3]) == 3
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn find_duplicate(nums: Vec<i32>) -> i32 {
+        let mut slow = nums[0] as usize;
+        let mut fast = nums[0] as usize;
+        loop {
+            // phase 1: meet inside the cycle
+            slow = nums[slow] as usize;
+            fast = nums[nums[fast] as usize] as usize;
+            if slow == fast {
+                break;
+            }
+        }
+        slow = nums[0] as usize; // phase 2: find the entrance
+        while slow != fast {
+            slow = nums[slow] as usize;
+            fast = nums[fast] as usize;
+        }
+        slow as i32
+    }
+}
+```
+=== 52
+A: A `HashMap` gives O(1) lookup of nodes; a doubly linked list keeps usage order (most recent at the front). Safe Rust cannot hold two owning pointers per node, so the list lives in a `Vec` arena and nodes link by index; evicted slots are recycled through a free list. Every access moves the node to the front; eviction removes the node before the tail sentinel.
+C: { let mut c = LRUCache::new(2); c.put(1, 1); c.put(2, 2); let a = c.get(1) == 1; c.put(3, 3); let b = c.get(2) == -1; c.put(4, 4); a && b && c.get(1) == -1 && c.get(3) == 3 && c.get(4) == 4 }
+```rust
+use std::collections::HashMap;
+
+struct LRUCache {
+    cap: usize,
+    map: HashMap<i32, usize>, // key -> index in `nodes`
+    nodes: Vec<Node>,         // nodes[0] = head sentinel, nodes[1] = tail sentinel
+    free: Vec<usize>,         // recycled slots
+}
+
+struct Node {
+    key: i32,
+    val: i32,
+    prev: usize,
+    next: usize,
+}
+
+impl LRUCache {
+    pub fn new(capacity: i32) -> Self {
+        let head = Node { key: 0, val: 0, prev: 0, next: 1 };
+        let tail = Node { key: 0, val: 0, prev: 0, next: 1 };
+        LRUCache { cap: capacity as usize, map: HashMap::new(), nodes: vec![head, tail], free: Vec::new() }
+    }
+
+    fn unlink(&mut self, i: usize) {
+        let (p, n) = (self.nodes[i].prev, self.nodes[i].next);
+        self.nodes[p].next = n;
+        self.nodes[n].prev = p;
+    }
+
+    fn push_front(&mut self, i: usize) {
+        let first = self.nodes[0].next;
+        self.nodes[i].prev = 0;
+        self.nodes[i].next = first;
+        self.nodes[first].prev = i;
+        self.nodes[0].next = i;
+    }
+
+    pub fn get(&mut self, key: i32) -> i32 {
+        match self.map.get(&key).copied() {
+            Some(i) => {
+                self.unlink(i);
+                self.push_front(i); // now the most recently used
+                self.nodes[i].val
+            }
+            None => -1,
+        }
+    }
+
+    pub fn put(&mut self, key: i32, value: i32) {
+        if let Some(&i) = self.map.get(&key) {
+            self.nodes[i].val = value;
+            self.unlink(i);
+            self.push_front(i);
+            return;
+        }
+        if self.map.len() == self.cap {
+            let lru = self.nodes[1].prev; // least recently used
+            self.unlink(lru);
+            let k = self.nodes[lru].key;
+            self.map.remove(&k);
+            self.free.push(lru);
+        }
+        let node = Node { key, val: value, prev: 0, next: 0 };
+        let i = match self.free.pop() {
+            Some(i) => {
+                self.nodes[i] = node;
+                i
+            }
+            None => {
+                self.nodes.push(node);
+                self.nodes.len() - 1
+            }
+        };
+        self.map.insert(key, i);
+        self.push_front(i);
+    }
+}
+```
+=== 53
+A: Keep a min-heap (`BinaryHeap` of `Reverse`) holding the current head of each list. Pop the smallest, append that node to the result, and push its successor. Each of the N nodes costs O(log K).
+C: lv(&Solution::merge_k_lists(vec![list(&[1,4,5]), list(&[1,3,4]), list(&[2,6])])) == vec![1,1,2,3,4,4,5,6] && Solution::merge_k_lists(vec![]).is_none() && Solution::merge_k_lists(vec![None]).is_none()
+```rust
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
+
+struct Solution;
+
+impl Solution {
+    pub fn merge_k_lists(lists: Vec<Option<Box<ListNode>>>) -> Option<Box<ListNode>> {
+        let mut lists = lists;
+        let mut heap = BinaryHeap::new(); // min-heap of (value, list index)
+        for (i, l) in lists.iter().enumerate() {
+            if let Some(n) = l {
+                heap.push(Reverse((n.val, i)));
+            }
+        }
+        let mut dummy = Box::new(ListNode { val: 0, next: None });
+        let mut tail = &mut dummy;
+        while let Some(Reverse((_, i))) = heap.pop() {
+            let mut node = lists[i].take().unwrap();
+            lists[i] = node.next.take();
+            if let Some(n) = &lists[i] {
+                heap.push(Reverse((n.val, i)));
+            }
+            tail.next = Some(node);
+            tail = tail.next.as_mut().unwrap();
+        }
+        dummy.next
+    }
+}
+```

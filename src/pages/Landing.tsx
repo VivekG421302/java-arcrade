@@ -1,10 +1,13 @@
 import { Link } from 'react-router-dom'
-import { content, PHASES } from '../lib/content'
+import { useCourse } from '../hooks/useCourse'
+import CourseSwitcher from '../components/CourseSwitcher'
 import { useAuth } from '../hooks/useAuth'
 import { useProgress } from '../hooks/useProgress'
 import { PhaseBadge, ProgressBar } from '../components/ui'
 
 export default function Landing() {
+  const { data: content, meta } = useCourse()
+  const PHASES = content.phases
   const { statusOf, row, readPct } = useProgress()
   const { enabled } = useAuth()
   const parts = [
@@ -15,8 +18,9 @@ export default function Landing() {
   ] as const
   return (
     <div>
-      <h1 className="text-3xl font-bold tracking-tight">Java Developer Mastery Roadmap</h1>
-      <p className="mt-2 font-serif text-slate-500">Six phases. Score 80% on each test to unlock the next.</p>
+      <CourseSwitcher variant="cards" />
+      <h1 className="mt-8 text-3xl font-bold tracking-tight">{meta.title}</h1>
+      <p className="mt-2 font-serif text-slate-500">{meta.tagline} Score 80% on each phase test to unlock the next.</p>
       {!enabled && <p className="mt-2 text-xs text-slate-400">Guest mode: progress is saved in this browser.</p>}
       <ul className="mt-8 divide-y divide-slate-200/70 dark:divide-white/10">
         {PHASES.map((p) => {

@@ -1,0 +1,230 @@
+=== 72
+A: Backtracking: at each step record the current subset, then try adding each later element, recurse, and remove it with `pop`. Choosing only from indices after the last pick prevents duplicates. There are 2^N subsets.
+C: Solution::subsets(vec![1,2,3]) == vec![vec![], vec![1], vec![1,2], vec![1,2,3], vec![1,3], vec![2], vec![2,3], vec![3]] && Solution::subsets(vec![0]) == vec![vec![], vec![0]]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn subsets(nums: Vec<i32>) -> Vec<Vec<i32>> {
+        let mut res = Vec::new();
+        Self::backtrack(&nums, 0, &mut Vec::new(), &mut res);
+        res
+    }
+
+    fn backtrack(nums: &[i32], start: usize, cur: &mut Vec<i32>, res: &mut Vec<Vec<i32>>) {
+        res.push(cur.clone()); // every path is a valid subset
+        for i in start..nums.len() {
+            cur.push(nums[i]);
+            Self::backtrack(nums, i + 1, cur, res);
+            cur.pop(); // undo the choice
+        }
+    }
+}
+```
+=== 73
+A: Backtrack with a start index. Reusing the same number means recursing with `i` (not `i + 1`); moving the start forward avoids permutations of the same combination. Stop when the remaining amount hits 0.
+C: Solution::combination_sum(vec![2,3,6,7], 7) == vec![vec![2,2,3], vec![7]] && Solution::combination_sum(vec![2,3,5], 8) == vec![vec![2,2,2,2], vec![2,3,3], vec![3,5]] && Solution::combination_sum(vec![2], 1).is_empty()
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn combination_sum(candidates: Vec<i32>, target: i32) -> Vec<Vec<i32>> {
+        let mut res = Vec::new();
+        Self::dfs(&candidates, 0, target, &mut Vec::new(), &mut res);
+        res
+    }
+
+    fn dfs(c: &[i32], start: usize, remain: i32, cur: &mut Vec<i32>, res: &mut Vec<Vec<i32>>) {
+        if remain == 0 {
+            res.push(cur.clone());
+            return;
+        }
+        for i in start..c.len() {
+            if c[i] > remain {
+                continue;
+            }
+            cur.push(c[i]);
+            Self::dfs(c, i, remain - c[i], cur, res); // i, not i+1: reuse allowed
+            cur.pop();
+        }
+    }
+}
+```
+=== 74
+A: Build each permutation position by position, choosing any value not yet used (tracked with a `Vec<bool>`), recursing, then un-choosing. N! results of length N.
+C: Solution::permute(vec![1,2,3]) == vec![vec![1,2,3], vec![1,3,2], vec![2,1,3], vec![2,3,1], vec![3,1,2], vec![3,2,1]] && Solution::permute(vec![0,1]) == vec![vec![0,1], vec![1,0]] && Solution::permute(vec![1]) == vec![vec![1]]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn permute(nums: Vec<i32>) -> Vec<Vec<i32>> {
+        let mut res = Vec::new();
+        Self::backtrack(&nums, &mut vec![false; nums.len()], &mut Vec::new(), &mut res);
+        res
+    }
+
+    fn backtrack(nums: &[i32], used: &mut Vec<bool>, cur: &mut Vec<i32>, res: &mut Vec<Vec<i32>>) {
+        if cur.len() == nums.len() {
+            res.push(cur.clone());
+            return;
+        }
+        for i in 0..nums.len() {
+            if used[i] {
+                continue;
+            }
+            used[i] = true;
+            cur.push(nums[i]);
+            Self::backtrack(nums, used, cur, res);
+            cur.pop();
+            used[i] = false;
+        }
+    }
+}
+```
+=== 75
+A: Sort first so equal values are adjacent. In the loop, skip `nums[i]` when it equals `nums[i-1]` and `i > start`: that value was already tried at this depth, so using it again would repeat a subset.
+C: Solution::subsets_with_dup(vec![1,2,2]) == vec![vec![], vec![1], vec![1,2], vec![1,2,2], vec![2], vec![2,2]] && Solution::subsets_with_dup(vec![0]) == vec![vec![], vec![0]] && Solution::subsets_with_dup(vec![4,4,4,1,4]).len() == 10
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn subsets_with_dup(mut nums: Vec<i32>) -> Vec<Vec<i32>> {
+        nums.sort();
+        let mut res = Vec::new();
+        Self::backtrack(&nums, 0, &mut Vec::new(), &mut res);
+        res
+    }
+
+    fn backtrack(nums: &[i32], start: usize, cur: &mut Vec<i32>, res: &mut Vec<Vec<i32>>) {
+        res.push(cur.clone());
+        for i in start..nums.len() {
+            if i > start && nums[i] == nums[i - 1] {
+                continue; // skip duplicate at this depth
+            }
+            cur.push(nums[i]);
+            Self::backtrack(nums, i + 1, cur, res);
+            cur.pop();
+        }
+    }
+}
+```
+=== 76
+A: DFS from every cell that matches the first letter. Mark the current cell as used while exploring its four neighbours, then restore it when backtracking.
+C: { let g = grid(&["ABCE","SFCS","ADEE"]); Solution::exist(g.clone(), "ABCCED".to_string()) && Solution::exist(g.clone(), "SEE".to_string()) && !Solution::exist(g, "ABCB".to_string()) }
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn exist(board: Vec<Vec<char>>, word: String) -> bool {
+        let mut board = board;
+        let w: Vec<char> = word.chars().collect();
+        for r in 0..board.len() as i32 {
+            for c in 0..board[0].len() as i32 {
+                if Self::dfs(&mut board, &w, 0, r, c) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn dfs(b: &mut Vec<Vec<char>>, w: &[char], k: usize, r: i32, c: i32) -> bool {
+        if k == w.len() {
+            return true;
+        }
+        if r < 0 || c < 0 || r as usize >= b.len() || c as usize >= b[0].len() || b[r as usize][c as usize] != w[k] {
+            return false;
+        }
+        let saved = b[r as usize][c as usize];
+        b[r as usize][c as usize] = '#'; // mark as used
+        let found = Self::dfs(b, w, k + 1, r + 1, c)
+            || Self::dfs(b, w, k + 1, r - 1, c)
+            || Self::dfs(b, w, k + 1, r, c + 1)
+            || Self::dfs(b, w, k + 1, r, c - 1);
+        b[r as usize][c as usize] = saved; // backtrack
+        found
+    }
+}
+```
+=== 77
+A: Backtracking over cut positions: from the current start, try every end index; if `s[start..=end]` is a palindrome, take it and recurse on the rest. When the start reaches the end of the string, record the partition.
+C: Solution::partition("aab".to_string()) == vec![vec!["a","a","b"], vec!["aa","b"]] && Solution::partition("a".to_string()) == vec![vec!["a"]]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn partition(s: String) -> Vec<Vec<String>> {
+        let mut res = Vec::new();
+        Self::dfs(s.as_bytes(), 0, &mut Vec::new(), &mut res);
+        res
+    }
+
+    fn dfs(s: &[u8], start: usize, cur: &mut Vec<String>, res: &mut Vec<Vec<String>>) {
+        if start == s.len() {
+            res.push(cur.clone());
+            return;
+        }
+        for end in start..s.len() {
+            if Self::is_palindrome(&s[start..=end]) {
+                cur.push(String::from_utf8(s[start..=end].to_vec()).unwrap());
+                Self::dfs(s, end + 1, cur, res);
+                cur.pop();
+            }
+        }
+    }
+
+    fn is_palindrome(s: &[u8]) -> bool {
+        s.iter().eq(s.iter().rev())
+    }
+}
+```
+=== 78
+A: Place one queen per row, trying each column. Track used columns and both diagonals in boolean vectors (`row - col` and `row + col` identify diagonals) so each check is O(1). Backtrack when no column is free.
+C: Solution::solve_n_queens(4) == vec![vec![".Q..", "...Q", "Q...", "..Q."], vec!["..Q.", "Q...", "...Q", ".Q.."]] && Solution::solve_n_queens(1) == vec![vec!["Q"]] && Solution::solve_n_queens(6).len() == 4 && Solution::solve_n_queens(8).len() == 92
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn solve_n_queens(n: i32) -> Vec<Vec<String>> {
+        let n = n as usize;
+        let mut res = Vec::new();
+        let mut cols = vec![false; n];
+        let mut diag = vec![false; 2 * n];
+        let mut anti = vec![false; 2 * n];
+        let mut queen_col = vec![0usize; n];
+        Self::place(0, n, &mut queen_col, &mut cols, &mut diag, &mut anti, &mut res);
+        res
+    }
+
+    fn place(row: usize, n: usize, queen_col: &mut Vec<usize>, cols: &mut Vec<bool>, diag: &mut Vec<bool>, anti: &mut Vec<bool>, res: &mut Vec<Vec<String>>) {
+        if row == n {
+            res.push(Self::render(queen_col, n));
+            return;
+        }
+        for c in 0..n {
+            let (d, a) = (row + n - c, row + c); // diagonal ids
+            if cols[c] || diag[d] || anti[a] {
+                continue;
+            }
+            cols[c] = true;
+            diag[d] = true;
+            anti[a] = true;
+            queen_col[row] = c;
+            Self::place(row + 1, n, queen_col, cols, diag, anti, res);
+            cols[c] = false; // backtrack
+            diag[d] = false;
+            anti[a] = false;
+        }
+    }
+
+    fn render(queen_col: &[usize], n: usize) -> Vec<String> {
+        (0..n)
+            .map(|r| {
+                let mut line = vec!['.'; n];
+                line[queen_col[r]] = 'Q';
+                line.into_iter().collect()
+            })
+            .collect()
+    }
+}
+```

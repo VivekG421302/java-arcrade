@@ -4,20 +4,34 @@ import type { EditorApi } from './CodeEditor'
 type Key = { label: string; text: string; back?: number; wide?: boolean }
 const k = (text: string, back = 0, label = text): Key => ({ label, text, back })
 
-// Quick-access symbols for Java. Pair keys drop the caret between the two characters.
-const SYMBOLS: Key[] = [
+// Quick-access symbols per language. Pair keys drop the caret between the two characters.
+const JAVA_SYMBOLS: Key[] = [
   k('{}', 1, '{ }'), k('()', 1, '( )'), k('[]', 1, '[ ]'), k('<>', 1, '< >'), k('""', 1, '" "'), k(';'), k('.'), k(','), k('='),
   k('=='), k('!='), k('<='), k('>='), k('&&'), k('||'), k('!'), k('+'), k('-'), k('*'), k('/'), k('%'),
   k('++'), k('--'), k('?'), k(':'), k('->'), k('::'), k('_'), k("'"), k('\\'), k('&'), k('|'), k('^'), k('@'),
 ]
-const WORDS: Key[] = [
+const JAVA_WORDS: Key[] = [
   k('public '), k('static '), k('int '), k('String '), k('boolean '), k('new '), k('return '), k('for (int i = 0; i < n; i++) {}', 1, 'for'),
   k('if () {}', 4, 'if'), k('else '), k('while () {}', 4, 'while'), k('null'), k('true'), k('false'), k('int[] '), k('List<>', 1), k('Map<>', 1),
   k('System.out.println();', 2, 'println'), k('class '), k('this.'), k('.length'), k('.size()'),
 ]
+const RUST_SYMBOLS: Key[] = [
+  k('{}', 1, '{ }'), k('()', 1, '( )'), k('[]', 1, '[ ]'), k('<>', 1, '< >'), k('""', 1, '" "'), k(';'), k(':'), k('::'), k('->'), k('=>'),
+  k('&'), k('&mut ', 0, '&mut'), k('*'), k('.'), k('..'), k(','), k('='), k('=='), k('!='), k('<='), k('>='), k('&&'), k('||'), k('!'), k('?'),
+  k('+'), k('-'), k('/'), k('%'), k('||', 1, '| |'), k("'"), k('_'), k('#'),
+]
+const RUST_WORDS: Key[] = [
+  k('fn '), k('let '), k('let mut ', 0, 'let mut'), k('mut '), k('pub '), k('struct '), k('impl '), k('enum '), k('return '), k('self'),
+  k('match  {}', 3, 'match'), k('if  {}', 3, 'if'), k('for  in  {}', 7, 'for'), k('while  {}', 3, 'while'), k('loop {}', 1, 'loop'),
+  k('Vec<>', 1), k('Option<>', 1), k('Result<>', 1), k('HashMap<>', 1), k('Box<>', 1), k('String'), k('&str'),
+  k('Some()', 1), k('None'), k('Ok()', 1), k('Err()', 1), k('println!("{}", );', 3, 'println!'),
+  k('.unwrap()'), k('.len()'), k('.iter()'), k('.collect::<Vec<_>>()', 0, '.collect()'),
+]
 
 /** Symbol keyboard shown above the native keyboard on touch screens. Taps never steal focus from the editor. */
-export default function SymbolBar({ editor, inset, onHide }: { editor: EditorApi | null; inset: number; onHide: () => void }) {
+export default function SymbolBar({ editor, inset, onHide, lang = 'java' }: { editor: EditorApi | null; inset: number; onHide: () => void; lang?: 'java' | 'rust' }) {
+  const SYMBOLS = lang === 'rust' ? RUST_SYMBOLS : JAVA_SYMBOLS
+  const WORDS = lang === 'rust' ? RUST_WORDS : JAVA_WORDS
   const keep = { onMouseDown: (e: React.MouseEvent) => e.preventDefault() }   // keep the editor focused (and its keyboard open)
   const cell = 'grid h-10 min-w-[2.5rem] shrink-0 place-items-center rounded-lg bg-white/10 px-2.5 font-mono text-[15px] text-slate-100 active:bg-sky-500/40'
   return (

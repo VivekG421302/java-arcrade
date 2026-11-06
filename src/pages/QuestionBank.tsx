@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, SquareTerminal } from 'lucide-react'
-import { content, leetUrl, type LcQuestion } from '../lib/content'
+import { leetUrl, type LcQuestion } from '../lib/content'
+import { useCourse } from '../hooks/useCourse'
 import { Accordion } from '../components/ui'
 import { CodeBlock, Inline } from '../components/content'
 import ChipScroller from '../components/ChipScroller'
@@ -11,7 +12,6 @@ import { usePersisted } from '../hooks/usePersisted'
 import { tip } from '../lib/shortcuts'
 
 const diffColor: Record<string, string> = { Easy: 'text-emerald-500 bg-emerald-500/10', Medium: 'text-amber-500 bg-amber-500/10', Hard: 'text-red-500 bg-red-500/10' }
-const cats = Array.from(new Set(content.questions.map((q) => q.category)))
 const PAGE = 30
 
 function Label({ children }: { children: string }) {
@@ -22,6 +22,7 @@ function Label({ children }: { children: string }) {
 const Cell = ({ t }: { t: string }) => (t.includes('`') ? <Inline md={t} /> : <>{t}</>)
 
 function QuestionBody({ q }: { q: LcQuestion }) {
+  const { meta } = useCourse()
   const [show, setShow] = useState(false)
   const ide = useIde()
   const current = ide.open && ide.qn === q.n          // shortcuts act on the question open in the IDE
@@ -71,11 +72,11 @@ function QuestionBody({ q }: { q: LcQuestion }) {
           {q.defs && (
             <>
               <Label>Given class</Label>
-              <CodeBlock code={q.defs} lang="java" />
+              <CodeBlock code={q.defs} lang={meta.lang} />
             </>
           )}
-          <Label>Java solution</Label>
-          <CodeBlock code={q.code} lang="java" />
+          <Label>{`${meta.name} solution`}</Label>
+          <CodeBlock code={q.code} lang={meta.lang} />
         </div>
       )}
     </div>
@@ -83,6 +84,8 @@ function QuestionBody({ q }: { q: LcQuestion }) {
 }
 
 export default function QuestionBank() {
+  const { data: content } = useCourse()
+  const cats = useMemo(() => Array.from(new Set(content.questions.map((q) => q.category))), [content])
   const [sp, setSp] = useSearchParams()
   const ide = useIde()
   const cat = sp.get('cat') || 'All'
@@ -99,7 +102,7 @@ export default function QuestionBank() {
     return content.questions.filter(
       (q) => (cat === 'All' || q.category === cat) && (diff === 'All' || q.difficulty === diff) && `${q.title} ${q.statement}`.toLowerCase().includes(t)
     )
-  }, [cat, diff, text])
+  }, [cat, diff, text, content])
 
   // "/" jumps to search
   useEffect(() => {
@@ -130,7 +133,7 @@ export default function QuestionBank() {
   return (
     <div>
       <h1 className="text-3xl font-bold tracking-tight">Question Bank</h1>
-      <p className="mt-1 font-serif text-slate-600 dark:text-slate-400">{list.length} of {content.questions.length} problems. Open one to read the problem and test cases, then reveal the Java solution when you are ready.</p>
+      <p className="mt-1 font-serif text-slate-600 dark:text-slate-400">{list.length} of {content.questions.length} problems. Open one to read the problem and test cases, then reveal the solution when you are ready.</p>
       <div className="mt-5">
         <ChipScroller label="Filter by category">
           {['All', ...cats].map((c) => (

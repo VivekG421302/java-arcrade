@@ -1,0 +1,203 @@
+=== 28
+A: Push the closing bracket you expect for every opening bracket. For a closing bracket, the top of the stack must equal it. At the end the stack must be empty.
+C: Solution::is_valid("()".to_string()) && Solution::is_valid("()[]{}".to_string()) && !Solution::is_valid("(]".to_string()) && !Solution::is_valid("([)]".to_string()) && !Solution::is_valid("(".to_string()) && Solution::is_valid("{[]}".to_string())
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn is_valid(s: String) -> bool {
+        let mut stack: Vec<char> = Vec::new();
+        for c in s.chars() {
+            match c {
+                '(' => stack.push(')'), // push the closer we expect
+                '[' => stack.push(']'),
+                '{' => stack.push('}'),
+                _ => {
+                    if stack.pop() != Some(c) {
+                        return false;
+                    }
+                }
+            }
+        }
+        stack.is_empty()
+    }
+}
+```
+=== 29
+A: Keep a second stack of running minimums. Every push also pushes `min(value, current_min)`; every pop removes from both. The top of the min stack is always the current minimum.
+C: { let mut s = MinStack::new(); s.push(-2); s.push(0); s.push(-3); let a = s.get_min() == -3; s.pop(); a && s.top() == 0 && s.get_min() == -2 }
+```rust
+struct MinStack {
+    stack: Vec<i32>,
+    mins: Vec<i32>, // mins.last() = current minimum
+}
+
+impl MinStack {
+    pub fn new() -> Self {
+        MinStack { stack: Vec::new(), mins: Vec::new() }
+    }
+
+    pub fn push(&mut self, val: i32) {
+        let min = match self.mins.last() {
+            Some(&m) => m.min(val),
+            None => val,
+        };
+        self.stack.push(val);
+        self.mins.push(min);
+    }
+
+    pub fn pop(&mut self) {
+        self.stack.pop();
+        self.mins.pop();
+    }
+
+    pub fn top(&self) -> i32 {
+        *self.stack.last().unwrap()
+    }
+
+    pub fn get_min(&self) -> i32 {
+        *self.mins.last().unwrap()
+    }
+}
+```
+=== 30
+A: Scan the tokens with a stack. Numbers are pushed; an operator pops the top two values (right operand first), applies the operation and pushes the result. The last value left is the answer. Integer division in Rust already truncates toward zero.
+C: Solution::eval_rpn(strs(&["2","1","+","3","*"])) == 9 && Solution::eval_rpn(strs(&["4","13","5","/","+"])) == 6 && Solution::eval_rpn(strs(&["10","6","9","3","+","-11","*","/","*","17","+","5","+"])) == 22
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn eval_rpn(tokens: Vec<String>) -> i32 {
+        let mut stack: Vec<i32> = Vec::new();
+        for t in &tokens {
+            match t.as_str() {
+                "+" | "-" | "*" | "/" => {
+                    let b = stack.pop().unwrap(); // right operand first
+                    let a = stack.pop().unwrap();
+                    stack.push(match t.as_str() {
+                        "+" => a + b,
+                        "-" => a - b,
+                        "*" => a * b,
+                        _ => a / b,
+                    });
+                }
+                num => stack.push(num.parse().unwrap()),
+            }
+        }
+        stack.pop().unwrap()
+    }
+}
+```
+=== 31
+A: Backtracking. You can add `(` while fewer than `n` have been used, and `)` only while it would not exceed the number of opens. Every path that reaches length `2n` is valid. Push and pop on one `String` to avoid allocating at every step.
+C: Solution::generate_parenthesis(3) == vec!["((()))","(()())","(())()","()(())","()()()"] && Solution::generate_parenthesis(1) == vec!["()"]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn generate_parenthesis(n: i32) -> Vec<String> {
+        let mut res = Vec::new();
+        Self::build(&mut res, &mut String::new(), 0, 0, n as usize);
+        res
+    }
+
+    fn build(res: &mut Vec<String>, cur: &mut String, open: usize, close: usize, n: usize) {
+        if cur.len() == 2 * n {
+            res.push(cur.clone());
+            return;
+        }
+        if open < n {
+            cur.push('(');
+            Self::build(res, cur, open + 1, close, n);
+            cur.pop(); // backtrack
+        }
+        if close < open {
+            cur.push(')');
+            Self::build(res, cur, open, close + 1, n);
+            cur.pop();
+        }
+    }
+}
+```
+=== 32
+A: Monotonic stack of indices with decreasing temperatures. When today is warmer than the temperature at the top index, that earlier day has found its answer (`today - index`); pop and repeat.
+C: Solution::daily_temperatures(vec![73,74,75,71,69,72,76,73]) == vec![1,1,4,2,1,1,0,0] && Solution::daily_temperatures(vec![30,40,50,60]) == vec![1,1,1,0] && Solution::daily_temperatures(vec![30,60,90]) == vec![1,1,0]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn daily_temperatures(temperatures: Vec<i32>) -> Vec<i32> {
+        let n = temperatures.len();
+        let mut answer = vec![0; n];
+        let mut stack: Vec<usize> = Vec::new(); // indices still waiting for a warmer day
+        for i in 0..n {
+            while let Some(&top) = stack.last() {
+                if temperatures[i] > temperatures[top] {
+                    answer[top] = (i - top) as i32;
+                    stack.pop();
+                } else {
+                    break;
+                }
+            }
+            stack.push(i);
+        }
+        answer
+    }
+}
+```
+=== 33
+A: Sort cars by position, closest to the target first, and compute each car's arrival time. If a car would arrive later than the fleet ahead of it, it is a new fleet; otherwise it merges into that fleet.
+C: Solution::car_fleet(12, vec![10,8,0,5,3], vec![2,4,1,1,3]) == 3 && Solution::car_fleet(10, vec![3], vec![3]) == 1 && Solution::car_fleet(100, vec![0,2,4], vec![4,2,1]) == 1
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn car_fleet(target: i32, position: Vec<i32>, speed: Vec<i32>) -> i32 {
+        let mut cars: Vec<(i32, i32)> = position.into_iter().zip(speed.into_iter()).collect();
+        cars.sort_by(|a, b| b.0.cmp(&a.0)); // closest to target first
+        let mut fleets = 0;
+        let mut last_time = 0.0f64;
+        for (pos, spd) in cars {
+            let time = (target - pos) as f64 / spd as f64;
+            if time > last_time {
+                // cannot catch the fleet ahead
+                fleets += 1;
+                last_time = time;
+            }
+        }
+        fleets
+    }
+}
+```
+=== 34
+A: Keep a stack of indices with increasing heights. When a shorter bar arrives, pop taller bars: each popped bar's rectangle extends from the new stack top to the current index. A sentinel height of 0 at the end flushes the stack.
+C: Solution::largest_rectangle_area(vec![2,1,5,6,2,3]) == 10 && Solution::largest_rectangle_area(vec![2,4]) == 4 && Solution::largest_rectangle_area(vec![1,1]) == 2
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn largest_rectangle_area(heights: Vec<i32>) -> i32 {
+        let n = heights.len();
+        let mut best = 0;
+        let mut stack: Vec<usize> = Vec::new(); // indices, heights increasing
+        for i in 0..=n {
+            let h = if i == n { 0 } else { heights[i] }; // sentinel flushes the stack
+            while let Some(&top) = stack.last() {
+                if heights[top] >= h {
+                    stack.pop();
+                    let height = heights[top];
+                    let left = match stack.last() {
+                        Some(&l) => l as i32,
+                        None => -1,
+                    };
+                    best = best.max(height * (i as i32 - left - 1));
+                } else {
+                    break;
+                }
+            }
+            stack.push(i);
+        }
+        best
+    }
+}
+```

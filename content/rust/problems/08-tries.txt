@@ -1,0 +1,157 @@
+=== 69
+A: Each node holds 26 optional child links and an `is_word` flag. Every operation walks one node per byte, so it costs O(L) for a word of length L. `get_or_insert_with` creates missing children on the way down.
+C: { let mut t = Trie::new(); t.insert("apple".to_string()); let a = t.search("apple".to_string()) && !t.search("app".to_string()) && t.starts_with("app".to_string()) && !t.starts_with("b".to_string()); t.insert("app".to_string()); a && t.search("app".to_string()) }
+```rust
+#[derive(Default)]
+struct Node {
+    next: [Option<Box<Node>>; 26],
+    is_word: bool,
+}
+
+struct Trie {
+    root: Box<Node>,
+}
+
+impl Trie {
+    pub fn new() -> Self {
+        Trie { root: Box::new(Node::default()) }
+    }
+
+    pub fn insert(&mut self, word: String) {
+        let mut cur = &mut self.root;
+        for b in word.bytes() {
+            let i = (b - b'a') as usize;
+            cur = cur.next[i].get_or_insert_with(|| Box::new(Node::default()));
+        }
+        cur.is_word = true;
+    }
+
+    pub fn search(&self, word: String) -> bool {
+        match self.find(&word) {
+            Some(n) => n.is_word,
+            None => false,
+        }
+    }
+
+    pub fn starts_with(&self, prefix: String) -> bool {
+        self.find(&prefix).is_some()
+    }
+
+    fn find(&self, s: &str) -> Option<&Node> {
+        let mut cur: &Node = &self.root;
+        for b in s.bytes() {
+            match &cur.next[(b - b'a') as usize] {
+                Some(n) => cur = &**n,
+                None => return None,
+            }
+        }
+        Some(cur)
+    }
+}
+```
+=== 70
+A: Store words in a trie. For a normal letter follow one child; for `.` try every child recursively (DFS). Worst case grows with the number of wildcards, but ordinary lookups stay O(L).
+C: { let mut d = WordDictionary::new(); d.add_word("bad".to_string()); d.add_word("dad".to_string()); d.add_word("mad".to_string()); !d.search("pad".to_string()) && d.search("bad".to_string()) && d.search(".ad".to_string()) && d.search("b..".to_string()) && !d.search("b.".to_string()) && !d.search("...d".to_string()) }
+```rust
+#[derive(Default)]
+struct Node {
+    next: [Option<Box<Node>>; 26],
+    is_word: bool,
+}
+
+struct WordDictionary {
+    root: Box<Node>,
+}
+
+impl WordDictionary {
+    pub fn new() -> Self {
+        WordDictionary { root: Box::new(Node::default()) }
+    }
+
+    pub fn add_word(&mut self, word: String) {
+        let mut cur = &mut self.root;
+        for b in word.bytes() {
+            let i = (b - b'a') as usize;
+            cur = cur.next[i].get_or_insert_with(|| Box::new(Node::default()));
+        }
+        cur.is_word = true;
+    }
+
+    pub fn search(&self, pattern: String) -> bool {
+        Self::dfs(&self.root, pattern.as_bytes(), 0)
+    }
+
+    fn dfs(node: &Node, p: &[u8], i: usize) -> bool {
+        if i == p.len() {
+            return node.is_word;
+        }
+        if p[i] == b'.' {
+            // wildcard: try every branch
+            node.next.iter().any(|child| match child {
+                Some(n) => Self::dfs(n, p, i + 1),
+                None => false,
+            })
+        } else {
+            match &node.next[(p[i] - b'a') as usize] {
+                Some(n) => Self::dfs(n, p, i + 1),
+                None => false,
+            }
+        }
+    }
+}
+```
+=== 71
+A: Put all words in a trie, then DFS from every cell while walking the trie. A branch with no matching trie child is abandoned immediately, which prunes most of the search. Take the word out of its node once found to avoid duplicates, and mark visited cells in place.
+C: { let mut r = Solution::find_words(grid(&["oaan","etae","ihkr","iflv"]), strs(&["oath","pea","eat","rain"])); r.sort(); r == vec!["eat", "oath"] && Solution::find_words(grid(&["ab","cd"]), strs(&["abcb"])).is_empty() }
+```rust
+struct Solution;
+
+#[derive(Default)]
+struct Node {
+    next: [Option<Box<Node>>; 26],
+    word: Option<String>, // set at the end of a word
+}
+
+impl Solution {
+    pub fn find_words(board: Vec<Vec<char>>, words: Vec<String>) -> Vec<String> {
+        let mut root = Node::default();
+        for w in words {
+            let mut cur = &mut root;
+            for b in w.bytes() {
+                cur = cur.next[(b - b'a') as usize].get_or_insert_with(|| Box::new(Node::default()));
+            }
+            cur.word = Some(w);
+        }
+        let mut board = board;
+        let mut found = Vec::new();
+        for r in 0..board.len() as i32 {
+            for c in 0..board[0].len() as i32 {
+                Self::dfs(&mut board, r, c, &mut root, &mut found);
+            }
+        }
+        found
+    }
+
+    fn dfs(board: &mut Vec<Vec<char>>, r: i32, c: i32, parent: &mut Node, found: &mut Vec<String>) {
+        if r < 0 || c < 0 || r as usize >= board.len() || c as usize >= board[0].len() {
+            return;
+        }
+        let ch = board[r as usize][c as usize];
+        if ch == '#' {
+            return; // already visited
+        }
+        let child = match parent.next[(ch as u8 - b'a') as usize].as_mut() {
+            Some(n) => n,
+            None => return, // no word has this prefix
+        };
+        if let Some(w) = child.word.take() {
+            found.push(w); // do not report it twice
+        }
+        board[r as usize][c as usize] = '#'; // mark visited
+        for &(dr, dc) in [(1, 0), (-1, 0), (0, 1), (0, -1)].iter() {
+            Self::dfs(board, r + dr, c + dc, child, found);
+        }
+        board[r as usize][c as usize] = ch; // backtrack
+    }
+}
+```

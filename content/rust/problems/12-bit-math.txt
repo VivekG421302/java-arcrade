@@ -1,0 +1,52 @@
+=== 98
+A: XOR has two useful properties: `a ^ a = 0` and `a ^ 0 = a`. Folding XOR over every element cancels all pairs and leaves the single number.
+C: Solution::single_number(vec![2,2,1]) == 1 && Solution::single_number(vec![4,1,2,1,2]) == 4 && Solution::single_number(vec![1]) == 1
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn single_number(nums: Vec<i32>) -> i32 {
+        nums.into_iter().fold(0, |acc, n| acc ^ n) // pairs cancel out
+    }
+}
+```
+=== 99
+A: Brian Kernighan's trick: `n & (n - 1)` clears the lowest set bit. Count how many times you can do that before `n` becomes 0; the loop runs once per set bit. (`n` is a `u32`, so there is no sign to worry about; the standard library also offers `count_ones()`.)
+C: Solution::hamming_weight(11) == 3 && Solution::hamming_weight(128) == 1 && Solution::hamming_weight(4294967293) == 31 && Solution::hamming_weight(std::u32::MAX) == 32 && Solution::hamming_weight(0) == 0
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn hamming_weight(n: u32) -> i32 {
+        let mut n = n;
+        let mut count = 0;
+        while n != 0 {
+            n &= n - 1; // drop the lowest set bit
+            count += 1;
+        }
+        count
+    }
+}
+```
+=== 100
+A: Pop the last digit with `% 10` and push it onto the result with `* 10`. Use `checked_mul` and `checked_add`: they return `None` on overflow, so you can return 0 without needing a wider integer type.
+C: Solution::reverse(123) == 321 && Solution::reverse(-123) == -321 && Solution::reverse(120) == 21 && Solution::reverse(1534236469) == 0 && Solution::reverse(-2147483648) == 0
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn reverse(x: i32) -> i32 {
+        let mut x = x;
+        let mut rev: i32 = 0;
+        while x != 0 {
+            let digit = x % 10;
+            x /= 10;
+            rev = match rev.checked_mul(10).and_then(|v| v.checked_add(digit)) {
+                Some(v) => v,
+                None => return 0, // would overflow 32 bits
+            };
+        }
+        rev
+    }
+}
+```

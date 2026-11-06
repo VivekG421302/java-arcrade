@@ -1,0 +1,224 @@
+=== 35
+A: Keep a half-open range `[lo, hi)`. Compare the middle element with the target and discard the half that cannot contain it. Compute `mid` as `lo + (hi - lo) / 2`; with `usize` bounds a half-open range also avoids underflow.
+C: Solution::search(vec![-1,0,3,5,9,12], 9) == 4 && Solution::search(vec![-1,0,3,5,9,12], 2) == -1 && Solution::search(vec![5], 5) == 0
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn search(nums: Vec<i32>, target: i32) -> i32 {
+        let (mut lo, mut hi) = (0usize, nums.len());
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if nums[mid] == target {
+                return mid as i32;
+            } else if nums[mid] < target {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        -1
+    }
+}
+```
+=== 36
+A: The matrix behaves like one sorted array of `rows * cols` elements. Binary search over the virtual index and convert with `row = mid / cols`, `col = mid % cols`.
+C: { let m = vec![vec![1,3,5,7], vec![10,11,16,20], vec![23,30,34,60]]; Solution::search_matrix(m.clone(), 3) && !Solution::search_matrix(m.clone(), 13) && Solution::search_matrix(m.clone(), 60) && !Solution::search_matrix(m, 0) }
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn search_matrix(matrix: Vec<Vec<i32>>, target: i32) -> bool {
+        let (rows, cols) = (matrix.len(), matrix[0].len());
+        let (mut lo, mut hi) = (0usize, rows * cols);
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let val = matrix[mid / cols][mid % cols]; // map flat index to cell
+            if val == target {
+                return true;
+            } else if val < target {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        false
+    }
+}
+```
+=== 37
+A: Binary search on the answer `k` between 1 and the largest pile. For a candidate `k`, the hours needed are the sum of `ceil(pile / k)`. Feasibility is monotonic, so find the smallest feasible `k`.
+C: Solution::min_eating_speed(vec![3,6,7,11], 8) == 4 && Solution::min_eating_speed(vec![30,11,23,4,20], 5) == 30 && Solution::min_eating_speed(vec![30,11,23,4,20], 6) == 23
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn min_eating_speed(piles: Vec<i32>, h: i32) -> i32 {
+        let (mut lo, mut hi) = (1, *piles.iter().max().unwrap());
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if Self::hours_needed(&piles, mid) <= h as i64 {
+                hi = mid; // fast enough: try slower
+            } else {
+                lo = mid + 1;
+            }
+        }
+        lo
+    }
+
+    fn hours_needed(piles: &[i32], k: i32) -> i64 {
+        piles.iter().map(|&p| ((p + k - 1) / k) as i64).sum() // ceil(p / k)
+    }
+}
+```
+=== 38
+A: Compare `nums[mid]` with `nums[hi]`. If mid is larger, the minimum is to its right; otherwise it is at mid or to its left. Narrow until the bounds meet.
+C: Solution::find_min(vec![3,4,5,1,2]) == 1 && Solution::find_min(vec![4,5,6,7,0,1,2]) == 0 && Solution::find_min(vec![11,13,15,17]) == 11
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn find_min(nums: Vec<i32>) -> i32 {
+        let (mut lo, mut hi) = (0usize, nums.len() - 1);
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if nums[mid] > nums[hi] {
+                lo = mid + 1; // minimum is in the right half
+            } else {
+                hi = mid; // mid could be the minimum
+            }
+        }
+        nums[lo]
+    }
+}
+```
+=== 39
+A: At every step one half around `mid` is sorted. Check whether the target lies inside the sorted half; if so search it, otherwise search the other half. Signed indices keep `mid - 1` safe at zero.
+C: Solution::search(vec![4,5,6,7,0,1,2], 0) == 4 && Solution::search(vec![4,5,6,7,0,1,2], 3) == -1 && Solution::search(vec![1], 0) == -1 && Solution::search(vec![3,1], 1) == 1
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn search(nums: Vec<i32>, target: i32) -> i32 {
+        let (mut lo, mut hi) = (0isize, nums.len() as isize - 1);
+        while lo <= hi {
+            let mid = lo + (hi - lo) / 2;
+            let (l, m, h) = (nums[lo as usize], nums[mid as usize], nums[hi as usize]);
+            if m == target {
+                return mid as i32;
+            }
+            if l <= m {
+                // left half is sorted
+                if l <= target && target < m {
+                    hi = mid - 1;
+                } else {
+                    lo = mid + 1;
+                }
+            } else {
+                // right half is sorted
+                if m < target && target <= h {
+                    lo = mid + 1;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+        }
+        -1
+    }
+}
+```
+=== 40
+A: Store a `BTreeMap<i32, String>` per key and use `range(..=timestamp).next_back()` for the lookup, which is O(log N). With strictly increasing timestamps a `Vec` plus manual binary search gives O(1) set.
+C: { let mut t = TimeMap::new(); t.set("foo".to_string(), "bar".to_string(), 1); let a = t.get("foo".to_string(), 1) == "bar" && t.get("foo".to_string(), 3) == "bar"; t.set("foo".to_string(), "bar2".to_string(), 4); a && t.get("foo".to_string(), 4) == "bar2" && t.get("foo".to_string(), 5) == "bar2" && t.get("foo".to_string(), 0) == "" && t.get("baz".to_string(), 1) == "" }
+```rust
+use std::collections::{BTreeMap, HashMap};
+
+struct TimeMap {
+    store: HashMap<String, BTreeMap<i32, String>>,
+}
+
+impl TimeMap {
+    pub fn new() -> Self {
+        TimeMap { store: HashMap::new() }
+    }
+
+    pub fn set(&mut self, key: String, value: String, timestamp: i32) {
+        self.store.entry(key).or_insert_with(BTreeMap::new).insert(timestamp, value);
+    }
+
+    pub fn get(&self, key: String, timestamp: i32) -> String {
+        match self.store.get(&key) {
+            // greatest timestamp <= the query
+            Some(history) => history.range(..=timestamp).next_back().map(|(_, v)| v.clone()).unwrap_or_default(),
+            None => String::new(),
+        }
+    }
+}
+```
+=== 41
+A: Binary search a partition of the shorter vector so that the left halves of both together hold half the elements and every left value is at most every right value. Then the median comes from the four values around the cut.
+C: Solution::find_median_sorted_arrays(vec![1,3], vec![2]) == 2.0 && Solution::find_median_sorted_arrays(vec![1,2], vec![3,4]) == 2.5 && Solution::find_median_sorted_arrays(vec![], vec![1]) == 1.0
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn find_median_sorted_arrays(a: Vec<i32>, b: Vec<i32>) -> f64 {
+        if a.len() > b.len() {
+            return Self::find_median_sorted_arrays(b, a); // search the shorter one
+        }
+        let (m, n) = (a.len() as isize, b.len() as isize);
+        let (mut lo, mut hi) = (0isize, m);
+        let left_size = (m + n + 1) / 2;
+        while lo <= hi {
+            let i = (lo + hi) / 2; // cut positions in a and b
+            let j = left_size - i;
+            let a_left = if i == 0 { std::i32::MIN } else { a[(i - 1) as usize] };
+            let a_right = if i == m { std::i32::MAX } else { a[i as usize] };
+            let b_left = if j == 0 { std::i32::MIN } else { b[(j - 1) as usize] };
+            let b_right = if j == n { std::i32::MAX } else { b[j as usize] };
+            if a_left <= b_right && b_left <= a_right {
+                if (m + n) % 2 == 1 {
+                    return a_left.max(b_left) as f64;
+                }
+                return (a_left.max(b_left) as f64 + a_right.min(b_right) as f64) / 2.0;
+            } else if a_left > b_right {
+                hi = i - 1;
+            } else {
+                lo = i + 1;
+            }
+        }
+        0.0
+    }
+}
+```
+=== 42
+A: Run a binary search twice: once for the first index whose value is at least `target`, and once for the first index whose value is strictly greater. The range is `[first, first_greater - 1]`, valid only if the first position holds the target.
+C: Solution::search_range(vec![5,7,7,8,8,10], 8) == vec![3,4] && Solution::search_range(vec![5,7,7,8,8,10], 6) == vec![-1,-1] && Solution::search_range(vec![], 0) == vec![-1,-1]
+```rust
+struct Solution;
+
+impl Solution {
+    pub fn search_range(nums: Vec<i32>, target: i32) -> Vec<i32> {
+        let first = Self::bound(&nums, target, false);
+        if first == nums.len() || nums[first] != target {
+            return vec![-1, -1];
+        }
+        let last = Self::bound(&nums, target, true) - 1;
+        vec![first as i32, last as i32]
+    }
+
+    // upper=false: first index with value >= t; upper=true: first index with value > t
+    fn bound(a: &[i32], t: i32, upper: bool) -> usize {
+        let (mut lo, mut hi) = (0usize, a.len());
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if a[mid] < t || (upper && a[mid] == t) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        lo
+    }
+}
+```

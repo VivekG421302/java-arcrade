@@ -13,7 +13,8 @@ export type Scenario = { n: number; title: string; question: string; answer: str
 export type ScenarioRow = { n: number; symptom: string; cause: string; fix: string }
 export type Project = { n: number; title: string; level: string; stack: string[]; what: string; flow: string; solves: string }
 
-export const content = data as unknown as {
+export type CourseId = 'java' | 'rust'
+export type CourseData = {
   phases: Phase[]
   questions: LcQuestion[]
   antiPatterns: AntiPattern[]
@@ -22,6 +23,21 @@ export const content = data as unknown as {
   scenarioMatrix: ScenarioRow[]
   projects: Project[]
 }
-export const PHASES = content.phases
-export const leetUrl = (title: string) => `https://leetcode.com/problemset/?search=${encodeURIComponent(title.replace(/\s*\(.*\)/, ''))}`
+export type CourseMeta = {
+  id: CourseId
+  name: string
+  title: string
+  tagline: string
+  lang: 'java' | 'rust'        // syntax highlighting + runner language
+  file: string                 // file name shown in the IDE
+  build: string                // what the terminal says it ran
+}
+
+export const COURSES = data as unknown as Record<CourseId, CourseData>
+export const COURSE_IDS: CourseId[] = ['java', 'rust']
+export const COURSE_META: Record<CourseId, CourseMeta> = {
+  java: { id: 'java', name: 'Java', title: 'Java Developer Mastery Roadmap', tagline: 'Six phases from core Java and the JVM to production operations.', lang: 'java', file: 'Main.java', build: 'javac Main.java && java Main' },
+  rust: { id: 'rust', name: 'Rust', title: 'Rust Systems & Backend Mastery Roadmap', tagline: 'Six phases from ownership and the borrow checker to async services and production Rust.', lang: 'rust', file: 'main.rs', build: 'rustc main.rs && ./main' },
+}
 export const PASS_THRESHOLD = 0.8
+export const leetUrl = (title: string) => `https://leetcode.com/problemset/?search=${encodeURIComponent(title.replace(/\s*\(.*\)/, ''))}`
