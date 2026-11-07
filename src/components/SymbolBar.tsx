@@ -33,11 +33,11 @@ export default function SymbolBar({ editor, inset, onHide, lang = 'java' }: { ed
   const SYMBOLS = lang === 'rust' ? RUST_SYMBOLS : JAVA_SYMBOLS
   const WORDS = lang === 'rust' ? RUST_WORDS : JAVA_WORDS
   const keep = { onMouseDown: (e: React.MouseEvent) => e.preventDefault() }   // keep the editor focused (and its keyboard open)
-  const cell = 'grid h-10 min-w-[2.5rem] shrink-0 place-items-center rounded-lg bg-white/10 px-2.5 font-mono text-[15px] text-slate-100 active:bg-sky-500/40'
+  const cell = 'grid h-10 min-w-[2.5rem] shrink-0 place-items-center rounded-lg bg-slate-100 px-2.5 font-mono text-[15px] text-slate-800 active:bg-sky-200 dark:bg-white/10 dark:text-slate-100 dark:active:bg-sky-500/40'
   return (
-    <div role="toolbar" aria-label="Code symbols" style={{ bottom: inset }} className="fixed inset-x-0 z-[70] space-y-1.5 border-t border-white/10 bg-[#101216] px-2 pb-2 pt-2">
+    <div role="toolbar" aria-label="Code symbols" style={{ bottom: inset }} className="fixed inset-x-0 z-[70] space-y-1.5 border-t border-slate-200 bg-white dark:border-white/10 dark:bg-[#101216] px-2 pb-2 pt-2">
       <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
-        <button type="button" aria-label="Hide keyboard" onClick={onHide} {...keep} className={`${cell} text-slate-400`}><ChevronDown size={18} aria-hidden /></button>
+        <button type="button" aria-label="Hide keyboard" onClick={onHide} {...keep} className={`${cell} text-slate-600 dark:text-slate-400`}><ChevronDown size={18} aria-hidden /></button>
         <button type="button" aria-label="Insert tab" {...keep} onClick={() => editor?.insert('    ')} className={`${cell} text-sm`}>Tab</button>
         <button type="button" aria-label="Cursor left" {...keep} onClick={() => editor?.move(-1)} className={cell}>←</button>
         <button type="button" aria-label="Cursor right" {...keep} onClick={() => editor?.move(1)} className={cell}>→</button>

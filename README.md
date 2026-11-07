@@ -91,7 +91,7 @@ Everything you adjust is remembered per browser: theme, reminder on/off, the doc
 Cursors follow the action: grab/grabbing on scrollable chip rows (drag to scroll), resize cursors on the drag handles, not-allowed on disabled controls, progress while code is running.
 
 ## Courses: Java and Rust
-The app hosts two complete, independent courses. Pick one on the home page, in the sidebar, or with Alt+O; the choice is remembered.
+The app hosts two complete, independent courses. Pick one from the dropdown in the middle of the top bar, on the home page, or with Alt+O; the choice is remembered.
 
 | | Java | Rust |
 | --- | --- | --- |
@@ -108,3 +108,6 @@ The app hosts two complete, independent courses. Pick one on the home page, in t
 
 ## Projects (Part 5)
 Each course ends with eight projects to build, each describing **what it should do**, **how the tech flows** through it and **the problems it solves**.
+
+## IDE theme
+The IDE follows the app theme (settings menu, `…`): a dark editor in dark mode and a light one in light mode, including the terminal, popovers and the symbol keyboard. Syntax colours come from two palettes (VS Code Dark+ and a tuned Light+). Every colour was checked for at least 4.6:1 contrast against its background, including on the red error-line row, and line numbers use dedicated readable greys. Code blocks in the lessons stay dark in both themes.
