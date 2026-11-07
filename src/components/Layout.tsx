@@ -94,7 +94,8 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
     <header className={`relative z-30 flex h-14 shrink-0 items-center gap-1 px-2 ${ide.open ? '' : 'md:px-4'}`}>
       <button type="button" onClick={onMenu} data-menu-toggle="" aria-expanded={menuOpen} aria-controls="app-menu" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} {...tip(menuOpen ? 'Close menu' : 'Menu', 'menu')} data-tip-start="" className={btn}>{menuOpen ? <X size={20} aria-hidden /> : <Menu size={20} aria-hidden />}</button>
       <Link to="/" aria-label="Home" data-tip="Home" className={btn}><Coffee size={18} aria-hidden /></Link>
-      <div className="ml-auto flex items-center gap-1">
+      <div className="flex min-w-0 flex-1 justify-center"><CourseSwitcher variant="dropdown" /></div>
+      <div className="flex items-center gap-1">
         {tocAvailable && <button type="button" onClick={onToc} aria-label="Contents of this phase" data-tip="Contents" className={btn}><ListTree size={20} aria-hidden /></button>}
         <button type="button" onClick={() => ide.toggleSmart(narrow)} aria-pressed={ide.open && (!narrow || ide.hidden)} aria-label="Java IDE" {...tip('Java IDE', 'ide')} className={`${btn} ${ide.open && (!narrow || ide.hidden) ? 'text-sky-500' : ''}`}><SquareTerminal size={20} aria-hidden /></button>
         <button type="button" onClick={() => setMore(!more)} aria-expanded={more} aria-label="Settings" data-tip="Settings" data-tip-end="" className={btn}><MoreHorizontal size={20} aria-hidden /></button>
@@ -133,7 +134,6 @@ function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; 
   const heading = 'px-4 pb-1 pt-5 text-xs font-semibold uppercase tracking-wider text-slate-500'
   const nav = (
         <nav aria-label="Primary" onClick={(e) => { if (overlay && (e.target as Element).closest('a')) onClose() }}>
-          <CourseSwitcher variant="pills" />
           <h2 className={heading}>Part 1 · Roadmap</h2>
           {PHASES.map((p) => {
             const st = statusOf(p.id)

@@ -117,14 +117,14 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
   }
 
   return (
-    <div ref={scroller} className="h-full overflow-auto bg-[#1e1e1e] font-mono text-[#d4d4d4]" style={{ fontSize, lineHeight: `${lh}px`, tabSize: 4 }}>
+    <div ref={scroller} className="ide-code h-full overflow-auto bg-white font-mono text-[#1f2328] dark:bg-[#1e1e1e] dark:text-[#d4d4d4]" style={{ fontSize, lineHeight: `${lh}px`, tabSize: 4 }}>
       <div className="relative min-h-full" style={{ width: wrap ? '100%' : 'max-content', minWidth: '100%' }}>
         <div aria-hidden className="py-4">
           {rows.map((html, i) => {
             const err = errSet.has(i + 1)
             return (
-              <div key={i} data-line={i + 1} className={`flex ${err ? 'bg-red-500/15' : ''}`} style={{ minHeight: lh }}>
-                <span className={`sticky left-0 z-10 shrink-0 select-none pr-4 text-right ${err ? 'bg-[#2b1e21] font-semibold text-red-400' : 'bg-[#1e1e1e] text-slate-600'}`} style={{ width: gutter }}>{i + 1}</span>
+              <div key={i} data-line={i + 1} className={`flex ${err ? 'bg-red-500/10 dark:bg-red-500/15' : ''}`} style={{ minHeight: lh }}>
+                <span className={`sticky left-0 z-10 shrink-0 select-none pr-4 text-right ${err ? 'bg-red-50 font-semibold text-red-700 dark:bg-[#2b1e21] dark:text-red-400' : 'bg-white text-[#636976] dark:bg-[#1e1e1e] dark:text-[#969696]'}`} style={{ width: gutter }}>{i + 1}</span>
                 <code className={`min-w-0 flex-1 pr-8 ${wrapCls}`} dangerouslySetInnerHTML={{ __html: html || '&#8203;' }} />
               </div>
             )
@@ -134,7 +134,7 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
           ref={ta} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown}
           onFocus={() => onFocusChange?.(true)} onBlur={() => onFocusChange?.(false)}
           id="ide-editor" spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" wrap={wrap ? 'soft' : 'off'} aria-label={`${lang === 'rust' ? 'Rust' : 'Java'} code editor`}
-          className={`absolute bottom-0 right-0 top-0 resize-none overflow-hidden bg-transparent py-4 pr-8 font-mono text-transparent caret-white outline-none selection:bg-sky-500/30 ${wrapCls}`}
+          className={`absolute bottom-0 right-0 top-0 resize-none overflow-hidden bg-transparent py-4 pr-8 font-mono text-transparent caret-slate-900 dark:caret-white outline-none selection:bg-sky-500/30 ${wrapCls}`}
           style={{ left: gutter, fontSize, lineHeight: `${lh}px`, tabSize: 4 }}
         />
       </div>

@@ -29,7 +29,7 @@ h1, h2 { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 
 /* Prism: VS Code Dark+ */
 code[class*='language-'], pre code { background: none; }
-.token.comment, .token.prolog, .token.doctype { color: #6a9955; }
+.token.comment, .token.prolog, .token.doctype { color: #79a366; }
 .token.keyword, .token.boolean, .token.atrule { color: #569cd6; }
 .token.keyword.control { color: #c586c0; }
 .token.string, .token.char, .token.attr-value { color: #ce9178; }
@@ -77,3 +77,17 @@ code[class*='language-'], pre code { background: none; }
   ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.35); border: 3px solid transparent; border-radius: 999px; background-clip: content-box; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.6); background-clip: content-box; }
 }
+
+/* Light IDE theme (VS Code Light+ tuned so every colour is >= 4.6:1 on white AND on the red error row) */
+html:not(.dark) .ide-code .token.comment, html:not(.dark) .ide-code .token.prolog, html:not(.dark) .ide-code .token.doctype { color: #007b00; }
+html:not(.dark) .ide-code .token.keyword, html:not(.dark) .ide-code .token.boolean, html:not(.dark) .ide-code .token.atrule { color: #0000ff; }
+html:not(.dark) .ide-code .token.keyword.control { color: #af00db; }
+html:not(.dark) .ide-code .token.string, html:not(.dark) .ide-code .token.char, html:not(.dark) .ide-code .token.attr-value { color: #a31515; }
+html:not(.dark) .ide-code .token.number { color: #087b51; }
+html:not(.dark) .ide-code .token.function, html:not(.dark) .ide-code .token.builtin, html:not(.dark) .ide-code .token.annotation,
+html:not(.dark) .ide-code .token.macro, html:not(.dark) .ide-code .token.macro-rules { color: #795e26; }
+html:not(.dark) .ide-code .token.class-name, html:not(.dark) .ide-code .token.namespace,
+html:not(.dark) .ide-code .token.attribute, html:not(.dark) .ide-code .token.lifetime-annotation { color: #227087; }
+html:not(.dark) .ide-code .token.operator, html:not(.dark) .ide-code .token.punctuation { color: #1f2328; }
+html:not(.dark) .ide-code .token.tag, html:not(.dark) .ide-code .token.selector { color: #800000; }
+html:not(.dark) .ide-code .token.attr-name, html:not(.dark) .ide-code .token.property, html:not(.dark) .ide-code .token.variable, html:not(.dark) .ide-code .token.constant { color: #001080; }
