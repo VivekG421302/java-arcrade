@@ -36,7 +36,7 @@ export type CourseMeta = {
 export const COURSES = data as unknown as Record<CourseId, CourseData>
 export const COURSE_IDS: CourseId[] = ['java', 'rust']
 export const COURSE_META: Record<CourseId, CourseMeta> = {
-  java: { id: 'java', name: 'Java', title: 'Java Developer Mastery Roadmap', tagline: 'Six phases from core Java and the JVM to production operations.', lang: 'java', file: 'Main.java', build: 'javac Main.java && java Main' },
+  java: { id: 'java', name: 'Java', title: 'Java Developer Mastery Roadmap', tagline: 'A plain-English backend study guide, then the question bank, code review and production scenarios.', lang: 'java', file: 'Main.java', build: 'javac Main.java && java Main' },
   rust: { id: 'rust', name: 'Rust', title: 'Rust Systems & Backend Mastery Roadmap', tagline: 'Six phases from ownership and the borrow checker to async services and production Rust.', lang: 'rust', file: 'main.rs', build: 'rustc main.rs && ./main' },
 }
 export const PASS_THRESHOLD = 0.8

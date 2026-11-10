@@ -51,7 +51,7 @@ function CourseDropdown() {
                       <I size={18} aria-hidden className="shrink-0 text-slate-600 dark:text-slate-300" />
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">{COURSE_META[c].name}</span>
-                        <span className="block text-xs text-slate-500 dark:text-slate-400">{d.phases.length} phases · {d.questions.length} problems · {d.projects.length} projects</span>
+                        <span className="block text-xs text-slate-500 dark:text-slate-400">{d.phases.length ? `${d.phases.length} phases` : 'study guide'} · {d.questions.length} problems · {d.projects.length} projects</span>
                       </span>
                       {course === c && <Check size={16} aria-hidden className="shrink-0 text-sky-600 dark:text-sky-400" />}
                     </button>
@@ -78,7 +78,7 @@ export default function CourseSwitcher({ variant }: { variant: 'cards' | 'dropdo
           <button key={c} type="button" aria-pressed={course === c} onClick={() => pick(c)}
             className={`rounded-2xl border p-4 text-left transition-colors ${course === c ? accent[c] : 'border-slate-300/60 hover:bg-slate-100 dark:border-white/10 dark:hover:bg-white/5'}`}>
             <span className="flex items-center gap-2 font-semibold"><Icon size={18} aria-hidden /> {m.name}</span>
-            <span className="mt-1 block text-sm font-normal text-slate-500">{d.phases.length} phases · {d.questions.length} problems · {d.projects.length} projects</span>
+            <span className="mt-1 block text-sm font-normal text-slate-500">{d.phases.length ? `${d.phases.length} phases` : 'study guide'} · {d.questions.length} problems · {d.projects.length} projects</span>
           </button>
         )
       })}

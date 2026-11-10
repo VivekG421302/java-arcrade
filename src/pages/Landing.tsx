@@ -6,7 +6,7 @@ import { useProgress } from '../hooks/useProgress'
 import { PhaseBadge, ProgressBar } from '../components/ui'
 
 export default function Landing() {
-  const { data: content, meta } = useCourse()
+  const { data: content, meta, course } = useCourse()
   const PHASES = content.phases
   const { statusOf, row, readPct } = useProgress()
   const { enabled } = useAuth()
@@ -20,8 +20,11 @@ export default function Landing() {
     <div>
       <CourseSwitcher variant="cards" />
       <h1 className="mt-8 text-3xl font-bold tracking-tight">{meta.title}</h1>
-      <p className="mt-2 font-serif text-slate-500">{meta.tagline} Score 80% on each phase test to unlock the next.</p>
+      <p className="mt-2 font-serif text-slate-500">{meta.tagline}{course === 'java' ? '' : ' Score 80% on each phase test to unlock the next.'}</p>
       {!enabled && <p className="mt-2 text-xs text-slate-400">Guest mode: progress is saved in this browser.</p>}
+      {course === 'java' && (
+        <Link to="/study-guide" className="mt-8 flex min-h-[44px] items-baseline justify-between py-4 hover:text-sky-500"><span className="font-semibold">Part 1 · Study Guide</span><span className="text-sm text-slate-400">Java Enterprise Backend</span></Link>
+      )}
       <ul className="mt-8 divide-y divide-slate-200/70 dark:divide-white/10">
         {PHASES.map((p) => {
           const st = statusOf(p.id)
