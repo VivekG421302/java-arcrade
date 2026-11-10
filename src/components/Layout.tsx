@@ -20,9 +20,10 @@ const CHANGE = 'reminder-change'
 function ReminderEngine() {
   const { user } = useAuth()
   const { current } = useProgress()
+  const { course } = useCourse()
   const [on, setOn] = useState(reminderEnabled)
   useEffect(() => { const f = () => setOn(reminderEnabled()); window.addEventListener(CHANGE, f); return () => window.removeEventListener(CHANGE, f) }, [])
-  const body = `Midday check-in: update your progress and continue Phase ${current}.`
+  const body = course === 'java' ? 'Midday check-in: pick up the study guide where you left off.' : `Midday check-in: update your progress and continue Phase ${current}.`
   useEffect(() => (on ? startLocalScheduler(() => body) : undefined), [on, body])
   useEffect(() => { if (on && user) void subscribePush(user.id).catch(() => false) }, [on, user])
   return null
@@ -120,7 +121,7 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
 
 function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; onClose: () => void }) {
   const { statusOf, readPct } = useProgress()
-  const { data: content } = useCourse()
+  const { data: content, course } = useCourse()
   const PHASES = content.phases
   const cats = useMemo(() => Array.from(new Set(content.questions.map((q) => q.category))), [content])
   const loc = useLocation()
@@ -134,7 +135,8 @@ function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; 
   const heading = 'px-4 pb-1 pt-5 text-xs font-semibold uppercase tracking-wider text-slate-500'
   const nav = (
         <nav aria-label="Primary" onClick={(e) => { if (overlay && (e.target as Element).closest('a')) onClose() }}>
-          <h2 className={heading}>Part 1 · Roadmap</h2>
+          <h2 className={heading}>{course === 'java' ? 'Part 1 · Study Guide' : 'Part 1 · Roadmap'}</h2>
+          {course === 'java' && <NavLink to="/study-guide" className={({ isActive }) => `${link} ${isActive ? active : idle}`}>Java Enterprise Backend</NavLink>}
           {PHASES.map((p) => {
             const st = statusOf(p.id)
             const isOpen = expanded.includes(p.id) && st !== 'locked'
@@ -242,6 +244,7 @@ export default function Layout() {
   const nav = useNavigate()
   const { course, setCourse } = useCourse()
   const onPhase = !!useMatch('/phase/:id')
+  const full = !!useMatch('/study-guide')   // the guide brings its own header and menu: give it the whole content area
   const close = useCallback(() => (overlay ? setPop(false) : setDocked(false)), [overlay, setDocked])
 
   useEffect(() => { if (!hash) scroller.current?.scrollTo(0, 0) }, [pathname, hash])
@@ -278,9 +281,9 @@ export default function Layout() {
       <TopBar onMenu={toggleMenu} menuOpen={open} onToc={() => setToc(!toc)} tocAvailable={onPhase} />
       <div className="relative flex min-h-0 flex-1">
         <Sidebar open={open} overlay={overlay} onClose={close} />
-        <div ref={scroller} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
-          <main className={`pb-24 pt-4 ${ide.open ? 'px-5' : 'px-5 md:px-10'}`}>
-            <div className="mx-auto max-w-[760px]">
+        <div ref={scroller} className={`min-h-0 min-w-0 flex-1 overscroll-contain ${full ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+          <main className={full ? 'h-full' : `pb-24 pt-4 ${ide.open ? 'px-5' : 'px-5 md:px-10'}`}>
+            <div className={full ? 'h-full' : 'mx-auto max-w-[760px]'}>
               {/* only the page area shows a loading state; the top bar and sidebar never get swapped out */}
               <Suspense fallback={<p className="py-8 text-slate-500" role="status">Loading…</p>}><Outlet /></Suspense>
             </div>
