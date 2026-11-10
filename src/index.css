@@ -26,6 +26,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 h1, h2 { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 :focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+/* the editor's transparent textarea fills the pane; the caret already shows focus, and its clipped outline looked like a stray blue line */
+.ide-code textarea:focus-visible { outline: none; }
 
 /* Prism: VS Code Dark+ */
 code[class*='language-'], pre code { background: none; }
