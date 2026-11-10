@@ -35,8 +35,8 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   const { course, data: courseData } = useCourse()
   const PHASES = courseData.phases
   const uid = user?.id ?? 'guest'
-  const off = course === 'rust' ? 100 : 0          // Supabase phase_id offset so both courses share one table
-  const sfx = course === 'rust' ? ':rust' : ''      // localStorage suffix (Java keys stay unchanged)
+  const off = course === 'rust' ? 100 : 200        // Supabase phase_id offset so both courses share one table (Java 201+: the module roadmap, separate from the old six phases)
+  const sfx = course === 'rust' ? ':rust' : ':mod'   // localStorage suffix
   const [rows, setRows] = useState<Record<number, Row>>({})
   const [read, setRead] = useState<Record<string, boolean>>({})
   const [streak, setStreak] = useState(1)
@@ -54,7 +54,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       supabase.from('phase_progress').select('*').eq('user_id', user.id).then(({ data }) => {
         if (!data) return
         const r: Record<number, Row> = {}
-        data.filter((d) => (off ? d.phase_id > off : d.phase_id <= 100)).forEach((d) => (r[d.phase_id - off] = { ...(d as Row), phase_id: d.phase_id - off }))
+        data.filter((d) => (d.phase_id > off && d.phase_id <= off + 100)).forEach((d) => (r[d.phase_id - off] = { ...(d as Row), phase_id: d.phase_id - off }))
         setRows((prev) => ({ ...prev, ...r }))
       })
     }

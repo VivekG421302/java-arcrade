@@ -20,9 +20,10 @@ const CHANGE = 'reminder-change'
 function ReminderEngine() {
   const { user } = useAuth()
   const { current } = useProgress()
+  const { meta } = useCourse()
   const [on, setOn] = useState(reminderEnabled)
   useEffect(() => { const f = () => setOn(reminderEnabled()); window.addEventListener(CHANGE, f); return () => window.removeEventListener(CHANGE, f) }, [])
-  const body = `Midday check-in: update your progress and continue Phase ${current}.`
+  const body = `Midday check-in: update your progress and continue ${meta.unit} ${current}.`
   useEffect(() => (on ? startLocalScheduler(() => body) : undefined), [on, body])
   useEffect(() => { if (on && user) void subscribePush(user.id).catch(() => false) }, [on, user])
   return null
@@ -120,7 +121,8 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
 
 function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; onClose: () => void }) {
   const { statusOf, readPct } = useProgress()
-  const { data: content } = useCourse()
+  const { data: content, meta } = useCourse()
+  const unit = meta.unit
   const PHASES = content.phases
   const cats = useMemo(() => Array.from(new Set(content.questions.map((q) => q.category))), [content])
   const loc = useLocation()
@@ -141,15 +143,15 @@ function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; 
             return (
               <div key={p.id}>
                 {st === 'locked' ? (
-                  <span className={`${link} cursor-not-allowed border-transparent text-slate-400 opacity-60`} aria-disabled="true" data-tip={`Complete Phase ${p.id - 1} test to unlock`} data-tip-start="">
-                    <Lock size={16} aria-hidden /> Phase {p.id}: {p.title}
+                  <span className={`${link} cursor-not-allowed border-transparent text-slate-400 opacity-60`} aria-disabled="true" data-tip={`Complete ${unit} ${p.id - 1} test to unlock`} data-tip-start="">
+                    <Lock size={16} aria-hidden /> {unit} {p.id}: {p.title}
                   </span>
                 ) : (
                   <div className="flex">
                     <NavLink to={`/phase/${p.id}`} end className={({ isActive }) => `${link} flex-1 ${isActive && !loc.hash ? active : idle}`}>
-                      {(() => { const I = statusIcon[st]; return <I size={16} aria-hidden className={`shrink-0 ${statusColor[st]}`} /> })()}<span>Phase {p.id}: {p.title}</span>
+                      {(() => { const I = statusIcon[st]; return <I size={16} aria-hidden className={`shrink-0 ${statusColor[st]}`} /> })()}<span>{unit} {p.id}: {p.title}</span>
                     </NavLink>
-                    <button type="button" aria-expanded={isOpen} aria-label={`Toggle Phase ${p.id} sections`} data-tip={isOpen ? "Collapse sections" : "Show sections"} data-tip-end="" className="grid w-11 place-items-center text-slate-500"
+                    <button type="button" aria-expanded={isOpen} aria-label={`Toggle ${unit} ${p.id} sections`} data-tip={isOpen ? "Collapse sections" : "Show sections"} data-tip-end="" className="grid w-11 place-items-center text-slate-500"
                       onClick={() => setExpanded(isOpen ? expanded.filter((x) => x !== p.id) : [...expanded, p.id])}>{isOpen ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}</button>
                   </div>
                 )}

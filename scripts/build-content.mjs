@@ -188,7 +188,7 @@ function attach(base, problems, { defsMap, starter, fallback, shortTarget }) {
   }).filter(Boolean)
 }
 
-const javaRoad = parseRoadmap('content/roadmap.md', 'p')
+const javaRoad = parseRoadmap('content/roadmap.md', 'g')
 const java = {
   phases: javaRoad.phases,
   questions: attach(javaRoad.base, loadProblems('content/problems'), { defsMap: JAVA_DEFS, starter: makeJavaStarter }),

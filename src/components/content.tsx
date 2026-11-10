@@ -10,6 +10,7 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-yaml'
 import 'prismjs/components/prism-properties'
 import 'prismjs/components/prism-json'
+import Diagram from './Diagram'
 
 // IDE-style Java colouring: variables/fields light blue, control-flow keywords purple (VS Code Dark+).
 if (!('variable' in Prism.languages.java)) {
@@ -61,6 +62,7 @@ const components: Components = {
   code: ({ className, children }) => {
     const m = /language-(\w+)/.exec(className || '')
     const txt = String(children).replace(/\n$/, '')
+    if (m && (m[1] === 'diagram' || m[1] === 'sequence')) return <Diagram kind={m[1]} spec={txt} />
     return m || txt.includes('\n') ? <CodeBlock code={txt} lang={m?.[1]} /> : <InlineCode>{children}</InlineCode>
   },
   p: ({ children }) => <p className="my-3 max-w-[72ch] leading-7">{children}</p>,

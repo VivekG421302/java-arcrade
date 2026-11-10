@@ -28,6 +28,7 @@ export type CourseMeta = {
   name: string
   title: string
   tagline: string
+  unit: 'Module' | 'Phase'     // what one gated step of the roadmap is called in the UI
   lang: 'java' | 'rust'        // syntax highlighting + runner language
   file: string                 // file name shown in the IDE
   build: string                // what the terminal says it ran
@@ -36,8 +37,8 @@ export type CourseMeta = {
 export const COURSES = data as unknown as Record<CourseId, CourseData>
 export const COURSE_IDS: CourseId[] = ['java', 'rust']
 export const COURSE_META: Record<CourseId, CourseMeta> = {
-  java: { id: 'java', name: 'Java', title: 'Java Developer Mastery Roadmap', tagline: 'Six phases from core Java and the JVM to production operations.', lang: 'java', file: 'Main.java', build: 'javac Main.java && java Main' },
-  rust: { id: 'rust', name: 'Rust', title: 'Rust Systems & Backend Mastery Roadmap', tagline: 'Six phases from ownership and the borrow checker to async services and production Rust.', lang: 'rust', file: 'main.rs', build: 'rustc main.rs && ./main' },
+  java: { id: 'java', name: 'Java', title: 'Java Developer Mastery Roadmap', tagline: 'Eleven modules, from the story of Java and plain-English backend ideas to Spring, databases and production.', unit: 'Module', lang: 'java', file: 'Main.java', build: 'javac Main.java && java Main' },
+  rust: { id: 'rust', name: 'Rust', title: 'Rust Systems & Backend Mastery Roadmap', tagline: 'Six phases from ownership and the borrow checker to async services and production Rust.', unit: 'Phase', lang: 'rust', file: 'main.rs', build: 'rustc main.rs && ./main' },
 }
 export const PASS_THRESHOLD = 0.8
 export const leetUrl = (title: string) => `https://leetcode.com/problemset/?search=${encodeURIComponent(title.replace(/\s*\(.*\)/, ''))}`

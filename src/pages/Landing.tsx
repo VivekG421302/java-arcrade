@@ -7,6 +7,7 @@ import { PhaseBadge, ProgressBar } from '../components/ui'
 
 export default function Landing() {
   const { data: content, meta } = useCourse()
+  const unit = meta.unit
   const PHASES = content.phases
   const { statusOf, row, readPct } = useProgress()
   const { enabled } = useAuth()
@@ -20,7 +21,7 @@ export default function Landing() {
     <div>
       <CourseSwitcher variant="cards" />
       <h1 className="mt-8 text-3xl font-bold tracking-tight">{meta.title}</h1>
-      <p className="mt-2 font-serif text-slate-500">{meta.tagline} Score 80% on each phase test to unlock the next.</p>
+      <p className="mt-2 font-serif text-slate-500">{meta.tagline} Score 80% on each {unit.toLowerCase()} test to unlock the next.</p>
       {!enabled && <p className="mt-2 text-xs text-slate-400">Guest mode: progress is saved in this browser.</p>}
       <ul className="mt-8 divide-y divide-slate-200/70 dark:divide-white/10">
         {PHASES.map((p) => {
@@ -29,8 +30,8 @@ export default function Landing() {
           const inner = (
             <>
               <div className="min-w-0 flex-1">
-                <p className="font-semibold">Phase {p.id}: {p.title}</p>
-                {st === 'in_progress' && <div className="mt-2 max-w-xs"><ProgressBar pct={readPct(p)} label={`Phase ${p.id} read progress`} /></div>}
+                <p className="font-semibold">{unit} {p.id}: {p.title}</p>
+                {st === 'in_progress' && <div className="mt-2 max-w-xs"><ProgressBar pct={readPct(p)} label={`${unit} ${p.id} read progress`} /></div>}
               </div>
               <PhaseBadge status={st} score={score != null ? Math.round(score) : null} />
             </>
@@ -38,7 +39,7 @@ export default function Landing() {
           return (
             <li key={p.id}>
               {st === 'locked' ? (
-                <div data-tip={`Complete Phase ${p.id - 1} test to unlock`} data-tip-start="" className="flex items-center gap-4 py-4 opacity-45">{inner}</div>
+                <div data-tip={`Complete ${unit} ${p.id - 1} test to unlock`} data-tip-start="" className="flex items-center gap-4 py-4 opacity-45">{inner}</div>
               ) : (
                 <Link to={`/phase/${p.id}`} className="flex items-center gap-4 py-4 hover:text-sky-500">{inner}</Link>
               )}

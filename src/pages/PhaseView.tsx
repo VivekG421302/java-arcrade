@@ -8,7 +8,9 @@ import { PhaseBadge, ProgressBar } from '../components/ui'
 
 export default function PhaseView() {
   const { id } = useParams()
-  const PHASES = useCourse().data.phases
+  const { data, meta } = useCourse()
+  const PHASES = data.phases
+  const unit = meta.unit
   const { hash } = useLocation()
   const { statusOf, row, readPct, isRead, toggleRead } = useProgress()
   const phase = PHASES.find((p) => p.id === Number(id))
@@ -19,9 +21,9 @@ export default function PhaseView() {
     return (
       <div className="py-16 text-center">
         <Lock size={48} aria-hidden className="mx-auto text-slate-400" />
-        <h1 className="mt-4 text-2xl font-bold">Phase {phase.id} is locked</h1>
-        <p className="mt-2 text-slate-500">Pass the Phase {phase.id - 1} test with 80% or higher to unlock it.</p>
-        <Link to={`/phase/${phase.id - 1}`} className="mt-6 inline-flex min-h-[44px] items-center rounded-md bg-sky-600 px-5 font-medium text-white">Go to Phase {phase.id - 1}</Link>
+        <h1 className="mt-4 text-2xl font-bold">{unit} {phase.id} is locked</h1>
+        <p className="mt-2 text-slate-500">Pass the {unit} {phase.id - 1} test with 80% or higher to unlock it.</p>
+        <Link to={`/phase/${phase.id - 1}`} className="mt-6 inline-flex min-h-[44px] items-center rounded-md bg-sky-600 px-5 font-medium text-white">Go to {unit} {phase.id - 1}</Link>
       </div>
     )
   const pct = readPct(phase)
@@ -30,7 +32,7 @@ export default function PhaseView() {
     <article>
       <header className="mb-8">
         <PhaseBadge status={st} score={score != null ? Math.round(score) : null} />
-        <h1 className="mt-3 text-3xl font-bold tracking-tight">Phase {phase.id}: {phase.title}</h1>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight">{unit} {phase.id}: {phase.title}</h1>
         <div className="mt-4"><ProgressBar pct={pct} label="Sections read" /><p className="mt-1 text-xs text-slate-500">{pct}% of sections read</p></div>
       </header>
       {phase.sections.map((s) => (
@@ -44,7 +46,7 @@ export default function PhaseView() {
         </section>
       ))}
       <footer className="mt-10 border-t border-slate-200/70 pt-6 dark:border-white/10">
-        <Link to={`/phase/${phase.id}/test`} className="inline-flex min-h-[44px] items-center rounded-md bg-sky-600 px-5 font-medium text-white">{st === 'completed' ? 'Retake Phase test' : 'Take Phase test'}</Link>
+        <Link to={`/phase/${phase.id}/test`} className="inline-flex min-h-[44px] items-center rounded-md bg-sky-600 px-5 font-medium text-white">{st === 'completed' ? `Retake ${unit.toLowerCase()} test` : `Take ${unit.toLowerCase()} test`}</Link>
         <p className="mt-2 text-xs text-slate-400">5 questions · 80% to pass · 3 attempts per session</p>
       </footer>
     </article>

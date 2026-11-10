@@ -25,7 +25,8 @@ function Confetti() {
 }
 
 export default function TestRunner({ phaseId }: { phaseId: number }) {
-  const { course, data } = useCourse()
+  const { course, data, meta } = useCourse()
+  const unit = meta.unit
   const qs = testsFor(course)[phaseId]
   const PHASES = data.phases
   const { submit, attemptsLeft, lockedUntil } = useProgress()
@@ -47,10 +48,10 @@ export default function TestRunner({ phaseId }: { phaseId: number }) {
         {result.passed && <Confetti />}
         <div className={`rounded-xl border p-6 text-center ${result.passed ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-amber-500/40 bg-amber-500/10'}`}>
           <p className="text-5xl font-bold">{pct}%</p>
-          <p className="mt-2 text-lg">{result.passed ? (nextPhase ? `Passed! Phase ${nextPhase.id} is unlocked.` : 'Passed! You have completed the roadmap.') : `Not quite — you need ${PASS_THRESHOLD * 100}% to pass. Review the explanations below and try again.`}</p>
+          <p className="mt-2 text-lg">{result.passed ? (nextPhase ? `Passed! ${unit} ${nextPhase.id} is unlocked.` : 'Passed! You have completed the roadmap.') : `Not quite — you need ${PASS_THRESHOLD * 100}% to pass. Review the explanations below and try again.`}</p>
           <div className="mt-4 flex flex-wrap justify-center gap-3">
             {result.passed ? (
-              <Link to={nextPhase ? `/phase/${nextPhase.id}` : '/'} className="min-h-[44px] rounded-md bg-emerald-600 px-5 py-3 font-medium text-white">{nextPhase ? `Continue to Phase ${nextPhase.id}` : 'Back to roadmap'}</Link>
+              <Link to={nextPhase ? `/phase/${nextPhase.id}` : '/'} className="min-h-[44px] rounded-md bg-emerald-600 px-5 py-3 font-medium text-white">{nextPhase ? `Continue to ${unit} ${nextPhase.id}` : 'Back to roadmap'}</Link>
             ) : (
               <>
                 <Link to={`/phase/${phaseId}`} className="min-h-[44px] rounded-md border border-slate-400 px-5 py-3">Review material</Link>

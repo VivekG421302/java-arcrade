@@ -18,9 +18,9 @@ Each of the 100 questions has a problem statement, test cases (input and expecte
 Every solution is compiled and run against its test cases by `node scripts/verify-problems.mjs` (needs JDK 11+; currently 100/100 pass). Run it after editing any solution.
 
 ## How it works
-- **Content**: `scripts/build-content.mjs` parses the markdown into `src/content.json` (6 phases / 17 sections, 100 questions, 10 deep-dive + 40 matrix anti-patterns, 10 + 20 scenarios). To update content, edit `content/roadmap.md` and re-run `npm run dev` / `npm run build`. Inline LaTeX (`$O(N \log N)$`) is converted to plain text.
-- **Gating** (`src/hooks/useProgress.tsx`): only Phase 1 starts unlocked; Phase N unlocks when Phase N-1 is `completed`. Pass mark is 80%.
-- **Tests** (`src/lib/tests.ts`): 5 per phase (4 MCQ + 1 code). 4/5 = 80%, so one miss is allowed. Questions show one at a time (less cognitive load, simpler keyboard flow, full width for code). Edit or add questions there.
+- **Content**: `scripts/build-content.mjs` parses the markdown into `src/content.json` (Java: 11 modules / 132 sections from the Backend Study Guide, Rust: 6 phases / 17 sections; 100 questions, 10 deep-dive + 40 matrix anti-patterns, 10 + 20 scenarios). To update content, edit `content/roadmap.md` and re-run `npm run dev` / `npm run build`. Inline LaTeX (`$O(N \log N)$`) is converted to plain text.
+- **Gating** (`src/hooks/useProgress.tsx`): only the first module/phase starts unlocked; the next unlocks when the previous is `completed` (Java steps are called modules, Rust steps phases). Pass mark is 80%.
+- **Tests** (`src/lib/tests.ts`): 5 per module/phase (4 MCQ + 1 code). 4/5 = 80%, so one miss is allowed. Questions show one at a time (less cognitive load, simpler keyboard flow, full width for code). Edit or add questions there.
 - **Attempts**: 3 failed attempts per browser session, then a 24-hour lock (stored in localStorage per user).
 - **Supabase tables**: `phase_progress` (status, best score, attempts, completed_at) and `test_attempts` (answers jsonb, score, passed).
 - **Notes**: the original prompt's schema had `profiles.full_text`; this uses `full_name`. Grading runs in the browser, so a determined user could write their own rows; move grading to an Edge Function if integrity matters.
@@ -111,3 +111,6 @@ Each course ends with eight projects to build, each describing **what it should 
 
 ## IDE theme
 The IDE follows the app theme (settings menu, `…`): a dark editor in dark mode and a light one in light mode, including the terminal, popovers and the symbol keyboard. Syntax colours come from two palettes (VS Code Dark+ and a tuned Light+). Every colour was checked for at least 4.6:1 contrast against its background, including on the red error-line row, and line numbers use dedicated readable greys. Code blocks in the lessons stay dark in both themes.
+
+## Diagrams in the roadmap
+Fenced blocks tagged `diagram` (flow) or `sequence` (message steps) in `content/roadmap.md` hold a compact JSON spec and are drawn as theme-aware SVG by `components/Diagram.tsx`. Node format `id:label:column:row` (prefix the label with `!` for an end state); edges `a>b:label`.
