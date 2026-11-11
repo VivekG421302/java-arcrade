@@ -47,7 +47,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
   const [dragging, setDragging] = useState(false)
   useTips()
 
-  useEffect(() => { if (phone.current) phone.current.inert = hidden }, [hidden])   // no tabbing into the hidden view
+  useEffect(() => { if (phone.current) phone.current.inert = open && hidden }, [open, hidden])   // no tabbing into the hidden view; with the IDE closed the app is always live
   useEffect(() => { if (open && narrow) setHidden(true) }, [open, narrow, setHidden])   // small screens: land on the IDE
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (matches(e, 'ide')) { e.preventDefault(); toggleSmart(narrow) } }

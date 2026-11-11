@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useCourse } from './useCourse'
 import { usePersisted } from './usePersisted'
 
@@ -52,6 +52,8 @@ export function IdeProvider({ children }: { children: ReactNode }) {
   const [termH, setH] = useState(() => num('ide:termH', DEFAULTS.termH))
   const [termW, setW] = useState(() => num('ide:termW', DEFAULTS.termW))
 
+  useEffect(() => { if (!open && hidden) setHidden(false) }, [open, hidden, setHidden])   // closing the IDE (button, Alt+I, Esc) must never leave the app hidden or inert
+
   const openFor = useCallback((n: number | null) => { setQn(n); setOpen(true) }, [setQn, setOpen])
   const go = useCallback((delta: number) => {
     setQn((cur) => Math.min(data.questions.length, Math.max(1, (cur ?? (delta > 0 ? 0 : 2)) + delta)))
@@ -65,8 +67,8 @@ export function IdeProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(() => ({
     open, qn, hidden, dock, termOpen, phoneW, termH, termW, fontSize, wrap, setFontSize, setWrap,
     openFor, go, setDock, setTermOpen, setPhoneW, setTermSize,
-    toggle: () => setOpen((o) => !o),
-    toggleSmart: (narrow: boolean) => { if (narrow && open && !hidden) setHidden(true); else setOpen((o) => !o) },
+    toggle: () => { if (open) { setOpen(false); setHidden(false) } else setOpen(true) },
+    toggleSmart: (narrow: boolean) => { if (narrow && open && !hidden) setHidden(true); else if (open) { setOpen(false); setHidden(false) } else setOpen(true) },
     setHidden,
     close: () => { setOpen(false); setHidden(false) },
     toggleHidden: () => setHidden((h) => !h),

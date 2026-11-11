@@ -130,4 +130,13 @@ export const RUST_TESTS: Record<number, TestQ[]> = {
   ],
 }
 
+/** A fresh copy of a test with each multiple-choice question's options in a random order (the right answer is re-pointed), so no position is ever the answer by habit. */
+export const shuffleOptions = (qs: TestQ[]): TestQ[] =>
+  qs.map((q) => {
+    if (q.type !== 'mcq') return q
+    const order = q.opts.map((_, i) => i)
+    for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]] }
+    return { ...q, opts: order.map((i) => q.opts[i]), answer: order.indexOf(q.answer) }
+  })
+
 export const testsFor = (course: 'java' | 'rust'): Record<number, TestQ[]> => (course === 'rust' ? RUST_TESTS : JAVA_TESTS)

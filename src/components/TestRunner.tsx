@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { PASS_THRESHOLD } from '../lib/content'
-import { testsFor, type TestQ } from '../lib/tests'
+import { shuffleOptions, testsFor, type TestQ } from '../lib/tests'
 import { useCourse } from '../hooks/useCourse'
 import { useProgress, MAX_ATTEMPTS } from '../hooks/useProgress'
 import { CodeBlock } from './content'
@@ -27,7 +27,8 @@ function Confetti() {
 export default function TestRunner({ phaseId }: { phaseId: number }) {
   const { course, data, meta } = useCourse()
   const unit = meta.unit
-  const qs = testsFor(course)[phaseId]
+  const [attempt, setAttempt] = useState(0)
+  const qs = useMemo(() => shuffleOptions(testsFor(course)[phaseId]), [course, phaseId, attempt])   // new option order on every attempt
   const PHASES = data.phases
   const { submit, attemptsLeft, lockedUntil } = useProgress()
   const [idx, setIdx] = useState(0)
@@ -56,7 +57,7 @@ export default function TestRunner({ phaseId }: { phaseId: number }) {
               <>
                 <Link to={`/phase/${phaseId}`} className="min-h-[44px] rounded-md border border-slate-400 px-5 py-3">Review material</Link>
                 {left > 0 ? (
-                  <button className="min-h-[44px] rounded-md bg-sky-600 px-5 py-3 font-medium text-white" onClick={() => { setResult(null); setIdx(0); setAns(Array(qs.length).fill(undefined)) }}>Retry ({left} left this session)</button>
+                  <button className="min-h-[44px] rounded-md bg-sky-600 px-5 py-3 font-medium text-white" onClick={() => { setAttempt((a) => a + 1); setResult(null); setIdx(0); setAns(Array(qs.length).fill(undefined)) }}>Retry ({left} left this session)</button>
                 ) : (
                   <span className="px-2 py-3 text-sm">No attempts left — locked for 24 hours.</span>
                 )}
