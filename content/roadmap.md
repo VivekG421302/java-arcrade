@@ -1516,7 +1516,7 @@ Threads run tasks in parallel. Use ExecutorService for pools, locks and atomics 
 #### Lifecycle diagram: Thread Lifecycle
 
 ```diagram
-{"n":"N:NEW:0:1|R:RUNNABLE:1:1|BL:BLOCKED:2:0|W:WAITING:2:1|TW:TIMED_WAITING:2:2|TM:!TERMINATED:3:1","e":"N>R:start()|R>BL:needs lock|BL>R:got lock|R>W:wait() / join()|W>R:notify()|R>TW:sleep(ms)|TW>R:time up|R>TM:run() ends"}
+{"n":"N:NEW:0:1|R:RUNNABLE:1:1|BL:BLOCKED:2:0|W:WAITING:2:1|TW:TIMED_WAITING:2:2|TM:!TERMINATED:1:2","e":"N>R:start()|R>BL:needs lock|BL>R:got lock|R>W:wait() / join()|W>R:notify()|R>TW:sleep(ms)|TW>R:time up|R>TM:run() ends"}
 ```
 
 1. **NEW** – created but not started.
@@ -2325,7 +2325,7 @@ A Java thread moves between six states.
 > **Imagine:** A worker: hired (NEW), working (RUNNABLE), queueing for a tool (BLOCKED), waiting for a call (WAITING), on a timed break (TIMED_WAITING), retired (TERMINATED).
 
 ```diagram
-{"n":"N:NEW:0:1|R:RUNNABLE:1:1|BL:BLOCKED:2:0|W:WAITING:2:1|TW:TIMED_WAITING:2:2|TM:!TERMINATED:3:1","e":"N>R:start()|R>BL:needs lock|BL>R:got lock|R>W:wait() / join()|W>R:notify()|R>TW:sleep(ms)|TW>R:time up|R>TM:run() ends"}
+{"n":"N:NEW:0:1|R:RUNNABLE:1:1|BL:BLOCKED:2:0|W:WAITING:2:1|TW:TIMED_WAITING:2:2|TM:!TERMINATED:1:2","e":"N>R:start()|R>BL:needs lock|BL>R:got lock|R>W:wait() / join()|W>R:notify()|R>TW:sleep(ms)|TW>R:time up|R>TM:run() ends"}
 ```
 
 1. **NEW** – created but not started.
