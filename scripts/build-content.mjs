@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import { loadProblems } from './problems.mjs'
 
 // Turn inline LaTeX ($O(N \log N)$) into readable plain text.
-const clean = (s) =>
+const latex = (s) =>
   s.replace(/\$([^$\n]+)\$/g, (_, m) =>
     m
       .replace(/\\text\{([^}]*)\}/g, '$1')
@@ -17,6 +17,8 @@ const clean = (s) =>
       .replace(/\\[,;! ]/g, ' ')
       .replace(/[\\{}]/g, '')
   )
+// Leave code (fenced blocks and `inline code`) alone: `$1/$2` and shell `$VAR` are not LaTeX.
+const clean = (s) => s.split(/(```[\s\S]*?```|`[^`\n]*`)/).map((part, i) => (i % 2 ? part : latex(part))).join('')
 const strip = (s) => s.replace(/\n---\s*$/g, '').trim()
 const rowsOf = (body) =>
   body
@@ -33,7 +35,7 @@ function parseRoadmap(file, prefix) {
   const part = (n) => parts[parts.indexOf(String(n)) + 1] || ''
 
   const phases = part(1)
-    .split(/^## Phase (\d+): (.*)$/m)
+    .split(/^## (?:Phase|Module) (\d+): (.*)$/m)
     .slice(1)
     .reduce((acc, v, i, a) => {
       if (i % 3 === 0) {
@@ -196,7 +198,7 @@ const java = {
   projects: loadProjects('content/projects/java.md'),
 }
 
-const rustRoad = parseRoadmap('content/rust/roadmap.md', 'r')
+const rustRoad = parseRoadmap('content/rust/roadmap.md', 'm')
 const rustProblems = fs.existsSync('content/rust/problems') ? loadProblems('content/rust/problems') : []
 const javaByN = new Map(java.questions.map((q) => [q.n, q]))
 const rust = {

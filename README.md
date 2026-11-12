@@ -18,8 +18,8 @@ Each of the 100 questions has a problem statement, test cases (input and expecte
 Every solution is compiled and run against its test cases by `node scripts/verify-problems.mjs` (needs JDK 11+; currently 100/100 pass). Run it after editing any solution.
 
 ## How it works
-- **Content**: `scripts/build-content.mjs` parses the markdown into `src/content.json` (Java: 11 modules / 132 sections from the Backend Study Guide, Rust: 6 phases / 17 sections; 100 questions, 10 deep-dive + 40 matrix anti-patterns, 10 + 20 scenarios). To update content, edit `content/roadmap.md` and re-run `npm run dev` / `npm run build`. Inline LaTeX (`$O(N \log N)$`) is converted to plain text.
-- **Gating** (`src/hooks/useProgress.tsx`): only the first module/phase starts unlocked; the next unlocks when the previous is `completed` (Java steps are called modules, Rust steps phases). Pass mark is 80%.
+- **Content**: `scripts/build-content.mjs` parses the markdown into `src/content.json` (Java: 11 modules / 132 sections from the Backend Study Guide, Rust: 7 modules / 30 sections from the Rust Backend Engineering Mastery Syllabus; 100 questions, 10 deep-dive + 40 matrix anti-patterns, 10 + 20 scenarios). To update content, edit `content/roadmap.md` and re-run `npm run dev` / `npm run build`. Inline LaTeX (`$O(N \log N)$`) is converted to plain text.
+- **Gating** (`src/hooks/useProgress.tsx`): only the first module/phase starts unlocked; the next unlocks when the previous is `completed` (both courses call a gated step a module). Pass mark is 80%.
 - **Tests** (`src/lib/tests.ts`): 5 per module/phase (4 MCQ + 1 code). 4/5 = 80%, so one miss is allowed. Questions show one at a time (less cognitive load, simpler keyboard flow, full width for code). Edit or add questions there.
 - **Attempts**: 3 failed attempts per browser session, then a 24-hour lock (stored in localStorage per user).
 - **Supabase tables**: `phase_progress` (status, best score, attempts, completed_at) and `test_attempts` (answers jsonb, score, passed).
@@ -95,13 +95,13 @@ The app hosts two complete, independent courses. Pick one from the dropdown in t
 
 | | Java | Rust |
 | --- | --- | --- |
-| Roadmap | `content/roadmap.md` | `content/rust/roadmap.md` (6 phases, 17 sections) |
+| Roadmap | `content/roadmap.md` | `content/rust/roadmap.md` (7 modules, 30 sections: 29 chapters plus the capstone checklist) |
 | 100 problems | `content/problems/*.txt` | `content/rust/problems/*.txt` (statements and test cases are shared; each course has its own solutions, approaches and starters) |
 | Anti-patterns / scenarios | in the roadmap file (Parts 3 and 4) | in the Rust roadmap file (Parts 3 and 4) |
 | Projects | `content/projects/java.md` | `content/rust/projects.md` |
-| Phase tests | `JAVA_TESTS` in `src/lib/tests.ts` | `RUST_TESTS` in `src/lib/tests.ts` |
+| Module tests | `JAVA_TESTS` in `src/lib/tests.ts` | `RUST_TESTS` in `src/lib/tests.ts` |
 
-- **Separate progress and code.** Rust phases are stored as phase ids 101-106 in `phase_progress` / `test_attempts` (no schema change), locally under `rows:<user>:rust`. Your code is kept per course (`code:<n>` for Java, `code:rust:<n>` for Rust).
+- **Separate progress and code.** Rust modules are stored as phase ids 301-307 in `phase_progress` / `test_attempts` (no schema change; the old six-phase Rust ids 101-106 are left untouched and ignored), locally under `rows:<user>:rustmod`. Your code is kept per course (`code:<n>` for Java, `code:rust:<n>` for Rust).
 - **Rust in the IDE.** Rust highlighting, a Rust starter per problem (stubbed `impl` plus a `main` with the sample tests as comments), `rustc main.rs` in the terminal and error lines parsed from `--> main.rs:LINE`. Judge0 CE's default Rust is 1.40, so the solutions avoid newer APIs (they use `std::i32::MAX`, no `matches!`, etc.); set `VITE_RUST_LANG_ID` if your Judge0 has a newer toolchain.
 - **Index-based variants.** A few problems cannot be written with safe owning pointers, so the Rust course changes their representation and says so in the statement: Copy List with Random Pointer (arena), both Linked List Cycle problems (`next` index vector) and Clone Graph (`Rc<RefCell<Node>>`).
 - **Verification.** `node scripts/verify-rust.mjs` compiles every Rust solution (each in its own module) and runs its test check; all 100 pass on editions 2015, 2018 and 2021 (`--edition 2015|2018|2021`). The Java equivalent is `node scripts/verify-problems.mjs`. Rust code samples in the roadmap were compiled as well.

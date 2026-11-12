@@ -35,8 +35,8 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   const { course, data: courseData } = useCourse()
   const PHASES = courseData.phases
   const uid = user?.id ?? 'guest'
-  const off = course === 'rust' ? 100 : 200        // Supabase phase_id offset so both courses share one table (Java 201+: the module roadmap, separate from the old six phases)
-  const sfx = course === 'rust' ? ':rust' : ':mod'   // localStorage suffix
+  const off = course === 'rust' ? 300 : 200        // Supabase phase_id offset so both courses share one table (Java 201+ and Rust 301+: the module roadmaps, separate from the old phase-based ones)
+  const sfx = course === 'rust' ? ':rustmod' : ':mod'   // localStorage suffix
   const [rows, setRows] = useState<Record<number, Row>>({})
   const [read, setRead] = useState<Record<string, boolean>>({})
   const [streak, setStreak] = useState(1)
