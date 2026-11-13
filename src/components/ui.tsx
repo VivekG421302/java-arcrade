@@ -18,7 +18,15 @@ export function PhaseBadge({ status, score }: { status: Status; score?: number |
     completed: [CheckCircle2, score != null ? `Completed · ${score}%` : 'Completed', 'bg-emerald-500/15 text-emerald-500'],
   }
   const [Icon, label, cls] = m[status]
-  return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-sans text-xs font-medium ${cls}`}><Icon size={13} aria-hidden />{label}</span>
+  // Icon-only chip; on hover it grows to fit its text (grid 0fr -> 1fr animates to the label's natural width)
+  return (
+    <span role="img" aria-label={label} className={`group inline-flex shrink-0 items-center rounded-full p-1.5 font-sans text-xs font-medium ${cls}`}>
+      <Icon size={16} aria-hidden />
+      <span aria-hidden className="grid grid-cols-[0fr] transition-[grid-template-columns,margin] duration-300 ease-out group-hover:ml-1.5 group-hover:mr-1 group-hover:grid-cols-[1fr] motion-reduce:transition-none">
+        <span className="overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-300 group-hover:opacity-100 motion-reduce:transition-none">{label}</span>
+      </span>
+    </span>
+  )
 }
 
 export function Accordion({ title, meta, actions, children, defaultOpen = false, open: controlled, onToggle }: {

@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
 import { useCourse } from '../hooks/useCourse'
-import CourseSwitcher from '../components/CourseSwitcher'
 import { useAuth } from '../hooks/useAuth'
 import { useProgress } from '../hooks/useProgress'
 import { PhaseBadge, ProgressBar } from '../components/ui'
@@ -19,8 +18,7 @@ export default function Landing() {
   ] as const).filter(([, , n]) => n > 0)
   return (
     <div>
-      <CourseSwitcher variant="cards" />
-      <h1 className="mt-8 text-3xl font-bold tracking-tight">{meta.title}</h1>
+      <h1 className="text-3xl font-bold tracking-tight">{meta.title}</h1>
       <p className="mt-2 font-serif text-slate-500">{meta.tagline} Score 80% on each {unit.toLowerCase()} test to unlock the next.</p>
       {!enabled && <p className="mt-2 text-xs text-slate-400">Guest mode: progress is saved in this browser.</p>}
       <ul className="mt-8 divide-y divide-slate-200/70 dark:divide-white/10">

@@ -96,7 +96,7 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
     <header className={`relative z-30 flex h-14 shrink-0 items-center gap-1 px-2 ${ide.open ? '' : 'md:px-4'}`}>
       <button type="button" onClick={onMenu} data-menu-toggle="" aria-expanded={menuOpen} aria-controls="app-menu" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} {...tip(menuOpen ? 'Close menu' : 'Menu', 'menu')} data-tip-start="" className={btn}>{menuOpen ? <X size={20} aria-hidden /> : <Menu size={20} aria-hidden />}</button>
       <Link to="/" aria-label="Home" data-tip="Home" className={btn}><Coffee size={18} aria-hidden /></Link>
-      <div className="flex min-w-0 flex-1 justify-center"><CourseSwitcher variant="dropdown" /></div>
+      <div className="flex min-w-0 flex-1 justify-center"><CourseSwitcher /></div>
       <div className="flex items-center gap-1">
         {tocAvailable && <button type="button" onClick={onToc} aria-label="Contents of this phase" data-tip="Contents" className={btn}><ListTree size={20} aria-hidden /></button>}
         {meta.ide && <button type="button" onClick={() => ide.toggleSmart(narrow)} aria-pressed={ide.open && (!narrow || ide.hidden)} aria-label="Java IDE" {...tip('Java IDE', 'ide')} className={`${btn} ${ide.open && (!narrow || ide.hidden) ? 'text-sky-500' : ''}`}><SquareTerminal size={20} aria-hidden /></button>}
@@ -295,12 +295,29 @@ export default function Layout() {
       <div className="relative flex min-h-0 flex-1">
         <Sidebar open={open} overlay={overlay} onClose={close} />
         <div ref={scroller} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
-          <main className={`pb-24 pt-4 ${ide.open ? 'px-5' : 'px-5 md:px-10'}`}>
+          <main className={`pb-10 pt-4 ${ide.open ? 'px-5' : 'px-5 md:px-10'}`}>
             <div className="mx-auto max-w-[760px]">
               {/* only the page area shows a loading state; the top bar and sidebar never get swapped out */}
               <Suspense fallback={<p className="py-8 text-slate-500" role="status">Loading…</p>}><Outlet /></Suspense>
             </div>
           </main>
+          <footer className={`pb-6 ${ide.open ? 'px-5' : 'px-5 md:px-10'}`}>
+            <div className="mx-auto max-w-[760px] border-t border-slate-200 pt-5 dark:border-white/10">
+              <a
+                href="https://vivek-gupta-dev.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group -mx-2 flex flex-col items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-xs text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/5 sm:flex-row"
+              >
+                <span>
+                  Created by <span className="text-shine font-medium text-slate-900 dark:text-slate-100">VivekG</span>
+                </span>
+                <span className="rounded-lg border border-amber-500 bg-white px-3 py-1.5 font-medium text-amber-600 transition-colors group-hover:bg-amber-500 group-hover:text-slate-900 dark:bg-[#0f1115] dark:text-amber-500">
+                  Reach out
+                </span>
+              </a>
+            </div>
+          </footer>
         </div>
       </div>
       {toc && onPhase && <TOC onClose={() => setToc(false)} />}

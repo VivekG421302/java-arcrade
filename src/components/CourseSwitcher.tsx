@@ -7,7 +7,6 @@ import { useCourse } from '../hooks/useCourse'
 import { tip } from '../lib/shortcuts'
 
 const icons = { java: Coffee, rust: Cog, postgres: Database }
-const accent = { java: 'border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-500', rust: 'border-orange-600/50 bg-orange-600/10 text-orange-600 dark:text-orange-500', postgres: 'border-sky-600/50 bg-sky-600/10 text-sky-700 dark:text-sky-400' }
 
 const counts = (c: CourseId, d: (typeof COURSES)[CourseId]) =>
   [`${d.phases.length} ${COURSE_META[c].unit.toLowerCase()}s`, d.questions.length ? `${d.questions.length} problems` : '', d.projects.length ? `${d.projects.length} projects` : ''].filter(Boolean).join(' · ')
@@ -69,22 +68,7 @@ function CourseDropdown() {
   )
 }
 
-/** "cards" = big choices on the home page, "dropdown" = compact selector for the top bar. */
-export default function CourseSwitcher({ variant }: { variant: 'cards' | 'dropdown' }) {
-  const { course, pick } = useSwitch()
-  if (variant === 'dropdown') return <CourseDropdown />
-  return (
-    <div role="group" aria-label="Choose your course" className="grid gap-3 sm:grid-cols-2">
-      {COURSE_IDS.map((c) => {
-        const Icon = icons[c], m = COURSE_META[c], d = COURSES[c]
-        return (
-          <button key={c} type="button" aria-pressed={course === c} onClick={() => pick(c)}
-            className={`rounded-2xl border p-4 text-left transition-colors ${course === c ? accent[c] : 'border-slate-300/60 hover:bg-slate-100 dark:border-white/10 dark:hover:bg-white/5'}`}>
-            <span className="flex items-center gap-2 font-semibold"><Icon size={18} aria-hidden /> {m.name}</span>
-            <span className="mt-1 block text-sm font-normal text-slate-500">{counts(c, d)}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
+/** Compact course selector for the top bar. */
+export default function CourseSwitcher() {
+  return <CourseDropdown />
 }
