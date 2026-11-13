@@ -18,7 +18,7 @@ Each of the 100 questions has a problem statement, test cases (input and expecte
 Every solution is compiled and run against its test cases by `node scripts/verify-problems.mjs` (needs JDK 11+; currently 100/100 pass). Run it after editing any solution.
 
 ## How it works
-- **Content**: `scripts/build-content.mjs` parses the markdown into `src/content.json` (Java: 11 modules / 132 sections from the Backend Study Guide, Rust: 7 modules / 37 sections from the Rust Backend Engineering Mastery Syllabus; 100 questions, 10 deep-dive + 40 matrix anti-patterns, 10 + 20 scenarios). To update content, edit `content/roadmap.md` and re-run `npm run dev` / `npm run build`. Inline LaTeX (`$O(N \log N)$`) is converted to plain text.
+- **Content**: `scripts/build-content.mjs` parses the markdown into `src/content.json` (Java: 11 modules / 132 sections from the Backend Study Guide, Rust: 7 modules / 37 sections from the Rust Backend Engineering Mastery Syllabus, PostgreSQL: 2 modules / 12 sections so far (batch 1); 100 questions, 10 deep-dive + 40 matrix anti-patterns, 10 + 20 scenarios). To update content, edit `content/roadmap.md` and re-run `npm run dev` / `npm run build`. Inline LaTeX (`$O(N \log N)$`) is converted to plain text.
 - **Gating** (`src/hooks/useProgress.tsx`): only the first module/phase starts unlocked; the next unlocks when the previous is `completed` (both courses call a gated step a module). Pass mark is 80%.
 - **Tests** (`src/lib/tests.ts`): 5 per module/phase (4 MCQ + 1 code). 4/5 = 80%, so one miss is allowed. Questions show one at a time (less cognitive load, simpler keyboard flow, full width for code). Edit or add questions there.
 - **Attempts**: 3 failed attempts per browser session, then a 24-hour lock (stored in localStorage per user).
@@ -72,7 +72,7 @@ Hover or focus any button (or long-press on touch) to see its tooltip with the s
 | Reset code to starter | Alt+Z |
 | Smaller / bigger editor text | Alt+, / Alt+. |
 | Wrap long lines | Alt+W |
-| Switch course (Java / Rust) | Alt+O |
+| Switch course (Java / Rust / PostgreSQL) | Alt+O |
 | Focus the editor / leave it | Alt+C / Esc |
 | Toggle Java solution / open LeetCode (for the problem in the IDE) | Alt+S / Alt+L |
 | Open the app menu | Alt+M |
@@ -114,3 +114,10 @@ The IDE follows the app theme (settings menu, `…`): a dark editor in dark mode
 
 ## Diagrams in the roadmap
 Fenced blocks tagged `diagram` (flow) or `sequence` (message steps) in `content/roadmap.md` hold a compact JSON spec and are drawn as theme-aware SVG by `components/Diagram.tsx`. Node format `id:label:column:row` (prefix the label with `!` for an end state); edges `a>b:label`.
+
+## PostgreSQL & pgAdmin 4 course (batches)
+- **Roadmap**: `content/postgres/roadmap.md`, written as `# PART 1` then `## Module N`, with one `### Chapter N.N` per chapter. Every chapter keeps the same seven sections (`####`): 1 The Pain, 2 Imagine, 3 The Fix & How It Works (opens with a diagram), 4 pgAdmin 4 & SQL Practical Workflow, 5 Comparison Table, 6 What The Fix Cost, 7 Interview & Legacy Trivia. Each module starts with an Overview section. Batch 1 = Modules 1-2 (10 chapters). To add the next batch, append its modules to this file in the same shape and add their tests to `POSTGRES_TESTS` in `src/lib/tests.ts`; `npm run content` picks them up.
+- **Progress**: PostgreSQL modules use phase ids 401+ in `phase_progress` / `test_attempts` (no schema change) and the `:pgmod` localStorage suffix.
+- **Tests**: 5 per module (4 MCQ + 1 SQL fill-in), same 80% gate and attempt lock as the other courses.
+- **Not there yet**: question bank, anti-patterns, scenarios and projects (the sidebar and home page hide empty parts), and the in-app IDE (hidden for this course; Judge0 cannot run PostgreSQL).
+- **Verification**: the chapter SQL was run against a real PostgreSQL 16 server. Samples that use PG17+ features need a newer server.

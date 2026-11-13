@@ -104,7 +104,8 @@ function IdePanel({ narrow }: { narrow: boolean }) {
   const bumpFont = (d: number) => setFontSize((n) => Math.max(MIN_FONT, Math.min(MAX_FONT, n + d)))
   const dock: Dock = narrow ? 'bottom' : ide.dock                     // small screens always use the bottom dock
   const q = qn ? content.questions.find((x) => x.n === qn) : undefined
-  const starter = q?.starter ?? SCRATCH[meta.lang]
+  const lang = meta.lang === 'rust' ? 'rust' : 'java'                    // the IDE only runs these two
+  const starter = q?.starter ?? SCRATCH[lang]
   const key = `code:${course === 'rust' ? 'rust:' : ''}${qn ?? 'scratch'}`          // Java keys keep their old names
   const read = () => { try { return localStorage.getItem(key) ?? starter } catch { return starter } }
   const [code, setCode] = useState(read)
@@ -128,7 +129,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
     setRes({ state: 'running' })
     setErrLines([])
     try {
-      const r = await runCode(meta.lang, code)
+      const r = await runCode(lang, code)
       const lines = errorLines(r)
       setRes({ state: 'done', ...r })
       setErrLines(lines)
@@ -212,7 +213,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
 
       <div ref={body} className={`flex min-h-0 flex-1 ${dir}`}>
         <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl ring-1 ring-slate-200 dark:ring-0">
-          <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} fontSize={fontSize} wrap={wrapOn} lang={meta.lang} />
+          <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} fontSize={fontSize} wrap={wrapOn} lang={lang} />
         </div>
         <AnimatePresence initial={false}>
           {termOpen && (
@@ -233,7 +234,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
         </AnimatePresence>
       </div>
 
-      {touchy && focused && createPortal(<SymbolBar editor={api} inset={inset} onHide={api.blur} lang={meta.lang} />, document.body)}
+      {touchy && focused && createPortal(<SymbolBar editor={api} inset={inset} onHide={api.blur} lang={lang} />, document.body)}
     </motion.section>
   )
 }

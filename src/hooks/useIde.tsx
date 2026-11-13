@@ -40,8 +40,9 @@ const put = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch
 const num = (k: string, d: number) => { const v = Number(get(k)); return v > 0 ? v : d }
 
 export function IdeProvider({ children }: { children: ReactNode }) {
-  const { data } = useCourse()
-  const [open, setOpen] = usePersisted('ide:open', false)
+  const { data, meta } = useCourse()
+  const [openSaved, setOpen] = usePersisted('ide:open', false)
+  const open = openSaved && meta.ide   // courses without a runnable IDE (SQL) never show it, but the saved choice is kept for the others
   const [qn, setQn] = usePersisted<number | null>('ide:qn', null)
   const [hidden, setHidden] = usePersisted('ide:hidden', false)
   const [dock, setDockState] = useState<Dock>((get('ide:dock') as Dock) || 'bottom')

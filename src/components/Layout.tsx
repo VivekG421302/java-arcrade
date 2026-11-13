@@ -88,6 +88,7 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
   const { user, enabled, signOut } = useAuth()
   const { streak } = useProgress()
   const ide = useIde()
+  const { meta } = useCourse()
   const [modal, setModal] = useState(false)
   const [more, setMore] = useState(false)
   const btn = 'grid h-11 w-11 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-slate-100'
@@ -98,7 +99,7 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
       <div className="flex min-w-0 flex-1 justify-center"><CourseSwitcher variant="dropdown" /></div>
       <div className="flex items-center gap-1">
         {tocAvailable && <button type="button" onClick={onToc} aria-label="Contents of this phase" data-tip="Contents" className={btn}><ListTree size={20} aria-hidden /></button>}
-        <button type="button" onClick={() => ide.toggleSmart(narrow)} aria-pressed={ide.open && (!narrow || ide.hidden)} aria-label="Java IDE" {...tip('Java IDE', 'ide')} className={`${btn} ${ide.open && (!narrow || ide.hidden) ? 'text-sky-500' : ''}`}><SquareTerminal size={20} aria-hidden /></button>
+        {meta.ide && <button type="button" onClick={() => ide.toggleSmart(narrow)} aria-pressed={ide.open && (!narrow || ide.hidden)} aria-label="Java IDE" {...tip('Java IDE', 'ide')} className={`${btn} ${ide.open && (!narrow || ide.hidden) ? 'text-sky-500' : ''}`}><SquareTerminal size={20} aria-hidden /></button>}
         <button type="button" onClick={() => setMore(!more)} aria-expanded={more} aria-label="Settings" data-tip="Settings" data-tip-end="" className={btn}><MoreHorizontal size={20} aria-hidden /></button>
       </div>
       {more && (
@@ -169,7 +170,8 @@ function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; 
             )
           })}
 
-          <h2 className={heading}>Part 2 · Question Bank</h2>
+          {content.questions.length > 0 && (
+          <>          <h2 className={heading}>Part 2 · Question Bank</h2>
           <div className="flex">
             <NavLink to="/questions" end className={({ isActive }) => `${link} flex-1 ${isActive && !loc.search ? active : idle}`}>All {content.questions.length} questions</NavLink>
             <button type="button" aria-expanded={qOpen} aria-label="Toggle question categories" data-tip={qOpen ? 'Collapse' : 'Categories'} data-tip-end="" className="grid w-11 place-items-center text-slate-500" onClick={() => setQOpen(!qOpen)}>{qOpen ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}</button>
@@ -178,15 +180,27 @@ function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; 
             <Link key={c} to={{ pathname: '/questions', search: `?cat=${encodeURIComponent(c)}` }}
               className={`${link} pl-8 text-xs ${loc.pathname === '/questions' && loc.search === `?cat=${encodeURIComponent(c)}` ? active : idle}`}>{c}</Link>
           ))}
-
+          </>
+          )}
+          {content.antiPatterns.length + content.antiMatrix.length > 0 && (
+          <>
           <h2 className={heading}>Part 3 · Code Review</h2>
           <NavLink to="/anti-patterns" className={({ isActive }) => `${link} ${isActive ? active : idle}`}>Anti-Patterns (50)</NavLink>
-
+          </>
+          )}
+          {content.scenarios.length + content.scenarioMatrix.length > 0 && (
+          <>
           <h2 className={heading}>Part 4 · Production</h2>
           <NavLink to="/scenarios" className={({ isActive }) => `${link} ${isActive ? active : idle}`}>Scenarios (30)</NavLink>
-
+          </>
+          )}
+          {content.projects.length > 0 && (
+          <>
           <h2 className={heading}>Part 5 · Projects</h2>
           <NavLink to="/projects" className={({ isActive }) => `${link} ${isActive ? active : idle}`}>Projects to build ({content.projects.length})</NavLink>
+          </>
+          )}
+
         </nav>
   )
 

@@ -137,6 +137,23 @@ export const RUST_TESTS: Record<number, TestQ[]> = {
   ],
 }
 
+export const POSTGRES_TESTS: Record<number, TestQ[]> = {
+  1: [
+    mcq('Which process listens for new connections and forks one backend process for each of them?', ['The postmaster', 'The checkpointer', 'The WAL writer', 'The autovacuum launcher'], 0, 'The postmaster never runs user SQL. It checks pg_hba.conf, forks a backend for the client and supervises the background workers, so one session crashing does not take the others down.'),
+    mcq('What is the write-ahead logging (WAL) rule?', ['A change is written to the log before the data file is changed', 'The data file is written first and the log is written later', 'The log is only written once a day', 'The log replaces the data files'], 0, 'Because the log reaches disk first, PostgreSQL can replay it after a crash and reopen without losing committed work.'),
+    mcq('Which background process periodically writes dirty pages from shared buffers to the data files?', ['The checkpointer', 'The postmaster', 'The stats collector', 'The backend that ran the query'], 0, 'A checkpoint flushes dirty pages and marks a point from which crash recovery can start, so recovery stays short.'),
+    mcq('Which file decides which clients may connect from which addresses, and how they must authenticate?', ['pg_hba.conf', 'postgresql.conf', 'pg_ident.conf', 'PG_VERSION'], 0, 'pg_hba.conf (host-based authentication) is read by the postmaster before any backend exists. postgresql.conf holds the server settings.'),
+    { type: 'code', q: 'Which function makes the server re-read its configuration files without a restart (write the function name)?', lang: 'sql', code: "ALTER SYSTEM SET shared_buffers = '1GB';\nSELECT ___();", accept: ['pgreloadconf'], why: 'pg_reload_conf() reloads settings that can change at runtime. A setting such as shared_buffers still needs a full restart before it takes effect.' },
+  ],
+  2: [
+    mcq('Which column type should you choose to store a moment in time?', ['timestamptz', 'timestamp without time zone', 'text', 'date'], 0, 'timestamptz stores the instant in UTC and shows it in each session\'s time zone, so it means the same moment for every user.'),
+    mcq('Which constraint stops two bookings for the same room from overlapping in time?', ['An EXCLUDE constraint on a range column', 'A UNIQUE constraint on the room id', 'A CHECK constraint on the room id', 'A NOT NULL constraint'], 0, 'EXCLUDE USING gist (room_id WITH =, during WITH &&) refuses overlapping ranges. For plain types such as int it needs the btree_gist extension.'),
+    mcq('Which index type makes a JSONB containment query (the @> operator) fast?', ['GIN', 'Hash', 'BRIN on the row order', 'No index can help'], 0, 'A GIN index on the jsonb column indexes the keys and values inside the documents, so containment and key-exists searches avoid a full table scan.'),
+    mcq('A partitioned table is split by created_at. What must a primary key on it include?', ['The partition key column (created_at)', 'Nothing special', 'Only a text column', 'A foreign key to every partition'], 0, 'Each partition enforces its own unique index, so a unique rule across partitions is only possible when it includes the partition key, for example PRIMARY KEY (id, created_at).'),
+    { type: 'code', q: 'Which keyword makes the database reject ids supplied by hand (one word)?', lang: 'sql', code: 'CREATE TABLE orders (\n  id bigint GENERATED ___ AS IDENTITY PRIMARY KEY,\n  placed_at timestamptz NOT NULL DEFAULT now()\n);', accept: ['always'], why: 'GENERATED ALWAYS AS IDENTITY refuses manual values unless you say OVERRIDING SYSTEM VALUE. BY DEFAULT allows them, and the old SERIAL type is the legacy way to do this.' },
+  ],
+}
+
 /** A fresh copy of a test with each multiple-choice question's options in a random order (the right answer is re-pointed), so no position is ever the answer by habit. */
 export const shuffleOptions = (qs: TestQ[]): TestQ[] =>
   qs.map((q) => {
@@ -146,4 +163,4 @@ export const shuffleOptions = (qs: TestQ[]): TestQ[] =>
     return { ...q, opts: order.map((i) => q.opts[i]), answer: order.indexOf(q.answer) }
   })
 
-export const testsFor = (course: 'java' | 'rust'): Record<number, TestQ[]> => (course === 'rust' ? RUST_TESTS : JAVA_TESTS)
+export const testsFor = (course: 'java' | 'rust' | 'postgres'): Record<number, TestQ[]> => (course === 'rust' ? RUST_TESTS : course === 'postgres' ? POSTGRES_TESTS : JAVA_TESTS)

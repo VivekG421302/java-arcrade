@@ -208,7 +208,16 @@ const rust = {
   projects: loadProjects('content/rust/projects.md'),
 }
 
-fs.writeFileSync('src/content.json', JSON.stringify({ java, rust }))
+// PostgreSQL: roadmap only for now (module tests live in src/lib/tests.ts); Parts 2-4 and projects fill in when their files exist.
+const pgRoad = parseRoadmap('content/postgres/roadmap.md', 'p')
+const postgres = {
+  phases: pgRoad.phases, questions: [],
+  antiPatterns: pgRoad.antiPatterns, antiMatrix: pgRoad.antiMatrix, scenarios: pgRoad.scenarios, scenarioMatrix: pgRoad.scenarioMatrix,
+  projects: loadProjects('content/postgres/projects.md'),
+}
+
+fs.writeFileSync('src/content.json', JSON.stringify({ java, rust, postgres }))
 const sum = (c) => `phases=${c.phases.length} sections=${c.phases.reduce((s, p) => s + p.sections.length, 0)} questions=${c.questions.length} antiPatterns=${c.antiPatterns.length}+${c.antiMatrix.length} scenarios=${c.scenarios.length}+${c.scenarioMatrix.length} projects=${c.projects.length}`
 console.log('java: ' + sum(java))
 console.log('rust: ' + sum(rust))
+console.log('postgres: ' + sum(postgres))

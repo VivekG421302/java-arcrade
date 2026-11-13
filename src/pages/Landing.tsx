@@ -11,12 +11,12 @@ export default function Landing() {
   const PHASES = content.phases
   const { statusOf, row, readPct } = useProgress()
   const { enabled } = useAuth()
-  const parts = [
+  const parts = ([
     ['/questions', 'Question Bank', content.questions.length],
     ['/anti-patterns', 'Code Review Anti-Patterns', content.antiPatterns.length + content.antiMatrix.length],
     ['/scenarios', 'Production Scenarios', content.scenarios.length + content.scenarioMatrix.length],
     ['/projects', 'Projects to Build', content.projects.length],
-  ] as const
+  ] as const).filter(([, , n]) => n > 0)
   return (
     <div>
       <CourseSwitcher variant="cards" />
