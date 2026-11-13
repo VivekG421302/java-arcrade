@@ -26,14 +26,17 @@ body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 h1, h2 { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
-/* footer name: a soft highlight sweeping across the text */
+/* footer name: always visible in silver, with a bright sheen sweeping left to right */
 .text-shine {
-  background: linear-gradient(100deg, currentColor 40%, #f59e0b 50%, currentColor 60%) 200% 0 / 250% 100% no-repeat;
+  --shine-base: #64748b; --shine-hi: #0f172a;
+  color: var(--shine-base);
+  background: linear-gradient(110deg, var(--shine-base) 0%, var(--shine-base) 40%, var(--shine-hi) 50%, var(--shine-base) 60%, var(--shine-base) 100%) 100% 0 / 250% 100%;
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  animation: text-shine 4s ease-in-out infinite;
+  animation: text-shine 3.2s linear infinite;
 }
-@keyframes text-shine { to { background-position: -100% 0; } }
-@media (prefers-reduced-motion: reduce) { .text-shine { animation: none; background: none; -webkit-text-fill-color: currentColor; } }
+.dark .text-shine { --shine-base: #a1a1aa; --shine-hi: #ffffff; }
+@keyframes text-shine { to { background-position: 0% 0; } }
+@media (prefers-reduced-motion: reduce) { .text-shine { animation: none; background: none; -webkit-text-fill-color: var(--shine-base); } }
 :focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
 /* the editor's transparent textarea fills the pane; the caret already shows focus, and its clipped outline looked like a stray blue line */
 .ide-code textarea:focus-visible { outline: none; }

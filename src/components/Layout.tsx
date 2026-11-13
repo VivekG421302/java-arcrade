@@ -310,7 +310,7 @@ export default function Layout() {
                 className="group -mx-2 flex flex-col items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-xs text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/5 sm:flex-row"
               >
                 <span>
-                  Created by <span className="text-shine font-medium text-slate-900 dark:text-slate-100">VivekG</span>
+                  Created by <span className="text-shine font-medium">VivekG</span>
                 </span>
                 <span className="rounded-lg border border-amber-500 bg-white px-3 py-1.5 font-medium text-amber-600 transition-colors group-hover:bg-amber-500 group-hover:text-slate-900 dark:bg-[#0f1115] dark:text-amber-500">
                   Reach out
