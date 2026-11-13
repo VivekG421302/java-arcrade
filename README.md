@@ -18,7 +18,7 @@ Each of the 100 questions has a problem statement, test cases (input and expecte
 Every solution is compiled and run against its test cases by `node scripts/verify-problems.mjs` (needs JDK 11+; currently 100/100 pass). Run it after editing any solution.
 
 ## How it works
-- **Content**: `scripts/build-content.mjs` parses the markdown into `src/content.json` (Java: 11 modules / 132 sections from the Backend Study Guide, Rust: 7 modules / 30 sections from the Rust Backend Engineering Mastery Syllabus; 100 questions, 10 deep-dive + 40 matrix anti-patterns, 10 + 20 scenarios). To update content, edit `content/roadmap.md` and re-run `npm run dev` / `npm run build`. Inline LaTeX (`$O(N \log N)$`) is converted to plain text.
+- **Content**: `scripts/build-content.mjs` parses the markdown into `src/content.json` (Java: 11 modules / 132 sections from the Backend Study Guide, Rust: 7 modules / 37 sections from the Rust Backend Engineering Mastery Syllabus; 100 questions, 10 deep-dive + 40 matrix anti-patterns, 10 + 20 scenarios). To update content, edit `content/roadmap.md` and re-run `npm run dev` / `npm run build`. Inline LaTeX (`$O(N \log N)$`) is converted to plain text.
 - **Gating** (`src/hooks/useProgress.tsx`): only the first module/phase starts unlocked; the next unlocks when the previous is `completed` (both courses call a gated step a module). Pass mark is 80%.
 - **Tests** (`src/lib/tests.ts`): 5 per module/phase (4 MCQ + 1 code). 4/5 = 80%, so one miss is allowed. Questions show one at a time (less cognitive load, simpler keyboard flow, full width for code). Edit or add questions there.
 - **Attempts**: 3 failed attempts per browser session, then a 24-hour lock (stored in localStorage per user).
@@ -95,7 +95,7 @@ The app hosts two complete, independent courses. Pick one from the dropdown in t
 
 | | Java | Rust |
 | --- | --- | --- |
-| Roadmap | `content/roadmap.md` | `content/rust/roadmap.md` (7 modules, 30 sections: 29 chapters plus the capstone checklist) |
+| Roadmap | `content/roadmap.md` | `content/rust/roadmap.md` (7 modules, 37 sections: a plain-English overview per module, 29 chapters each with a story, tables and diagrams above the full technical detail, and the capstone checklist) |
 | 100 problems | `content/problems/*.txt` | `content/rust/problems/*.txt` (statements and test cases are shared; each course has its own solutions, approaches and starters) |
 | Anti-patterns / scenarios | in the roadmap file (Parts 3 and 4) | in the Rust roadmap file (Parts 3 and 4) |
 | Projects | `content/projects/java.md` | `content/rust/projects.md` |
