@@ -22,8 +22,8 @@ export function PhaseBadge({ status, score }: { status: Status; score?: number |
   return (
     <span role="img" aria-label={label} className={`group inline-flex shrink-0 items-center rounded-full p-1.5 font-sans text-xs font-medium ${cls}`}>
       <Icon size={16} aria-hidden />
-      <span aria-hidden className="grid grid-cols-[0fr] transition-[grid-template-columns,margin] duration-300 ease-out group-hover:ml-1.5 group-hover:mr-1 group-hover:grid-cols-[1fr] motion-reduce:transition-none">
-        <span className="overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-300 group-hover:opacity-100 motion-reduce:transition-none">{label}</span>
+      <span aria-hidden className="grid grid-cols-[0fr] transition-[grid-template-columns,margin] duration-300 ease-out group-hover:ml-1.5 group-hover:mr-1 group-hover:grid-cols-[1fr] group-hover/row:ml-1.5 group-hover/row:mr-1 group-hover/row:grid-cols-[1fr] motion-reduce:transition-none">
+        <span className="overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-hover/row:opacity-100 motion-reduce:transition-none">{label}</span>
       </span>
     </span>
   )

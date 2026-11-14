@@ -37,9 +37,9 @@ export default function Landing() {
           return (
             <li key={p.id}>
               {st === 'locked' ? (
-                <div data-tip={`Complete ${unit} ${p.id - 1} test to unlock`} data-tip-start="" className="flex items-center gap-4 py-4 opacity-45">{inner}</div>
+                <div data-tip={`Complete ${unit} ${p.id - 1} test to unlock`} data-tip-start="" className="group/row flex items-center gap-4 py-4 opacity-45">{inner}</div>
               ) : (
-                <Link to={`/phase/${p.id}`} className="flex items-center gap-4 py-4 hover:text-sky-500">{inner}</Link>
+                <Link to={`/phase/${p.id}`} className="group/row flex items-center gap-4 py-4 hover:text-sky-500">{inner}</Link>
               )}
             </li>
           )
