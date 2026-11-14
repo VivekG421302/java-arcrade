@@ -140,7 +140,10 @@ html:not(.dark) .ide-code .token.attr-name, html:not(.dark) .ide-code .token.pro
 .print-doc .token.class-name, .print-doc .token.namespace, .print-doc .token.attribute { color: #953800; }
 .print-doc .token.operator, .print-doc .token.punctuation { color: #1f2328; }
 .print-doc .token.variable, .print-doc .token.property, .print-doc .token.constant, .print-doc .token.attr-name { color: #0550ae; }
+@page cover { size: A4; margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
+.print-cover { height: 297mm; page: cover; break-after: page; overflow: hidden; }
 @media print {
+  .print-cover { margin: 0 !important; width: auto !important; max-width: none !important; }
   html.print-open, html.print-open body { background: #fff !important; }
   html.print-open #root { display: none !important; }
   .print-doc { position: static !important; overflow: visible !important; background: #fff !important; }

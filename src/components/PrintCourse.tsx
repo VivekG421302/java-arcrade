@@ -1,10 +1,16 @@
-import { Printer, X } from 'lucide-react'
+import { Coffee, Cog, Database, Printer, X } from 'lucide-react'
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useCourse } from '../hooks/useCourse'
 import { buildPaper } from '../lib/papers'
 import { testsFor } from '../lib/tests'
 import { CodeBlock, Inline, Markdown } from './content'
+
+const THEME = {
+  java: { accent: '#f59e0b', soft: '#fcd34d', Icon: Coffee, label: 'Java Backend Mastery' },
+  rust: { accent: '#fb923c', soft: '#fdba74', Icon: Cog, label: 'Rust Backend Mastery' },
+  postgres: { accent: '#38bdf8', soft: '#7dd3fc', Icon: Database, label: 'PostgreSQL & pgAdmin 4' },
+} as const
 
 const H2 = ({ children, id }: { children: React.ReactNode; id?: string }) => <h2 id={id} className="pb mb-3 mt-0 border-b-2 border-slate-800 pb-1 font-sans text-xl font-bold">{children}</h2>
 const H3 = ({ children }: { children: React.ReactNode }) => <h3 className="mb-2 mt-6 font-sans text-base font-bold">{children}</h3>
@@ -15,6 +21,15 @@ export default function PrintCourse({ onClose }: { onClose: () => void }) {
   const { course, data, meta } = useCourse()
   const tests = testsFor(course)
   const unit = meta.unit
+  const th = THEME[course]
+  const stats = ([
+    [data.phases.length, `${unit}s`],
+    [data.questions.length, 'Problems solved'],
+    [data.antiPatterns.length + data.antiMatrix.length, 'Anti-patterns'],
+    [data.scenarios.length + data.scenarioMatrix.length, 'Scenarios'],
+    [data.projects.length, 'Projects'],
+    [data.phases.length, 'Question papers · 40 marks'],
+  ] as const).filter(([n]) => n > 0)
   const papers = data.phases.map((p) => ({ p, paper: buildPaper(p, tests[p.id]) }))
 
   useEffect(() => {
@@ -49,13 +64,35 @@ export default function PrintCourse({ onClose }: { onClose: () => void }) {
         </span>
       </div>
 
+      <section className="print-cover mx-auto my-4 w-[210mm] max-w-full" style={{ background: 'linear-gradient(160deg,#0b1220 0%,#111c33 60%,#0b1220 100%)', color: '#e2e8f0' }}>
+        <div className="relative flex h-full flex-col overflow-hidden px-[18mm] py-[20mm] font-sans">
+          <div aria-hidden className="absolute -right-24 top-40 opacity-[0.07]" style={{ color: th.accent }}><th.Icon size={520} strokeWidth={1} /></div>
+          <div aria-hidden className="absolute left-0 top-0 h-full w-[9mm]" style={{ background: th.accent }} />
+          <p className="ml-[6mm] text-sm font-semibold uppercase tracking-[0.35em]" style={{ color: th.accent }}>Study guide · {new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</p>
+          <div className="relative ml-[6mm] mt-[38mm]">
+            <p className="text-lg font-medium" style={{ color: th.soft }}>{th.label}</p>
+            <h1 className="mt-3 text-[40px] font-extrabold leading-[1.1] text-white">{meta.title}</h1>
+            <div className="mt-6 h-1 w-24 rounded" style={{ background: th.accent }} />
+            <p className="mt-6 max-w-[135mm] font-serif text-[15px] leading-relaxed text-slate-300">{meta.tagline}</p>
+          </div>
+          <div className="relative ml-[6mm] mt-auto grid grid-cols-3 gap-3">
+            {stats.map(([n, label]) => (
+              <div key={label} className="rounded-lg border px-4 py-3" style={{ borderColor: 'rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.05)' }}>
+                <p className="text-2xl font-extrabold" style={{ color: th.accent }}>{n}</p>
+                <p className="text-xs uppercase tracking-wider text-slate-400">{label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="relative ml-[6mm] mt-8 flex items-end justify-between border-t pt-4 text-xs text-slate-400" style={{ borderColor: 'rgba(255,255,255,0.14)' }}>
+            <span>Created by <b className="text-slate-100">VivekG</b></span>
+            <span style={{ color: th.accent }}>vivek-gupta-dev.vercel.app</span>
+          </div>
+        </div>
+      </section>
+
       <article className="print-page mx-auto my-4 max-w-[210mm] bg-white p-[14mm] font-serif text-[12px] leading-relaxed shadow">
-        <header className="avoid-break pb-6 pt-10 text-center">
-          <p className="font-sans text-xs font-semibold uppercase tracking-widest text-slate-500">{meta.name}</p>
-          <h1 className="mt-2 font-sans text-3xl font-extrabold">{meta.title}</h1>
-          <p className="mx-auto mt-3 max-w-[140mm] text-slate-600">{meta.tagline}</p>
-          <p className="mt-4 font-sans text-xs text-slate-500">{parts.join(' · ')}</p>
-          <nav aria-label="Index" className="mx-auto mt-8 max-w-[150mm] text-left font-sans text-[12px]">
+        <header className="avoid-break pb-2">
+          <nav aria-label="Index" className="mx-auto max-w-[150mm] text-left font-sans text-[12px]">
             <h2 className="mb-2 border-b-2 border-slate-800 pb-1 text-lg font-bold">Index</h2>
             <ol className="space-y-0.5">
               {data.phases.map((p) => <li key={p.id}><a href={`#m-${p.id}`} className="hover:underline">{unit} {p.id}: {p.title}</a></li>)}
