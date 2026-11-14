@@ -115,17 +115,20 @@ html:not(.dark) .ide-code .token.attr-name, html:not(.dark) .ide-code .token.pro
 .print-doc h2, .print-doc h3, .print-doc h4 { break-after: avoid; }
 .print-doc h2.pb { break-before: page; }
 .print-doc .paper { break-before: page; }
-.print-doc .paper:first-of-type { break-before: auto; }   /* the first paper stays on its section heading's page */
-.print-doc table, .print-doc svg, .print-doc .avoid-break, .print-doc pre { break-inside: avoid; }
+.print-doc .paper:first-of-type { break-before: auto; }
+.print-doc .paper { font-size: 11px; line-height: 1.35; }   /* a paper should fit one page, not spill a single line onto the next */
+.print-doc .paper .dark-surface { margin: 4px 0; }
+.print-doc .paper ol { margin-top: 2px; }   /* the first paper stays on its section heading's page */
+.print-doc table, .print-doc svg, .print-doc .avoid-break { break-inside: avoid; }
 .print-doc pre, .print-doc code { white-space: pre-wrap; word-break: break-word; overflow: visible; }
 .print-doc .dark-surface { background: #f6f8fa; color: #1f2328; border-color: #d0d7de; box-shadow: none; }
 .print-doc .dark-surface * { color: inherit; }
 .print-doc .dark-surface button { display: none; }
-/* code blocks: no line-number gutter (it breaks when lines wrap), and the code column must be allowed to take the full width */
-.print-doc .dark-surface { break-inside: avoid; }
-.print-doc .dark-surface > div:last-child { display: flex; overflow: visible; }
-.print-doc .dark-surface pre[aria-hidden] { display: none; }
-.print-doc .dark-surface pre { flex: 1 1 0; min-width: 0; margin: 0; padding-left: 12px; }
+/* code blocks in print: plain block boxes (no flex, no clipping) so a page break can never hide the code; no line-number gutter */
+.print-doc .dark-surface { display: block; overflow: visible !important; break-inside: avoid; border-radius: 4px; }
+.print-doc .dark-surface > div:last-child { display: block !important; overflow: visible !important; }
+.print-doc .dark-surface pre[aria-hidden] { display: none !important; }
+.print-doc .dark-surface pre { display: block; width: auto; margin: 0; padding: 8px 12px; overflow: visible; }
 /* everything is a block: a block that does not fit moves to the next page, and only a block taller than a page is split */
 .print-doc p, .print-doc li, .print-doc blockquote, .print-doc tr, .print-doc figure { break-inside: avoid; orphans: 3; widows: 3; }
 .print-doc .keep-next { break-after: avoid; }
