@@ -115,6 +115,7 @@ html:not(.dark) .ide-code .token.attr-name, html:not(.dark) .ide-code .token.pro
 .print-doc h2, .print-doc h3, .print-doc h4 { break-after: avoid; }
 .print-doc h2.pb { break-before: page; }
 .print-doc .paper { break-before: page; }
+.print-doc .paper:first-of-type { break-before: auto; }   /* the first paper stays on its section heading's page */
 .print-doc table, .print-doc svg, .print-doc .avoid-break, .print-doc pre { break-inside: avoid; }
 .print-doc pre, .print-doc code { white-space: pre-wrap; word-break: break-word; overflow: visible; }
 .print-doc .dark-surface { background: #f6f8fa; color: #1f2328; border-color: #d0d7de; box-shadow: none; }
