@@ -104,3 +104,30 @@ html:not(.dark) .ide-code .token.attribute, html:not(.dark) .ide-code .token.lif
 html:not(.dark) .ide-code .token.operator, html:not(.dark) .ide-code .token.punctuation { color: #1f2328; }
 html:not(.dark) .ide-code .token.tag, html:not(.dark) .ide-code .token.selector { color: #800000; }
 html:not(.dark) .ide-code .token.attr-name, html:not(.dark) .ide-code .token.property, html:not(.dark) .ide-code .token.variable, html:not(.dark) .ide-code .token.constant { color: #001080; }
+
+/* ---- print: whole course on A4 (see PrintCourse) ---- */
+@page { size: A4; margin: 14mm; }
+.print-doc * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.print-doc h2, .print-doc h3, .print-doc h4 { break-after: avoid; }
+.print-doc h2.pb { break-before: page; }
+.print-doc section:first-of-type h2.pb { break-before: auto; }
+.print-doc table, .print-doc svg, .print-doc .avoid-break, .print-doc pre { break-inside: avoid; }
+.print-doc pre, .print-doc code { white-space: pre-wrap; word-break: break-word; overflow: visible; }
+.print-doc .dark-surface { background: #f6f8fa; color: #1f2328; border-color: #d0d7de; box-shadow: none; }
+.print-doc .dark-surface * { color: inherit; }
+.print-doc .dark-surface button { display: none; }
+.print-doc .token.comment, .print-doc .token.prolog { color: #6a737d; }
+.print-doc .token.keyword, .print-doc .token.boolean, .print-doc .token.atrule { color: #cf222e; }
+.print-doc .token.string, .print-doc .token.char, .print-doc .token.attr-value { color: #0a3069; }
+.print-doc .token.number { color: #0550ae; }
+.print-doc .token.function, .print-doc .token.builtin, .print-doc .token.annotation, .print-doc .token.macro { color: #8250df; }
+.print-doc .token.class-name, .print-doc .token.namespace, .print-doc .token.attribute { color: #953800; }
+.print-doc .token.operator, .print-doc .token.punctuation { color: #1f2328; }
+.print-doc .token.variable, .print-doc .token.property, .print-doc .token.constant, .print-doc .token.attr-name { color: #0550ae; }
+@media print {
+  html.print-open, html.print-open body { background: #fff !important; }
+  html.print-open #root { display: none !important; }
+  .print-doc { position: static !important; overflow: visible !important; background: #fff !important; }
+  .print-doc .no-print { display: none !important; }
+  .print-doc .print-page { margin: 0 !important; padding: 0 !important; max-width: none !important; box-shadow: none !important; }
+}

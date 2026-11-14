@@ -1,5 +1,5 @@
-import { Bell, BellOff, CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, LogIn, LogOut, Menu, MoreHorizontal, RefreshCw, RotateCcw, SquareTerminal, X } from 'lucide-react'
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Bell, BellOff, Printer, CheckCircle2, ChevronDown, ChevronRight, Coffee, Flame, ListTree, Lock, LogIn, LogOut, Menu, MoreHorizontal, RefreshCw, RotateCcw, SquareTerminal, X } from 'lucide-react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom'
 import { COURSE_IDS } from '../lib/content'
@@ -15,6 +15,7 @@ import { tip, matches } from '../lib/shortcuts'
 import { disableReminders, enableReminders, reminderBlocked, reminderEnabled, reminderSupported, startLocalScheduler, subscribePush } from '../lib/reminder'
 
 const CHANGE = 'reminder-change'
+const PrintCourse = lazy(() => import('./PrintCourse'))
 
 /** Always mounted (settings menu is collapsed): runs the in-app noon check and registers server push. */
 function ReminderEngine() {
@@ -90,6 +91,7 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
   const ide = useIde()
   const { meta } = useCourse()
   const [modal, setModal] = useState(false)
+  const [print, setPrint] = useState(false)
   const [more, setMore] = useState(false)
   const btn = 'grid h-11 w-11 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-slate-100'
   return (
@@ -107,6 +109,7 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
           <span data-tip="Day streak" data-tip-end="" className="relative inline-flex items-center gap-1 px-2 text-sm text-slate-500"><Flame size={14} aria-hidden /> {streak}</span>
           <ReminderToggle />
           <ThemeToggle />
+          <button type="button" onClick={() => { setPrint(true); setMore(false) }} aria-label="Print this course (A4, with answers)" data-tip="Print course (A4)" data-tip-end="" className={btn}><Printer size={18} aria-hidden /></button>
           <button type="button" onClick={() => { if (window.confirm('Reset layout and preferences (theme, sidebar, IDE size and text settings, reminder)? Your progress and code are kept.')) { resetPreferences(); window.location.reload() } }} aria-label="Reset layout and preferences" data-tip="Reset layout and preferences" data-tip-end="" className={btn}><RotateCcw size={17} aria-hidden /></button>
           {user ? (
             <button type="button" onClick={signOut} data-tip="Sign out" data-tip-end="" aria-label="Sign out" className={btn}><LogOut size={18} aria-hidden /></button>
@@ -116,6 +119,7 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
         </div>
       )}
       {modal && <AuthModal onClose={() => setModal(false)} />}
+      {print && <Suspense fallback={null}><PrintCourse onClose={() => setPrint(false)} /></Suspense>}
     </header>
   )
 }
