@@ -141,7 +141,7 @@ html:not(.dark) .ide-code .token.attr-name, html:not(.dark) .ide-code .token.pro
 .print-doc .token.operator, .print-doc .token.punctuation { color: #1f2328; }
 .print-doc .token.variable, .print-doc .token.property, .print-doc .token.constant, .print-doc .token.attr-name { color: #0550ae; }
 @page cover { size: A4; margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
-.print-cover { height: 297mm; page: cover; break-after: page; overflow: hidden; }
+.print-cover { height: 297mm; page: cover; break-before: page; break-after: page; overflow: hidden; }
 @media print {
   .print-cover { margin: 0 !important; width: auto !important; max-width: none !important; }
   html.print-open, html.print-open body { background: #fff !important; }
@@ -150,3 +150,21 @@ html:not(.dark) .ide-code .token.attr-name, html:not(.dark) .ide-code .token.pro
   .print-doc .no-print { display: none !important; }
   .print-doc .print-page { margin: 0 !important; padding: 0 !important; max-width: none !important; box-shadow: none !important; }
 }
+
+/* page-wise preview: the paper flowed into A4 columns, one column per page (screen only; printing resets it) */
+@media screen {
+  .pw-viewport { position: relative; width: 210mm; height: 297mm; margin: 0 auto; overflow: hidden; background: #fff; box-shadow: 0 2px 14px rgba(0,0,0,.35); }
+  .pw-flow { position: absolute; left: 14mm; top: 14mm; width: 182mm; height: 265mm; column-width: 182mm; column-gap: 28mm; column-fill: auto; transform: translateX(calc(var(--pg, 0) * -210mm)); }
+  .pw-flow .print-cover { width: 182mm; height: 265mm; margin: 0; }
+  .pw-flow .my-4 { margin: 0; }
+  .pw-foot { position: absolute; left: 14mm; right: 14mm; bottom: 7mm; display: flex; justify-content: space-between; font: 9px sans-serif; color: #64748b; }
+}
+@media print {
+  .pw-viewport, .pw-flow { position: static !important; width: auto !important; height: auto !important; overflow: visible !important; columns: auto !important; transform: none !important; box-shadow: none !important; }
+  .pw-foot { display: none !important; }
+  .print-doc { padding: 0 !important; }
+  .print-doc .print-cover { width: auto !important; height: 297mm !important; }
+}
+
+/* wide diagrams shrink to the page width instead of being clipped */
+.print-doc svg[role="img"] { min-width: 0 !important; max-width: 100% !important; height: auto !important; }
