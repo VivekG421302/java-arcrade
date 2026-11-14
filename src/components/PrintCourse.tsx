@@ -2,10 +2,11 @@ import { Printer, X } from 'lucide-react'
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useCourse } from '../hooks/useCourse'
+import { buildPaper } from '../lib/papers'
 import { testsFor } from '../lib/tests'
 import { CodeBlock, Inline, Markdown } from './content'
 
-const H2 = ({ children }: { children: React.ReactNode }) => <h2 className="pb mb-3 mt-0 border-b-2 border-slate-800 pb-1 font-sans text-xl font-bold">{children}</h2>
+const H2 = ({ children, id }: { children: React.ReactNode; id?: string }) => <h2 id={id} className="pb mb-3 mt-0 border-b-2 border-slate-800 pb-1 font-sans text-xl font-bold">{children}</h2>
 const H3 = ({ children }: { children: React.ReactNode }) => <h3 className="mb-2 mt-6 font-sans text-base font-bold">{children}</h3>
 const Lbl = ({ children }: { children: React.ReactNode }) => <p className="mb-1 mt-3 font-sans text-[11px] font-bold uppercase tracking-wide text-slate-500">{children}</p>
 
@@ -14,6 +15,7 @@ export default function PrintCourse({ onClose }: { onClose: () => void }) {
   const { course, data, meta } = useCourse()
   const tests = testsFor(course)
   const unit = meta.unit
+  const papers = data.phases.map((p) => ({ p, paper: buildPaper(p, tests[p.id]) }))
 
   useEffect(() => {
     const root = document.documentElement
@@ -53,14 +55,23 @@ export default function PrintCourse({ onClose }: { onClose: () => void }) {
           <h1 className="mt-2 font-sans text-3xl font-extrabold">{meta.title}</h1>
           <p className="mx-auto mt-3 max-w-[140mm] text-slate-600">{meta.tagline}</p>
           <p className="mt-4 font-sans text-xs text-slate-500">{parts.join(' · ')}</p>
-          <ol className="mx-auto mt-6 max-w-[150mm] columns-1 text-left font-sans text-[12px]">
-            {data.phases.map((p) => <li key={p.id} className="py-0.5">{unit} {p.id}: {p.title}</li>)}
-          </ol>
+          <nav aria-label="Index" className="mx-auto mt-8 max-w-[150mm] text-left font-sans text-[12px]">
+            <h2 className="mb-2 border-b-2 border-slate-800 pb-1 text-lg font-bold">Index</h2>
+            <ol className="space-y-0.5">
+              {data.phases.map((p) => <li key={p.id}><a href={`#m-${p.id}`} className="hover:underline">{unit} {p.id}: {p.title}</a></li>)}
+              {data.questions.length > 0 && <li><a href="#sec-questions">Question bank · solutions</a></li>}
+              {data.antiPatterns.length > 0 && <li><a href="#sec-anti">Code review anti-patterns</a></li>}
+              {data.scenarios.length > 0 && <li><a href="#sec-scen">Production scenarios · answers</a></li>}
+              {data.projects.length > 0 && <li><a href="#sec-proj">Projects to build</a></li>}
+              <li><a href="#sec-papers">Question papers ({papers.length} × 40 marks, one per {unit.toLowerCase()})</a></li>
+              <li><a href="#sec-key">Answer key to the question papers</a></li>
+            </ol>
+          </nav>
         </header>
 
         {data.phases.map((p) => (
           <section key={p.id}>
-            <H2>{unit} {p.id}: {p.title}</H2>
+            <H2 id={`m-${p.id}`}>{unit} {p.id}: {p.title}</H2>
             {p.sections.map((s) => (
               <div key={s.id}>
                 <H3>{s.title}</H3>
@@ -97,7 +108,7 @@ export default function PrintCourse({ onClose }: { onClose: () => void }) {
 
         {data.questions.length > 0 && (
           <section>
-            <H2>Question bank · solutions</H2>
+            <H2 id="sec-questions">Question bank · solutions</H2>
             {data.questions.map((q) => (
               <div key={q.n} className="avoid-break mb-6">
                 <H3>{q.n}. {q.title} <span className="font-normal text-slate-500">· {q.difficulty} · {q.category}</span></H3>
@@ -121,7 +132,7 @@ export default function PrintCourse({ onClose }: { onClose: () => void }) {
 
         {data.antiPatterns.length > 0 && (
           <section>
-            <H2>Code review anti-patterns</H2>
+            <H2 id="sec-anti">Code review anti-patterns</H2>
             {data.antiPatterns.map((a) => (
               <div key={a.n} className="mb-6">
                 <H3>{a.n}. {a.title}</H3>
@@ -150,7 +161,7 @@ export default function PrintCourse({ onClose }: { onClose: () => void }) {
 
         {data.scenarios.length > 0 && (
           <section>
-            <H2>Production scenarios · answers</H2>
+            <H2 id="sec-scen">Production scenarios · answers</H2>
             {data.scenarios.map((s) => (
               <div key={s.n} className="mb-6">
                 <H3>{s.n}. {s.title}</H3>
@@ -175,7 +186,7 @@ export default function PrintCourse({ onClose }: { onClose: () => void }) {
 
         {data.projects.length > 0 && (
           <section>
-            <H2>Projects to build</H2>
+            <H2 id="sec-proj">Projects to build</H2>
             {data.projects.map((p) => (
               <div key={p.n} className="mb-6">
                 <H3>{p.n}. {p.title} <span className="font-normal text-slate-500">· {p.level} · {p.stack.join(', ')}</span></H3>
@@ -189,7 +200,64 @@ export default function PrintCourse({ onClose }: { onClose: () => void }) {
           </section>
         )}
 
-        <footer className="mt-8 border-t border-slate-300 pt-3 text-center font-sans text-[10px] text-slate-500">Created by VivekG · vivek-gupta-dev.vercel.app</footer>
+        <section>
+          <H2 id="sec-papers">Question papers</H2>
+          <p className="font-sans text-slate-600">One paper per {unit.toLowerCase()}, 40 marks each. Answers are at the end of this document.</p>
+          {papers.map(({ p, paper }) => (
+            <div key={p.id} className="paper">
+              <h3 className="mb-1 mt-0 font-sans text-lg font-bold">{meta.name} · {unit} {p.id}: {p.title}</h3>
+              <p className="mb-3 border-b border-slate-400 pb-2 font-sans text-[11px]">Maximum marks: <b>{paper.total}</b> · Attempt all questions · Marks are shown in brackets.</p>
+              {paper.a.length > 0 && <p className="mt-2 font-sans text-sm font-bold">Section A · one mark each ({paper.a.length})</p>}
+              <ol className="list-decimal space-y-3 pl-5">
+                {paper.a.map((t, i) => (
+                  <li key={i} className="avoid-break">
+                    <p className="font-sans font-semibold">{t.q} <span className="font-normal text-slate-500">[1]</span></p>
+                    {t.type === 'mcq'
+                      ? <ul className="mt-1 font-sans">{t.opts.map((o, k) => <li key={k}>({'abcd'[k]}) {o}</li>)}</ul>
+                      : <CodeBlock code={t.code} lang={t.lang} />}
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-4 font-sans text-sm font-bold">Section B · short answers ({paper.b.reduce((n, x) => n + x.marks, 0)})</p>
+              <ol start={paper.a.length + 1} className="list-decimal space-y-2 pl-5 font-sans">
+                {paper.b.map((x, i) => <li key={i} className="avoid-break">{x.title} <span className="text-slate-500">[{x.marks}]</span></li>)}
+              </ol>
+              <p className="mt-4 font-sans text-sm font-bold">Section C · detailed answers ({paper.c.reduce((n, x) => n + x.marks, 0)})</p>
+              <ol start={paper.a.length + paper.b.length + 1} className="list-decimal space-y-2 pl-5 font-sans">
+                {paper.c.map((x, i) => <li key={i} className="avoid-break">{x.title} <span className="text-slate-500">[{x.marks}]</span></li>)}
+              </ol>
+            </div>
+          ))}
+        </section>
+
+        <section>
+          <H2 id="sec-key">Answer key · question papers</H2>
+          {papers.map(({ p, paper }) => (
+            <div key={p.id} className="paper">
+              <h3 className="mb-2 mt-0 font-sans text-lg font-bold">{unit} {p.id}: {p.title} · answers ({paper.total} marks)</h3>
+              <p className="font-sans text-sm font-bold">Section A</p>
+              <ol className="list-decimal space-y-2 pl-5 font-sans">
+                {paper.a.map((t, i) => (
+                  <li key={i} className="avoid-break">
+                    {t.type === 'mcq' ? <b className="text-emerald-700">({'abcd'[t.answer]}) {t.opts[t.answer]}</b> : <b className="text-emerald-700">{t.accept.join(' / ')}</b>}
+                    <span className="text-slate-600"> {t.why}</span>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-3 font-sans text-sm font-bold">Section B</p>
+              <ol start={paper.a.length + 1} className="list-decimal space-y-2 pl-5">
+                {paper.b.map((x, i) => <li key={i} className="avoid-break"><p className="font-sans font-semibold">{x.title} [{x.marks}]</p><Markdown md={x.ans} /></li>)}
+              </ol>
+              <p className="mt-3 font-sans text-sm font-bold">Section C</p>
+              <ol start={paper.a.length + paper.b.length + 1} className="list-decimal space-y-2 pl-5">
+                {paper.c.map((x, i) => <li key={i}><p className="font-sans font-semibold">{x.title} [{x.marks}]</p><Markdown md={x.ans} /></li>)}
+              </ol>
+            </div>
+          ))}
+          <p className="mt-8 border-t border-slate-300 pt-3 text-center font-sans text-[11px] text-slate-500">
+            Created by VivekG · <a href="https://vivek-gupta-dev.vercel.app" target="_blank" rel="noopener noreferrer" className="underline">vivek-gupta-dev.vercel.app</a>
+          </p>
+        </section>
       </article>
     </div>,
     document.body,

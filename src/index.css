@@ -106,11 +106,15 @@ html:not(.dark) .ide-code .token.tag, html:not(.dark) .ide-code .token.selector 
 html:not(.dark) .ide-code .token.attr-name, html:not(.dark) .ide-code .token.property, html:not(.dark) .ide-code .token.variable, html:not(.dark) .ide-code .token.constant { color: #001080; }
 
 /* ---- print: whole course on A4 (see PrintCourse) ---- */
-@page { size: A4; margin: 14mm; }
+@page {
+  size: A4; margin: 14mm 14mm 18mm;
+  @bottom-left { content: "Created by VivekG · vivek-gupta-dev.vercel.app"; font: 9px sans-serif; color: #64748b; }
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 9px sans-serif; color: #64748b; }
+}
 .print-doc * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .print-doc h2, .print-doc h3, .print-doc h4 { break-after: avoid; }
 .print-doc h2.pb { break-before: page; }
-.print-doc section:first-of-type h2.pb { break-before: auto; }
+.print-doc .paper { break-before: page; }
 .print-doc table, .print-doc svg, .print-doc .avoid-break, .print-doc pre { break-inside: avoid; }
 .print-doc pre, .print-doc code { white-space: pre-wrap; word-break: break-word; overflow: visible; }
 .print-doc .dark-surface { background: #f6f8fa; color: #1f2328; border-color: #d0d7de; box-shadow: none; }
