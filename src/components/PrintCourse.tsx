@@ -8,7 +8,7 @@ import { CodeBlock, Inline, Markdown } from './content'
 
 const H2 = ({ children, id }: { children: React.ReactNode; id?: string }) => <h2 id={id} className="pb mb-3 mt-0 border-b-2 border-slate-800 pb-1 font-sans text-xl font-bold">{children}</h2>
 const H3 = ({ children }: { children: React.ReactNode }) => <h3 className="mb-2 mt-6 font-sans text-base font-bold">{children}</h3>
-const Lbl = ({ children }: { children: React.ReactNode }) => <p className="mb-1 mt-3 font-sans text-[11px] font-bold uppercase tracking-wide text-slate-500">{children}</p>
+const Lbl = ({ children }: { children: React.ReactNode }) => <p className="keep-next mb-1 mt-3 font-sans text-[11px] font-bold uppercase tracking-wide text-slate-500">{children}</p>
 
 /** Whole course as one A4 document: roadmap, module tests, question bank, anti-patterns, scenarios, projects, with every answer. Rendered in light mode; the browser's print dialog does the rest. */
 export default function PrintCourse({ onClose }: { onClose: () => void }) {

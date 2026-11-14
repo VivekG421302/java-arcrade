@@ -121,6 +121,14 @@ html:not(.dark) .ide-code .token.attr-name, html:not(.dark) .ide-code .token.pro
 .print-doc .dark-surface { background: #f6f8fa; color: #1f2328; border-color: #d0d7de; box-shadow: none; }
 .print-doc .dark-surface * { color: inherit; }
 .print-doc .dark-surface button { display: none; }
+/* code blocks: no line-number gutter (it breaks when lines wrap), and the code column must be allowed to take the full width */
+.print-doc .dark-surface { break-inside: avoid; }
+.print-doc .dark-surface > div:last-child { display: flex; overflow: visible; }
+.print-doc .dark-surface pre[aria-hidden] { display: none; }
+.print-doc .dark-surface pre { flex: 1 1 0; min-width: 0; margin: 0; padding-left: 12px; }
+/* everything is a block: a block that does not fit moves to the next page, and only a block taller than a page is split */
+.print-doc p, .print-doc li, .print-doc blockquote, .print-doc tr, .print-doc figure { break-inside: avoid; orphans: 3; widows: 3; }
+.print-doc .keep-next { break-after: avoid; }
 .print-doc .token.comment, .print-doc .token.prolog { color: #6a737d; }
 .print-doc .token.keyword, .print-doc .token.boolean, .print-doc .token.atrule { color: #cf222e; }
 .print-doc .token.string, .print-doc .token.char, .print-doc .token.attr-value { color: #0a3069; }
