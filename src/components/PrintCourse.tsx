@@ -380,6 +380,27 @@ function PaperFrame({ children, frameRef, style, bg, onBody }: { children: React
 }
 
 const PX_MM = 96 / 25.4
+const countColumns = (doc: Document) => {
+  const flow = doc.querySelector('.pw-flow') as HTMLElement | null
+  return flow ? Math.max(1, Math.round((flow.scrollWidth + 28 * PX_MM) / (210 * PX_MM))) : 0
+}
+
+/** Scroll view cannot count pages from its height (covers, margins and page breaks change it), so the paper is also laid out invisibly in A4 pages and those are counted. */
+function PageCounter({ parts, onCount }: { parts: PartId[]; onCount: (n: number) => void }) {
+  const ref = useRef<HTMLIFrameElement | null>(null)
+  const [body, setBody] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    if (!body) return
+    let tries = 0
+    const t = window.setInterval(() => { const n = countColumns(body.ownerDocument); if (n) onCount(n); if (++tries >= 4) clearInterval(t) }, 600)
+    return () => clearInterval(t)
+  }, [body, onCount])
+  return (
+    <PaperFrame frameRef={ref} bg="#fff" onBody={setBody} style={{ position: 'fixed', left: -10000, top: 0, width: 210 * PX_MM + 32, height: 297 * PX_MM + 32, visibility: 'hidden', pointerEvents: 'none' }}>
+      <PrintDocument parts={parts} mode="pages" page={0} pages={1} />
+    </PaperFrame>
+  )
+}
 const KEY = (c: string) => `print:parts:${c}`
 
 export default function PrintCourse({ onClose }: { onClose: () => void }) {
@@ -434,11 +455,10 @@ export default function PrintCourse({ onClose }: { onClose: () => void }) {
     const doc = body.ownerDocument
     const measure = () => {
       if (mode === 'pages') {
-        const flow = doc.querySelector('.pw-flow') as HTMLElement | null
-        if (flow) setPages(Math.max(1, Math.round((flow.scrollWidth + 28 * PX_MM) / (210 * PX_MM))))
+        const n = countColumns(doc)
+        if (n) setPages(n)
       } else {
         setDocH(doc.documentElement.scrollHeight)
-        setPages(Math.max(1, Math.round(doc.documentElement.scrollHeight / (297 * PX_MM))))
       }
     }
     measure()
@@ -520,10 +540,11 @@ export default function PrintCourse({ onClose }: { onClose: () => void }) {
                 <button type="button" aria-label="Next page" disabled={page >= pages - 1} onClick={() => setPage(page + 1)} className="rounded-md border border-slate-300 p-1.5 hover:bg-slate-100 disabled:opacity-30 dark:border-white/15 dark:hover:bg-white/10"><ChevronRight size={18} /></button>
               </span>
             )}
-            <span className="text-xs text-slate-500">≈ {pages} {mode === 'pages' ? 'pages in this preview' : 'printed pages'} · the printout can differ by a page or two</span>
+            <span className="text-xs text-slate-500">≈ {pages} pages when printed · the printout can differ by a few pages</span>
           </div>
           <div ref={panelRef} className="min-h-0 flex-1 overflow-auto bg-slate-200 dark:bg-[#0b0e14]">
             {parts.length === 0 && <p className="p-8 text-center text-sm text-slate-500">Tick at least one part on the left.</p>}
+            {mode === 'scroll' && parts.length > 0 && <PageCounter key={parts.join()} parts={parts} onCount={setPages} />}
             <div style={{ width: frameW * fit, height: frameH * fit, margin: '0 auto', display: parts.length ? 'block' : 'none' }}>
               <PaperFrame frameRef={frameRef} bg={bg} onBody={setBody} style={{ width: frameW, height: frameH, transform: `scale(${fit})`, transformOrigin: '0 0' }}>
                 <PrintDocument parts={parts} mode={mode} page={page} pages={pages} />

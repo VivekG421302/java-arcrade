@@ -93,6 +93,17 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
   const [modal, setModal] = useState(false)
   const [print, setPrint] = useState(false)
   const [more, setMore] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const moreBtnRef = useRef<HTMLButtonElement>(null)
+  // the settings box closes on a click outside it, or on Escape
+  useEffect(() => {
+    if (!more) return
+    const away = (e: PointerEvent) => { const t = e.target as Node; if (!menuRef.current?.contains(t) && !moreBtnRef.current?.contains(t)) setMore(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMore(false) }
+    document.addEventListener('pointerdown', away)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc) }
+  }, [more])
   const btn = 'grid h-11 w-11 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-slate-100'
   return (
     <header className={`relative z-30 flex h-14 shrink-0 items-center gap-1 px-2 ${ide.open ? '' : 'md:px-4'}`}>
@@ -102,10 +113,10 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
       <div className="flex items-center gap-1">
         {tocAvailable && <button type="button" onClick={onToc} aria-label="Contents of this phase" data-tip="Contents" className={btn}><ListTree size={20} aria-hidden /></button>}
         {meta.ide && <button type="button" onClick={() => ide.toggleSmart(narrow)} aria-pressed={ide.open && (!narrow || ide.hidden)} aria-label="Java IDE" {...tip('Java IDE', 'ide')} className={`${btn} ${ide.open && (!narrow || ide.hidden) ? 'text-sky-500' : ''}`}><SquareTerminal size={20} aria-hidden /></button>}
-        <button type="button" onClick={() => setMore(!more)} aria-expanded={more} aria-label="Settings" data-tip="Settings" data-tip-end="" className={btn}><MoreHorizontal size={20} aria-hidden /></button>
+        <button ref={moreBtnRef} type="button" onClick={() => setMore(!more)} aria-expanded={more} aria-label="Settings" data-tip="Settings" data-tip-end="" className={btn}><MoreHorizontal size={20} aria-hidden /></button>
       </div>
       {more && (
-        <div className="absolute right-2 top-14 flex items-center gap-1 rounded-lg bg-white p-1 shadow-lg ring-1 ring-slate-200 dark:bg-[#171a21] dark:ring-white/10">
+        <div ref={menuRef} className="absolute right-2 top-14 flex items-center gap-1 rounded-lg bg-white p-1 shadow-lg ring-1 ring-slate-200 dark:bg-[#171a21] dark:ring-white/10">
           <span data-tip="Day streak" data-tip-end="" className="relative inline-flex items-center gap-1 px-2 text-sm text-slate-500"><Flame size={14} aria-hidden /> {streak}</span>
           <ReminderToggle />
           <ThemeToggle />
