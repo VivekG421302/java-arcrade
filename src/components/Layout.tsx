@@ -225,7 +225,7 @@ function Sidebar({ open, overlay, onClose }: { open: boolean; overlay: boolean; 
       <AnimatePresence>
         {open && (
           <motion.aside key="menu" id="app-menu" aria-label="Sidebar" initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
-            transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }} className="absolute inset-0 z-20 overflow-y-auto bg-white pb-10 dark:bg-[#0f1115]">
+            transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }} className="absolute inset-0 z-20 overflow-y-auto bg-white pb-10 dark:bg-[var(--app-bg,#0f1115)]">
             {nav}
           </motion.aside>
         )}
@@ -327,7 +327,7 @@ export default function Layout() {
                 <span>
                   Created by <span className="text-shine font-medium" data-text="VivekG">VivekG</span>
                 </span>
-                <span className="rounded-lg border border-amber-500 bg-white px-3 py-1.5 font-medium text-amber-600 transition-colors group-hover:bg-amber-500 group-hover:text-slate-900 dark:bg-[#0f1115] dark:text-amber-500">
+                <span className="rounded-lg border border-amber-500 bg-white px-3 py-1.5 font-medium text-amber-600 transition-colors group-hover:bg-amber-500 group-hover:text-slate-900 dark:bg-[var(--app-bg,#0f1115)] dark:text-amber-500">
                   Reach out
                 </span>
               </a>

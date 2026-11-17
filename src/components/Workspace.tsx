@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight, CircleCheck, Keyboard, Loader2, PanelBottom, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelTop, Play, RotateCcw, SquareTerminal, Type, WrapText, X, Minus, Plus } from 'lucide-react'
@@ -66,14 +66,14 @@ export default function Workspace({ children }: { children: ReactNode }) {
   return (
     <motion.div
       ref={root} initial={false} animate={{ padding: open ? gap : 0 }} transition={spring}
-      className={`relative flex h-dvh overflow-hidden transition-colors duration-500 ${open ? 'bg-slate-200 dark:bg-[#050608]' : ''}`}
+      className={`relative flex h-dvh overflow-hidden transition-colors duration-500 ${open ? 'bg-slate-200 dark:bg-[#07080b]' : ''}`}
     >
       <motion.div
         ref={phone} initial={false} animate={{ width: phoneWidth, borderRadius: open ? (narrow ? 20 : 28) : 0 }} transition={t}
-        className={`relative shrink-0 overflow-hidden ${open ? 'shadow-2xl ring-1 ring-black/5 dark:ring-white/10' : ''}`}
+        className={`relative shrink-0 overflow-hidden ${open ? 'shadow-2xl ring-1 ring-black/5 dark:shadow-black/70 dark:ring-white/15' : ''}`}
       >
         {/* anchored to the right edge, so shrinking the container looks like the screen sliding out to the left */}
-        <motion.div initial={false} animate={{ width: innerWidth }} transition={t} className="absolute inset-y-0 right-0 bg-white dark:bg-[#0f1115]">
+        <motion.div initial={false} animate={{ width: innerWidth }} transition={t} className="absolute inset-y-0 right-0 bg-white dark:bg-[var(--app-bg)]" style={{ '--app-bg': open ? '#181b22' : '#0f1115' } as CSSProperties}>
           {/* a plain div (framer would override transform): makes `position: fixed` children relative to this view */}
           <div className="h-full w-full [transform:translateZ(0)]">{children}</div>
         </motion.div>
@@ -198,7 +198,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
   return (
     <motion.section
       initial={{ opacity: 0, x: 90 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 90 }} transition={spring}
-      className={`relative min-w-0 flex-1 flex-col rounded-[28px] bg-slate-100 p-2 text-slate-700 shadow-2xl ring-1 ring-slate-300/70 dark:bg-[#0b0c10] dark:text-slate-200 dark:ring-white/10 ${visible ? 'flex' : 'hidden'}`}
+      className={`relative min-w-0 flex-1 flex-col rounded-[28px] bg-slate-100 p-2 text-slate-700 shadow-2xl ring-1 ring-slate-300/70 dark:bg-[#181b22] dark:text-slate-200 dark:shadow-black/70 dark:ring-white/15 ${visible ? 'flex' : 'hidden'}`}
     >
       <header className="flex shrink-0 items-center gap-1 px-1 pb-2 pt-1">
         <button type="button" onClick={ide.toggleHidden} aria-label={hidden ? 'Show the app view' : 'Hide the app view'} {...tip(hidden ? 'Bring back the app' : 'Hide the app', 'hideApp')} data-tip-start="" className={ib}>
@@ -224,7 +224,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
       </header>
 
       <div ref={body} className={`flex min-h-0 flex-1 ${dir}`}>
-        <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl ring-1 ring-slate-200 dark:ring-0">
+        <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl ring-1 ring-slate-200 dark:ring-white/10">
           <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} fontSize={fontSize} wrap={wrapOn} lang={lang} />
         </div>
         <AnimatePresence initial={false}>
@@ -236,7 +236,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
           )}
           {termOpen && (
             <motion.div key="term" initial={hiddenTerm} animate={shownTerm} exit={hiddenTerm} transition={tt}
-              style={col ? { maxHeight: '70%' } : { maxWidth: '70%' }} className="relative shrink-0 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 dark:bg-[#14161b] dark:ring-0">
+              style={col ? { maxHeight: '70%' } : { maxWidth: '70%' }} className="relative shrink-0 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 dark:bg-[#22252d] dark:ring-white/10">
               {/* fixed size, anchored to the dock edge: the terminal slides in from / out to that edge instead of squashing */}
               <div className={`absolute ${anchor}`} style={col ? { height: size } : { width: size }}>
                 <Terminal meta={meta} res={res} verdict={verdict} onClear={() => { setRes({ state: 'idle' }); setErrLines([]) }} onJump={(line) => setJump({ line, id: Date.now(), focus: true })} />
