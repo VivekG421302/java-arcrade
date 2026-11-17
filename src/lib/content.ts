@@ -6,6 +6,7 @@ export type TestCase = { input: string; output: string }
 export type LcQuestion = {
   n: number; title: string; lc: number; difficulty: string; target: string; category: string
   statement: string; tests: TestCase[]; approach: string; code: string; defs?: string; starter: string
+  expect?: string[][]; loose?: boolean   // values the starter's printed test calls should produce (see lib/solved.ts)
 }
 export type AntiPattern = { n: number; title: string; lang: string; bad: string; good: string; why: string }
 export type AntiRow = { n: number; domain: string; pattern: string; severity: string; cause: string; fix: string }

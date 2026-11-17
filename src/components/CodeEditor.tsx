@@ -104,7 +104,7 @@ function textPoint(code: Element, col: number, start = false): [Node, number] {
 
 /**
  * IDE-style editor: a transparent textarea over Prism-highlighted rows (one row per line, so wrapping keeps numbers aligned).
- * Keys: Alt+Up/Down move line, Shift+Alt+Up/Down duplicate line, Ctrl+Shift+K delete line, Ctrl+Alt+Up/Down (or Alt+click) add a cursor.
+ * Keys: Ctrl+/ toggle comment, Alt+Up/Down move line, Shift+Alt+Up/Down duplicate line, Ctrl+Shift+K delete line, Ctrl+Alt+Up/Down (or Alt+click) add a cursor.
  */
 const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onChange, errorLines = [], jump, onFocusChange, fontSize = 13, wrap = false, lang = 'java' }, ref) {
   const ta = useRef<HTMLTextAreaElement>(null)
@@ -316,6 +316,21 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
       edit(bs - 1, be, '', ps + Math.min(col, bs - 1 - ps))
     } else edit(0, be, '', 0)
   }
+  /** Ctrl+/ : comment the selected lines, or uncomment them when every non-blank line is already commented. */
+  const toggleComment = (v: string, s: number, e: number) => {
+    const last = e > s && v[e - 1] === '\n' ? e - 1 : e
+    const bs = lineStartOf(v, s), be = lineEndOf(v, last)
+    const lines = v.slice(bs, be).split('\n')
+    const body = lines.filter((l) => l.trim())
+    if (!body.length) return
+    const un = body.every((l) => /^\s*\/\//.test(l))
+    const ind = Math.min(...body.map((l) => (l.match(/^\s*/) as RegExpMatchArray)[0].length))
+    const out = lines.map((l) => (un ? l.replace(/^(\s*)\/\/ ?/, '$1') : l.trim() ? `${l.slice(0, ind)}// ${l.slice(ind)}` : l))
+    const d0 = out[0].length - lines[0].length
+    const total = out.join('\n').length - (be - bs)
+    const ns = Math.max(bs, s + d0)
+    edit(bs, be, out.join('\n'), ns, s === e ? ns : e + total)
+  }
   const addCursor = (dir: 1 | -1, v: string, s: number) => {
     const all = [s, ...extraRef.current]
     const from = dir > 0 ? Math.max(...all) : Math.min(...all)
@@ -353,6 +368,7 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
     if (e.key === 'Enter' && mod) return
 
     // ---- line shortcuts ----
+    if (e.code === 'Slash' && mod && !e.shiftKey && !e.altKey) { e.preventDefault(); return toggleComment(v, s, en) }   // Ctrl+/ : toggle comment
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       const dir = e.key === 'ArrowDown' ? 1 : -1
       if (mod && e.altKey && !e.shiftKey) { e.preventDefault(); return addCursor(dir, v, s) }          // Ctrl+Alt+Up/Down: add a cursor above / below

@@ -1,6 +1,7 @@
 // Builds src/content.json = { java, rust } from the markdown/problem files.
 import fs from 'node:fs'
 import { loadProblems } from './problems.mjs'
+import { javaCalls, parseJavaSig, parseRustSig, rustCalls } from './calls.mjs'
 
 // Turn inline LaTeX ($O(N \log N)$) into readable plain text.
 const latex = (s) =>
@@ -117,19 +118,26 @@ function makeJavaStarter(q) {
     while (!/^    \}/.test(lines[end])) end++
     nested = lines.slice(ns, end + 1).join('\n') + '\n\n'
   }
-  const stubs = lines
+  const sigs = lines
     .filter((l) => /^    public .*\)\s*\{\s*$/.test(l))
-    .map((l) => {
-      const sig = l.trim().replace(/\s*\{$/, '').replace(/^public\s+/, '')
-      const parts = sig.slice(0, sig.indexOf('(')).trim().split(/\s+/)
-      const type = parts.length > 1 ? parts.slice(0, -1).join(' ') : null // null = constructor
-      const ret = type && type !== 'void' ? `        return ${DEFAULT_RET[type] ?? 'null'};\n` : ''
-      return `    public ${sig} {\n        // TODO: write your solution\n${ret}    }`
-    })
+    .map((l) => l.trim().replace(/\s*\{$/, '').replace(/^public\s+/, ''))
+  const stubs = sigs.map((sig) => {
+    const parts = sig.slice(0, sig.indexOf('(')).trim().split(/\s+/)
+    const type = parts.length > 1 ? parts.slice(0, -1).join(' ') : null // null = constructor
+    const ret = type && type !== 'void' ? `        return ${DEFAULT_RET[type] ?? 'null'};\n` : ''
+    return `    public ${sig} {\n        // TODO: write your solution\n${ret}    }`
+  })
   const defs = q.defs ? q.defs.replace(/^public /, '') + '\n\n' : ''
   const tests = q.tests.slice(0, 3).map((t) => `        //   ${t.input}  =>  ${t.output}`).join('\n')
   const make = cls === 'Solution' ? '        Solution solution = new Solution();\n' : `        // ${cls} obj = new ${cls}(...);\n`
-  return `import java.util.*;\n\n${defs}class ${cls} {\n${nested}${stubs.join('\n\n')}\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        // Sample tests:\n${tests}\n\n${make}        // System.out.println(...);\n    }\n}\n`
+  // one println per test case when the inputs can be turned into typed calls (also recorded in q.expect so a run can be checked)
+  const calls = cls === 'Solution' && sigs.length === 1 ? javaCalls(q, parseJavaSig(sigs[0])) : null
+  if (calls) { q.expect = calls.expect; if (calls.loose) q.loose = true }
+  const mainBody = calls
+    ? `        // Test cases: every line prints a result; the expected value is on the right.\n${calls.body.join('\n')}\n`
+    : `        // Sample tests:\n${tests}\n\n${make}        // System.out.println(...);\n`
+  const helpers = calls?.helpers.length ? `\n\n${calls.helpers.join('\n\n')}` : ''
+  return `import java.util.*;\n\n${defs}class ${cls} {\n${nested}${stubs.join('\n\n')}\n}\n\npublic class Main {\n    public static void main(String[] args) {\n${mainBody}    }${helpers}\n}\n`
 }
 
 
@@ -147,12 +155,13 @@ function makeRustStarter(q) {
   const lines = q.code.split('\n')
   const main = (lines.find((l) => /^(pub )?struct \w+/.test(l)) || 'struct Solution;').match(/struct (\w+)/)[1]
   const unit = new RegExp(`^(pub )?struct ${main};`).test(lines.join('\n'))
-  const stubs = []
+  const stubs = [], sigs = []
   let inImpl = false
   for (const l of lines) {
     if (/^impl\b/.test(l)) inImpl = new RegExp(`^impl ${main}\\b`).test(l)
     if (!inImpl || !/^    pub fn .*\{\s*$/.test(l)) continue
     const sig = l.replace(/\s*\{\s*$/, '')
+    sigs.push(sig.replace(/^\s*pub fn /, ''))
     const ret = /->/.test(sig) ? '        todo!()\n' : ''
     stubs.push(`${sig} {\n        // TODO: write your solution\n${ret}    }`)
   }

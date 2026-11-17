@@ -58,6 +58,7 @@ export function editorKeys(): [string, string][] {
     ['Move line up / down', j(alt, '↑') + ' / ' + j(alt, '↓')],
     ['Duplicate line up / down', j(shift, alt, '↑') + ' / ' + j(shift, alt, '↓')],
     ['Delete line', j(mod, shift, 'K')],
+    ['Comment / uncomment line(s)', j(mod, '/')],
     ['Add cursor above / below', j(mod, alt, '↑') + ' / ' + j(mod, alt, '↓')],
     ['Add cursor where you click', j(alt, 'Click')],
     ['Cut / copy the whole line (nothing selected)', j(mod, 'X') + ' / ' + j(mod, 'C')],
