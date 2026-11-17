@@ -48,3 +48,19 @@ export const tip = (label: string, id?: ShortcutId, keyText?: string) => ({
   'data-tip': label,
   ...(id || keyText ? { 'data-key': keyText ?? keyLabel(id!) } : {}),
 })
+
+/** Editor-only keys (handled inside the code editor), as [what it does, how to press it] for the cheat sheet. */
+export function editorKeys(): [string, string][] {
+  const mod = isMac ? '⌘' : 'Ctrl', alt = isMac ? '⌥' : 'Alt', shift = isMac ? '⇧' : 'Shift'
+  const j = (...k: string[]) => k.join(isMac ? '' : '+')
+  return [
+    ['Run the program', keyLabel('run')],
+    ['Move line up / down', j(alt, '↑') + ' / ' + j(alt, '↓')],
+    ['Duplicate line up / down', j(shift, alt, '↑') + ' / ' + j(shift, alt, '↓')],
+    ['Delete line', j(mod, shift, 'K')],
+    ['Add cursor above / below', j(mod, alt, '↑') + ' / ' + j(mod, alt, '↓')],
+    ['Add cursor where you click', j(alt, 'Click')],
+    ['Cut / copy the whole line (nothing selected)', j(mod, 'X') + ' / ' + j(mod, 'C')],
+    ['Back to one cursor, then leave the editor', 'Esc'],
+  ]
+}

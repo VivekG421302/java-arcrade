@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Loader2, PanelBottom, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelTop, Play, RotateCcw, SquareTerminal, Type, WrapText, X, Minus, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Keyboard, Loader2, PanelBottom, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelTop, Play, RotateCcw, SquareTerminal, Type, WrapText, X, Minus, Plus } from 'lucide-react'
 import { leetUrl, type CourseMeta } from '../lib/content'
 import { errorLines, runCode, type RunResult } from '../lib/runner'
 import { useCourse } from '../hooks/useCourse'
 import { DEFAULTS, useIde, type Dock } from '../hooks/useIde'
 import { NARROW, useKeyboardInset, useMedia } from '../hooks/useMedia'
 import { useTips } from '../hooks/useTips'
-import { keyLabel, matches, tip } from '../lib/shortcuts'
+import { editorKeys, keyLabel, matches, tip } from '../lib/shortcuts'
 import CodeEditor, { type EditorApi, type Jump } from './CodeEditor'
 import Resizer from './Resizer'
 import SymbolBar from './SymbolBar'
@@ -202,6 +202,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
         <button type="button" onClick={() => go(1)} disabled={qn !== null && qn >= total} aria-label="Next problem" {...tip('Next problem', 'next')} className={ib}><ChevronRight size={18} aria-hidden /></button>
         {!narrow && <DockPicker dock={dock} termOpen={termOpen} onPick={moveDock} />}
         <button type="button" onClick={() => setTermOpen(!termOpen)} aria-pressed={termOpen} aria-label="Toggle terminal" {...tip('Toggle terminal', 'terminal')} className={`${ib} ${termOpen ? 'text-sky-600 dark:text-sky-400' : ''}`}><SquareTerminal size={18} aria-hidden /></button>
+        {!narrow && <KeysMenu />}
         <ViewOptions fontSize={fontSize} wrap={wrapOn} onFont={bumpFont} onFontReset={() => setFontSize(DEFAULT_FONT)} onWrap={ide.setWrap} narrow={narrow} onReset={reset} />
         {!narrow && <button type="button" onClick={reset} aria-label="Reset code" {...tip('Reset to starter', 'reset')} className={ib}><RotateCcw size={16} aria-hidden /></button>}
         <button id="ide-run" type="button" onClick={run} disabled={res.state === 'running'} aria-label="Run code" aria-busy={res.state === 'running'} {...tip('Run', 'run')}
@@ -270,6 +271,34 @@ function DockPicker({ dock, termOpen, onPick }: { dock: Dock; termOpen: boolean;
               <button key={d} type="button" role="menuitem" aria-label={`Dock terminal ${label.toLowerCase()}`} onClick={() => { onPick(d); setOpen(false) }}
                 className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-sm text-slate-700 hover:bg-slate-900/5 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"><Icon size={16} aria-hidden /> {label}</button>
             ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+/** Cheat sheet of the editor's keyboard shortcuts. */
+function KeysMenu() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useDismiss(open, ref, () => setOpen(false))
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" aria-haspopup="dialog" aria-expanded={open} aria-label="Editor keyboard shortcuts" {...tip('Editor shortcuts')} onClick={() => setOpen(!open)} className={`${ib} ${open ? 'text-sky-600 dark:text-sky-400' : ''}`}><Keyboard size={17} aria-hidden /></button>
+      <AnimatePresence>
+        {open && (
+          <motion.div role="dialog" aria-label="Editor keyboard shortcuts" {...popAnim} className={`${pop} w-[22rem] p-3 text-sm`}>
+            <p className="mb-2 font-sans text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Editor shortcuts</p>
+            <ul className="space-y-1.5">
+              {editorKeys().map(([what, keys]) => (
+                <li key={what} className="flex items-start justify-between gap-3">
+                  <span className="text-slate-700 dark:text-slate-300">{what}</span>
+                  <kbd className="shrink-0 rounded-md bg-slate-900/5 px-1.5 py-0.5 font-mono text-[11px] text-slate-700 dark:bg-white/10 dark:text-slate-200">{keys}</kbd>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Click a word to see where it is used; click a bracket to see its partner.</p>
           </motion.div>
         )}
       </AnimatePresence>
