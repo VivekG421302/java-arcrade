@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Keyboard, Loader2, PanelBottom, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelTop, Play, RotateCcw, SquareTerminal, Type, WrapText, X, Minus, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CircleCheck, Keyboard, Loader2, PanelBottom, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelTop, Play, RotateCcw, SquareTerminal, Type, WrapText, X, Minus, Plus } from 'lucide-react'
 import { leetUrl, type CourseMeta } from '../lib/content'
 import { errorLines, runCode, type RunResult } from '../lib/runner'
 import { useCourse } from '../hooks/useCourse'
 import { DEFAULTS, useIde, type Dock } from '../hooks/useIde'
 import { NARROW, useKeyboardInset, useMedia } from '../hooks/useMedia'
 import { useTips } from '../hooks/useTips'
+import { useSolved } from '../hooks/useSolved'
+import { isSolved as runSolves } from '../lib/solved'
 import { editorKeys, keyLabel, matches, tip } from '../lib/shortcuts'
 import CodeEditor, { type EditorApi, type Jump } from './CodeEditor'
 import Resizer from './Resizer'
@@ -113,13 +115,15 @@ function IdePanel({ narrow }: { narrow: boolean }) {
   const [errLines, setErrLines] = useState<number[]>([])
   const [jump, setJump] = useState<Jump | undefined>()
   const [dragT, setDragT] = useState(false)
+  const { isSolved: isDone, setSolved } = useSolved()
+  const [verdict, setVerdict] = useState<'done' | 'mismatch' | null>(null)   // what the last run meant for this problem
   const [focused, setFocused] = useState(false)
   const body = useRef<HTMLDivElement>(null)
   const editor = useRef<EditorApi>(null)
   const swap = useRef<number>()
   const touchy = useMedia(`${NARROW}, (pointer: coarse)`)
   const inset = useKeyboardInset(touchy && focused)
-  useEffect(() => { setCode(read()); setRes({ state: 'idle' }); setErrLines([]) }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setCode(read()); setRes({ state: 'idle' }); setErrLines([]); setVerdict(null) }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => window.clearTimeout(swap.current), [])
 
   const change = (v: string) => { setCode(v); setErrLines([]); try { localStorage.setItem(key, v) } catch { /* ignore */ } }   // line numbers shift when you edit
@@ -128,11 +132,17 @@ function IdePanel({ narrow }: { narrow: boolean }) {
     if (res.state === 'running') return
     setRes({ state: 'running' })
     setErrLines([])
+    setVerdict(null)
     try {
       const r = await runCode(lang, code)
       const lines = errorLines(r)
       setRes({ state: 'done', ...r })
       setErrLines(lines)
+      // a clean run that prints every expected answer marks the problem as done
+      if (q) {
+        if (runSolves(q, code, r)) { setSolved(q.n, true); setVerdict('done') }
+        else if (q.expect?.length && /^accepted$/i.test(r.status)) setVerdict('mismatch')
+      }
       if (lines.length) setJump({ line: lines[0], id: Date.now() })   // scroll the first error into view
     } catch (e) { setRes({ state: 'error', message: e instanceof Error ? e.message : String(e) }) }
   }
@@ -196,9 +206,10 @@ function IdePanel({ narrow }: { narrow: boolean }) {
         </button>
         <button type="button" onClick={() => go(-1)} disabled={qn !== null && qn <= 1} aria-label="Previous problem" {...tip('Previous problem', 'prev')} className={ib}><ChevronLeft size={18} aria-hidden /></button>
         <p className="min-w-0 flex-1 truncate text-center font-sans text-sm text-slate-700 dark:text-slate-300">
-          {q ? <><span className="font-mono text-slate-600 dark:text-slate-400">{q.n}/{total}</span> {q.title}</> : 'Scratch pad'}
+          {q ? <><span className="font-mono text-slate-600 dark:text-slate-400">{q.n}/{total}</span> {q.title}{isDone(q.n) && <CircleCheck size={15} aria-label="Done" className="ml-1.5 inline -translate-y-px text-emerald-500" />}</> : 'Scratch pad'}
           {!narrow && <span className="ml-2 rounded-md bg-slate-900/5 px-1.5 py-0.5 font-mono text-[11px] text-slate-600 dark:bg-white/5 dark:text-slate-400">{meta.file}</span>}
         </p>
+        {q && <button type="button" onClick={() => setSolved(q.n, !isDone(q.n))} aria-pressed={isDone(q.n)} aria-label={isDone(q.n) ? 'Marked as done, click to undo' : 'Mark as done'} {...tip(isDone(q.n) ? 'Done (click to undo)' : 'Mark as done')} className={`${ib} ${isDone(q.n) ? 'text-emerald-600 dark:text-emerald-400' : ''}`}><CircleCheck size={18} aria-hidden /></button>}
         <button type="button" onClick={() => go(1)} disabled={qn !== null && qn >= total} aria-label="Next problem" {...tip('Next problem', 'next')} className={ib}><ChevronRight size={18} aria-hidden /></button>
         {!narrow && <DockPicker dock={dock} termOpen={termOpen} onPick={moveDock} />}
         <button type="button" onClick={() => setTermOpen(!termOpen)} aria-pressed={termOpen} aria-label="Toggle terminal" {...tip('Toggle terminal', 'terminal')} className={`${ib} ${termOpen ? 'text-sky-600 dark:text-sky-400' : ''}`}><SquareTerminal size={18} aria-hidden /></button>
@@ -228,7 +239,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
               style={col ? { maxHeight: '70%' } : { maxWidth: '70%' }} className="relative shrink-0 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 dark:bg-[#14161b] dark:ring-0">
               {/* fixed size, anchored to the dock edge: the terminal slides in from / out to that edge instead of squashing */}
               <div className={`absolute ${anchor}`} style={col ? { height: size } : { width: size }}>
-                <Terminal meta={meta} res={res} onClear={() => { setRes({ state: 'idle' }); setErrLines([]) }} onJump={(line) => setJump({ line, id: Date.now(), focus: true })} />
+                <Terminal meta={meta} res={res} verdict={verdict} onClear={() => { setRes({ state: 'idle' }); setErrLines([]) }} onJump={(line) => setJump({ line, id: Date.now(), focus: true })} />
               </div>
             </motion.div>
           )}
@@ -356,7 +367,7 @@ function Linked({ text, onJump }: { text: string; onJump: (line: number) => void
   )
 }
 
-function Terminal({ meta, res, onClear, onJump }: { meta: CourseMeta; res: Res; onClear: () => void; onJump: (line: number) => void }) {
+function Terminal({ meta, res, verdict, onClear, onJump }: { meta: CourseMeta; res: Res; verdict: 'done' | 'mismatch' | null; onClear: () => void; onJump: (line: number) => void }) {
   const dim = 'text-slate-600 dark:text-slate-400'
   return (
     <div className="flex h-full flex-col text-[13px]">
@@ -375,6 +386,8 @@ function Terminal({ meta, res, onClear, onJump }: { meta: CourseMeta; res: Res; 
             {res.stdout}
             {res.stderr && <span className="text-red-700 dark:text-red-400"><Linked text={res.stderr} onJump={onJump} />{'\n'}</span>}
             {'\n'}<span className={dim}>{res.status}{res.time ? ` · ${res.time}s` : ''}{res.memory ? ` · ${(res.memory / 1024).toFixed(1)} MB` : ''}</span>
+            {verdict === 'done' && <>{'\n'}<span className="text-emerald-700 dark:text-emerald-400">✓ Every expected answer printed. Marked as done.</span></>}
+            {verdict === 'mismatch' && <>{'\n'}<span className="text-amber-700 dark:text-amber-400">Ran fine, but the output does not match every expected value yet.</span></>}
           </>
         )}
       </pre>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Eye, EyeOff, SquareTerminal } from 'lucide-react'
+import { CircleCheck, Eye, EyeOff, SquareTerminal } from 'lucide-react'
 import { leetUrl, type LcQuestion } from '../lib/content'
 import { useCourse } from '../hooks/useCourse'
 import { Accordion } from '../components/ui'
@@ -8,6 +8,7 @@ import { CodeBlock, Inline } from '../components/content'
 import ChipScroller from '../components/ChipScroller'
 import { LeetCodeLogo } from '../components/logos'
 import { useIde } from '../hooks/useIde'
+import { useSolved } from '../hooks/useSolved'
 import { usePersisted } from '../hooks/usePersisted'
 import { tip } from '../lib/shortcuts'
 
@@ -88,6 +89,7 @@ export default function QuestionBank() {
   const cats = useMemo(() => Array.from(new Set(content.questions.map((q) => q.category))), [content])
   const [sp, setSp] = useSearchParams()
   const ide = useIde()
+  const { isSolved, count: solvedCount } = useSolved()
   const cat = sp.get('cat') || 'All'
   const [diff, setDiff] = usePersisted('qb:diff', 'All')
   const [text, setText] = useState('')
@@ -133,7 +135,7 @@ export default function QuestionBank() {
   return (
     <div>
       <h1 className="text-3xl font-bold tracking-tight">Question Bank</h1>
-      <p className="mt-1 font-serif text-slate-600 dark:text-slate-400">{list.length} of {content.questions.length} problems. Open one to read the problem and test cases, then reveal the solution when you are ready.</p>
+      <p className="mt-1 font-serif text-slate-600 dark:text-slate-400">{list.length} of {content.questions.length} problems{solvedCount > 0 && <> · <span className="text-emerald-600 dark:text-emerald-400">{solvedCount} done</span></>}. Open one to read the problem and test cases, then reveal the solution when you are ready.</p>
       <div className="mt-5">
         <ChipScroller label="Filter by category">
           {['All', ...cats].map((c) => (
@@ -157,7 +159,7 @@ export default function QuestionBank() {
             <div key={q.n} id={`q-${q.n}`} className="scroll-mt-2">
               <Accordion open={openN.has(q.n)} onToggle={(o) => toggle(q.n, o)}
                 title={<span><span className="mr-2 font-mono text-sm text-slate-500">{q.n}.</span>{q.title}</span>}
-                meta={<span className={`inline-block rounded-full px-2 py-0.5 text-xs ${diffColor[q.difficulty] ?? ''}`}>{q.difficulty}</span>}
+                meta={<span className="inline-flex items-center gap-2"><span className={`inline-block rounded-full px-2 py-0.5 text-xs ${diffColor[q.difficulty] ?? ''}`}>{q.difficulty}</span>{isSolved(q.n) && <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400"><CircleCheck size={14} aria-hidden /> Done</span>}</span>}
                 actions={
                   <>
                     <a href={leetUrl(q.title)} target="_blank" rel="noreferrer" aria-label="Open on LeetCode" {...(current ? tip('Open on LeetCode', 'leetcode') : tip('Open on LeetCode'))}

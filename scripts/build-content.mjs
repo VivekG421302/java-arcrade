@@ -168,7 +168,13 @@ function makeRustStarter(q) {
   const given = [q.defs, q.given].filter(Boolean).join('\n\n')
   const tests = q.tests.slice(0, 3).map((t) => `    //   ${t.input}  =>  ${t.output}`).join('\n')
   const decl = unit ? `struct ${main};` : `struct ${main} {\n    // TODO: your fields\n}`
-  return `use std::collections::*;\n\n${given ? given + '\n\n' : ''}${decl}\n\nimpl ${main} {\n${stubs.join('\n\n')}\n}\n\nfn main() {\n    // Sample tests:\n${tests}\n\n    // println!("{:?}", ...);\n}\n`
+  const calls = main === 'Solution' && sigs.length === 1 ? rustCalls(q, parseRustSig(sigs[0])) : null
+  if (calls) { q.expect = calls.expect; if (calls.loose) q.loose = true }
+  const mainBody = calls
+    ? `    // Test cases: every line prints a result; the expected value is on the right.\n${calls.body.join('\n')}\n`
+    : `    // Sample tests:\n${tests}\n\n    // println!("{:?}", ...);\n`
+  const helpers = calls?.helpers.length ? `\n${calls.helpers.join('\n\n')}\n` : ''
+  return `use std::collections::*;\n\n${given ? given + '\n\n' : ''}${decl}\n\nimpl ${main} {\n${stubs.join('\n\n')}\n}\n\nfn main() {\n${mainBody}}\n${helpers}`
 }
 
 // ---------------- assemble one course ----------------

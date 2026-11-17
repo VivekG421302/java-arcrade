@@ -22,10 +22,9 @@ function withSolution(q) {
     const main = s.slice(s.indexOf('public class Main'))
     return `${head}${q.code.split('\n').filter((l) => !l.startsWith('import ')).join('\n')}\n\n${main}`
   }
-  // rust: swap the stub struct + impl for the reference solution, keep everything from fn main on
-  const main = s.slice(s.indexOf('fn main()'))
-  const given = [q.defs].filter(Boolean).join('\n\n')
-  return `${s.slice(0, s.indexOf('struct '))}${given ? '' : ''}${q.code}\n\n${main}`
+  // rust: keep the starter's `use`/given types, swap the stub struct + impl for the reference solution, keep fn main and the helpers
+  const head = s.slice(0, s.indexOf('struct Solution'))
+  return `${head}${q.code}\n\n${s.slice(s.indexOf('fn main()'))}`
 }
 
 async function exec(n, kind, src) {

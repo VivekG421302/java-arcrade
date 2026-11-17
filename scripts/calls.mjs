@@ -266,9 +266,7 @@ pub fn ts(t: &Option<Box<TreeNode>>) -> String {
     }
     while out.last().map_or(false, |s| s == "null") { out.pop(); }
     format!("[{}]", out.join(","))
-}
-pub fn grid(rows: &[&str]) -> Vec<Vec<char>> { rows.iter().map(|r| r.chars().collect()).collect() }
-pub fn strs(a: &[&str]) -> Vec<String> { a.iter().map(|s| s.to_string()).collect() }`,
+}`,
 }
 
 const RNUM = new Set(['i32', 'i64', 'u32', 'u64', 'usize', 'isize', 'u8', 'i8', 'i16', 'u16'])
@@ -296,8 +294,9 @@ function rlit(type, raw, use) {
   if (vec) {
     if (!Array.isArray(v)) bad()
     const inner = (t, a) => {
-      const m = t.match(/^Vec<(.+)>$/)
-      return `vec![${a.map((x) => (m ? (Array.isArray(x) ? inner(m[1], x) : bad()) : rscalar(t, x))).join(', ')}]`
+      const el = t.match(/^Vec<(.+)>$/)[1]
+      const nested = /^Vec<.+>$/.test(el)
+      return `vec![${a.map((x) => (nested ? (Array.isArray(x) ? inner(el, x) : bad()) : rscalar(el, x))).join(', ')}]`
     }
     return inner(type, v)
   }
@@ -330,28 +329,29 @@ export function rustCalls(q, sig, max = 5) {
       const exp = cleanExpected(t.output)
       if (!vals || !exp || vals.length !== sig.params.length) continue
       const note = `  // expected: ${exp.want}`
-      const k = sig.ret === '()' ? sig.params.findIndex((p) => /^&mut /.test(p.type)) : -1
-      if (sig.ret === '()' && k < 0) bad()
+      const idx = expect.length + 1
+      const pre = []
       const args = sig.params.map((p, i) => {
         const owned = p.type.replace(/^&(mut )?/, '')
         const lit = rlit(owned, vals[i], use)
-        if (i === k) return `&mut ${p.name}${expect.length + 1}`
+        if (/^&mut /.test(p.type)) { pre.push(`    let mut ${p.name}${idx} = ${lit};`); return `&mut ${p.name}${idx}` }
         return /^&/.test(p.type) ? `&${lit}` : lit
       })
+      body.push(...pre)
       if (sig.ret === '()') {
-        const p = sig.params[k], v = `${p.name}${expect.length + 1}`
-        const owned = p.type.replace(/^&mut /, '')
-        body.push(`    let mut ${v} = ${rlit(owned, vals[k], use)};`)
+        const k = sig.params.findIndex((p) => /^&mut /.test(p.type))
+        if (k < 0) bad()
+        const owned = sig.params[k].type.replace(/^&mut /, '')
+        const v = `${sig.params[k].name}${idx}`
         body.push(`    Solution::${sig.name}(${args.join(', ')});`)
-        const shown = owned === 'Option<Box<ListNode>>' ? (use.add('list'), `lv(&${v})`) : v
-        body.push(`    println!("{:?}", ${shown});${note}`)
+        body.push(`    println!("{:?}", ${owned === 'Option<Box<ListNode>>' ? (use.add('list'), `lv(&${v})`) : v});${note}`)
       } else {
         body.push(`    println!("{:?}", ${rshow(sig.ret, `Solution::${sig.name}(${args.join(', ')})`, use)});${note}`)
       }
       expect.push([exp.want, ...exp.alts])
     }
-  } catch { return null }
+  } catch (e) { if (process.env.CALLS_DEBUG) console.error(q.n, e); return null }
   if (!expect.length) return null
-  const loose = ORDER_FREE.test(q.statement) || (/^Vec<Vec</.test(sig.ret) && !ORDERED_LISTS.test(q.title))
+  const loose = ORDER_FREE.test(q.statement) || (/^Vec<(Vec<|String)/.test(sig.ret) && !ORDERED_LISTS.test(q.title))
   return { body, helpers: [...use].map((u) => RUST_HELPERS[u]), expect, loose }
 }
