@@ -1,5 +1,6 @@
-import { ChevronDown } from 'lucide-react'
-import type { EditorApi } from './CodeEditor'
+import { ChevronDown, Redo2, Undo2 } from 'lucide-react'
+import { KIND_BADGE, type EditorApi } from './CodeEditor'
+import type { Result } from '../lib/suggest'
 
 type Key = { label: string; text: string; back?: number; wide?: boolean }
 const k = (text: string, back = 0, label = text): Key => ({ label, text, back })
@@ -28,23 +29,61 @@ const RUST_WORDS: Key[] = [
   k('.unwrap()'), k('.len()'), k('.iter()'), k('.collect::<Vec<_>>()', 0, '.collect()'),
 ]
 
-/** Symbol keyboard shown above the native keyboard on touch screens. Taps never steal focus from the editor. */
-export default function SymbolBar({ editor, inset, onHide, lang = 'java' }: { editor: EditorApi | null; inset: number; onHide: () => void; lang?: 'java' | 'rust' }) {
+// Symbols the suggestion engine can ask to show first or last (e.g. no ";" on an empty line); all are looked up by their inserted text.
+// Mid-line with nothing to complete (e.g. right after `foo(1)`): operators and operands are what comes next, not `public static`.
+const JAVA_NEXT: Key[] = [k('=='), k('!='), k('&&'), k('||'), k('<'), k('>'), k('<='), k('>='), k('+'), k('-'), k('*'), k('/'), k('%'), k('?'), k(':'), k('new '), k('null'), k('instanceof ')]
+const RUST_NEXT: Key[] = [k('=='), k('!='), k('&&'), k('||'), k('<'), k('>'), k('+'), k('-'), k('*'), k('/'), k('%'), k('as '), k('..'), k('=>'), k('?'), k('None')]
+const EXTRA: Key[] = [k('//'), k('%d'), k('%s'), k('\\n', 0, '\\n'), k(')'), k('()', 1, '( )')]
+
+/**
+ * Keyboard helper shown above the native keyboard on touch screens. Taps never steal focus from the editor.
+ * Row 1: smart suggestions for the caret position (type-aware methods, "new HashMap<>()", loops for your arrays...).
+ * Row 2: symbols ordered for this spot (a ";" only where a statement can end), cursor keys, undo / redo.
+ */
+export default function SymbolBar({ editor, inset, onHide, lang = 'java', sug }: { editor: EditorApi | null; inset: number; onHide: () => void; lang?: 'java' | 'rust'; sug?: Result | null }) {
   const SYMBOLS = lang === 'rust' ? RUST_SYMBOLS : JAVA_SYMBOLS
   const WORDS = lang === 'rust' ? RUST_WORDS : JAVA_WORDS
+  const NEXT = lang === 'rust' ? RUST_NEXT : JAVA_NEXT
   const keep = { onMouseDown: (e: React.MouseEvent) => e.preventDefault() }   // keep the editor focused (and its keyboard open)
   const cell = 'grid h-10 min-w-[2.5rem] shrink-0 place-items-center rounded-lg bg-slate-100 px-2.5 font-mono text-[15px] text-slate-800 active:bg-sky-200 dark:bg-white/10 dark:text-slate-100 dark:active:bg-sky-500/40'
+
+  const byText = new Map<string, Key>([...SYMBOLS, ...EXTRA].map((x) => [x.text, x]))
+  const first = (sug?.first ?? []).map((t) => byText.get(t)).filter((x): x is Key => !!x)
+  const last = (sug?.last ?? []).map((t) => byText.get(t)).filter((x): x is Key => !!x)
+  const taken = new Set([...first, ...last].map((x) => x.text))
+  const middle = SYMBOLS.filter((x) => !taken.has(x.text))
+  const sym = (x: Key, hot = false) => (
+    <button key={x.label} type="button" aria-label={`Insert ${x.text}`} {...keep} onClick={() => editor?.insert(x.text, x.back)} className={`${cell} ${hot ? 'ring-1 ring-sky-400/60' : ''}`}>{x.label}</button>
+  )
+  const items = sug?.items ?? []
   return (
-    <div role="toolbar" aria-label="Code symbols" style={{ bottom: inset }} className="fixed inset-x-0 z-[70] space-y-1.5 border-t border-slate-200 bg-white dark:border-white/10 dark:bg-[#101216] px-2 pb-2 pt-2">
+    <div role="toolbar" aria-label="Code helper" style={{ bottom: inset }} className="fixed inset-x-0 z-[70] space-y-1.5 border-t border-slate-200 bg-white px-2 pb-2 pt-2 dark:border-white/10 dark:bg-[#101216]">
+      <div className="no-scrollbar flex gap-1.5 overflow-x-auto" aria-label="Suggestions">
+        {items.length > 0
+          ? items.map((it, i) => (
+            <button key={it.label + i} type="button" aria-label={`Insert ${it.label}`} {...keep} onClick={() => editor?.apply(it)}
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 text-[13px] text-slate-800 active:bg-sky-200 dark:bg-white/10 dark:text-slate-100 dark:active:bg-sky-500/40">
+              <span className={`grid h-5 min-w-[1.25rem] place-items-center rounded px-0.5 font-mono text-[10px] font-bold ${KIND_BADGE[it.kind].cls}`}>{KIND_BADGE[it.kind].letter}</span>
+              <span className="max-w-[12rem] truncate font-mono">{it.label}</span>
+              {it.detail && it.kind !== 'snippet' && <span className="max-w-[6rem] truncate text-[11px] text-slate-500 dark:text-slate-400">{it.detail}</span>}
+            </button>
+          ))
+          : (sug && sug.ctx === 'none' ? NEXT : WORDS).map((x) => <button key={x.label} type="button" aria-label={`Insert ${x.text.trim()}`} {...keep} onClick={() => editor?.insert(x.text, x.back)} className={`${cell} text-[13px]`}>{x.label.trim()}</button>)}
+      </div>
       <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
         <button type="button" aria-label="Hide keyboard" onClick={onHide} {...keep} className={`${cell} text-slate-600 dark:text-slate-400`}><ChevronDown size={18} aria-hidden /></button>
+        {first.slice(0, 4).map((x) => sym(x, true))}
         <button type="button" aria-label="Insert tab" {...keep} onClick={() => editor?.insert('    ')} className={`${cell} text-sm`}>Tab</button>
         <button type="button" aria-label="Cursor left" {...keep} onClick={() => editor?.move(-1)} className={cell}>←</button>
         <button type="button" aria-label="Cursor right" {...keep} onClick={() => editor?.move(1)} className={cell}>→</button>
-        {SYMBOLS.map((s) => <button key={s.label} type="button" aria-label={`Insert ${s.text}`} {...keep} onClick={() => editor?.insert(s.text, s.back)} className={cell}>{s.label}</button>)}
-      </div>
-      <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
-        {WORDS.map((s) => <button key={s.label} type="button" aria-label={`Insert ${s.text.trim()}`} {...keep} onClick={() => editor?.insert(s.text, s.back)} className={`${cell} text-[13px]`}>{s.label.trim()}</button>)}
+        <button type="button" aria-label="Cursor up" {...keep} onClick={() => editor?.vmove(-1)} className={cell}>↑</button>
+        <button type="button" aria-label="Cursor down" {...keep} onClick={() => editor?.vmove(1)} className={cell}>↓</button>
+        <button type="button" aria-label="Undo" {...keep} onClick={() => editor?.undo()} className={cell}><Undo2 size={17} aria-hidden /></button>
+        <button type="button" aria-label="Redo" {...keep} onClick={() => editor?.redo()} className={cell}><Redo2 size={17} aria-hidden /></button>
+        <button type="button" aria-label="Comment line" {...keep} onClick={() => editor?.comment()} className={cell}>//</button>
+        {first.slice(4).map((x) => sym(x))}
+        {middle.map((x) => sym(x))}
+        {last.map((x) => sym(x))}
       </div>
     </div>
   )

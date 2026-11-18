@@ -62,6 +62,8 @@ export function editorKeys(): [string, string][] {
     ['Add cursor above / below', j(mod, alt, '↑') + ' / ' + j(mod, alt, '↓')],
     ['Add cursor where you click', j(alt, 'Click')],
     ['Cut / copy the whole line (nothing selected)', j(mod, 'X') + ' / ' + j(mod, 'C')],
+    ['Suggestions: pick / accept / close', '↑ ↓ / Tab / Esc'],
+    ['Show suggestions here', j(mod, 'Space')],
     ['Back to one cursor, then leave the editor', 'Esc'],
   ]
 }

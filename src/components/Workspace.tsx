@@ -14,6 +14,7 @@ import { editorKeys, keyLabel, matches, tip } from '../lib/shortcuts'
 import CodeEditor, { type EditorApi, type Jump } from './CodeEditor'
 import Resizer from './Resizer'
 import SymbolBar from './SymbolBar'
+import type { Result as SuggestResult } from '../lib/suggest'
 
 const spring = { type: 'spring', stiffness: 240, damping: 30 } as const
 const slide = { duration: 0.34, ease: [0.32, 0.72, 0, 1] } as const   // smooth in both directions
@@ -116,6 +117,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
   const [jump, setJump] = useState<Jump | undefined>()
   const [dragT, setDragT] = useState(false)
   const { isSolved: isDone, setSolved } = useSolved()
+  const [sug, setSug] = useState<SuggestResult | null>(null)   // suggestions for the caret, shown above the touch keyboard
   const [verdict, setVerdict] = useState<'done' | 'mismatch' | null>(null)   // what the last run meant for this problem
   const [focused, setFocused] = useState(false)
   const body = useRef<HTMLDivElement>(null)
@@ -130,6 +132,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
   const reset = () => change(starter)
   const run = async () => {
     if (res.state === 'running') return
+    if (ide.autoTerm && !termOpen) setTermOpen(true)   // show the output where the terminal is docked
     setRes({ state: 'running' })
     setErrLines([])
     setVerdict(null)
@@ -193,7 +196,10 @@ function IdePanel({ narrow }: { narrow: boolean }) {
   const shownTerm = col ? { height: size, opacity: 1 } : { width: size, opacity: 1 }
   const tt = dragT ? instant : slide
   const visible = !narrow || hidden                                    // narrow: the IDE and the app take turns on screen
-  const api = useMemo(() => ({ insert: (t: string, b?: number) => editor.current?.insert(t, b), move: (d: number) => editor.current?.move(d), blur: () => editor.current?.blur() }), [])
+  const api = useMemo<EditorApi>(() => ({
+    insert: (t, b) => editor.current?.insert(t, b), move: (d) => editor.current?.move(d), blur: () => editor.current?.blur(),
+    apply: (s) => editor.current?.apply(s), vmove: (d) => editor.current?.vmove(d), undo: () => editor.current?.undo(), redo: () => editor.current?.redo(), comment: () => editor.current?.comment(),
+  }), [])
 
   return (
     <motion.section
@@ -214,7 +220,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
         {!narrow && <DockPicker dock={dock} termOpen={termOpen} onPick={moveDock} />}
         <button type="button" onClick={() => setTermOpen(!termOpen)} aria-pressed={termOpen} aria-label="Toggle terminal" {...tip('Toggle terminal', 'terminal')} className={`${ib} ${termOpen ? 'text-sky-600 dark:text-sky-400' : ''}`}><SquareTerminal size={18} aria-hidden /></button>
         {!narrow && <KeysMenu />}
-        <ViewOptions fontSize={fontSize} wrap={wrapOn} onFont={bumpFont} onFontReset={() => setFontSize(DEFAULT_FONT)} onWrap={ide.setWrap} narrow={narrow} onReset={reset} />
+        <ViewOptions autoTerm={ide.autoTerm} onAutoTerm={ide.setAutoTerm} fontSize={fontSize} wrap={wrapOn} onFont={bumpFont} onFontReset={() => setFontSize(DEFAULT_FONT)} onWrap={ide.setWrap} narrow={narrow} onReset={reset} />
         {!narrow && <button type="button" onClick={reset} aria-label="Reset code" {...tip('Reset to starter', 'reset')} className={ib}><RotateCcw size={16} aria-hidden /></button>}
         <button id="ide-run" type="button" onClick={run} disabled={res.state === 'running'} aria-label="Run code" aria-busy={res.state === 'running'} {...tip('Run', 'run')}
           className="ml-0.5 inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60">
@@ -225,7 +231,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
 
       <div ref={body} className={`flex min-h-0 flex-1 ${dir}`}>
         <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl ring-1 ring-slate-200 dark:ring-white/10">
-          <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} fontSize={fontSize} wrap={wrapOn} lang={lang} />
+          <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} fontSize={fontSize} wrap={wrapOn} lang={lang} onSuggest={setSug} popup={!touchy} />
         </div>
         <AnimatePresence initial={false}>
           {termOpen && (
@@ -246,7 +252,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
         </AnimatePresence>
       </div>
 
-      {touchy && focused && createPortal(<SymbolBar editor={api} inset={inset} onHide={api.blur} lang={lang} />, document.body)}
+      {touchy && focused && createPortal(<SymbolBar editor={api} inset={inset} onHide={api.blur} lang={lang} sug={sug} />, document.body)}
     </motion.section>
   )
 }
@@ -318,8 +324,8 @@ function KeysMenu() {
 }
 
 /** Editor-only view options: text size and line wrapping (the app itself is untouched). */
-function ViewOptions({ fontSize, wrap, onFont, onFontReset, onWrap, narrow, onReset }: {
-  fontSize: number; wrap: boolean; onFont: (d: number) => void; onFontReset: () => void; onWrap: (w: boolean) => void; narrow: boolean; onReset: () => void
+function ViewOptions({ autoTerm, onAutoTerm, fontSize, wrap, onFont, onFontReset, onWrap, narrow, onReset }: {
+  autoTerm: boolean; onAutoTerm: (v: boolean) => void; fontSize: number; wrap: boolean; onFont: (d: number) => void; onFontReset: () => void; onWrap: (w: boolean) => void; narrow: boolean; onReset: () => void
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -327,7 +333,7 @@ function ViewOptions({ fontSize, wrap, onFont, onFontReset, onWrap, narrow, onRe
   const step = 'grid h-8 w-8 place-items-center rounded-lg bg-slate-900/5 text-slate-700 hover:bg-slate-900/10 disabled:opacity-30 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10'
   return (
     <div ref={ref} className="relative">
-      <button type="button" aria-haspopup="dialog" aria-expanded={open} aria-label="Editor text options" {...tip('Text size and wrapping')} onClick={() => setOpen(!open)} className={`${ib} ${open ? 'text-sky-600 dark:text-sky-400' : ''}`}><Type size={17} aria-hidden /></button>
+      <button type="button" aria-haspopup="dialog" aria-expanded={open} aria-label="Editor text options" {...tip('Text size, wrapping, terminal')} onClick={() => setOpen(!open)} className={`${ib} ${open ? 'text-sky-600 dark:text-sky-400' : ''}`}><Type size={17} aria-hidden /></button>
       <AnimatePresence>
         {open && (
           <motion.div role="dialog" aria-label="Editor text options" {...popAnim} className={`${pop} w-64 space-y-3 p-3 text-sm`}>
@@ -343,6 +349,12 @@ function ViewOptions({ fontSize, wrap, onFont, onFontReset, onWrap, narrow, onRe
               <span className="inline-flex items-center gap-2 text-slate-700 dark:text-slate-300"><WrapText size={16} aria-hidden /> Wrap lines</span>
               <span className={`relative h-5 w-9 rounded-full transition-colors ${wrap ? 'bg-sky-500' : 'bg-slate-300 dark:bg-white/15'}`}>
                 <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${wrap ? 'left-[1.15rem]' : 'left-0.5'}`} />
+              </span>
+            </button>
+            <button type="button" role="switch" aria-checked={autoTerm} {...tip('Show the terminal when you press Run')} onClick={() => onAutoTerm(!autoTerm)} className="flex w-full items-center justify-between rounded-lg py-1 text-left">
+              <span className="inline-flex items-center gap-2 text-slate-700 dark:text-slate-300"><SquareTerminal size={16} aria-hidden /> Open terminal on run</span>
+              <span className={`relative h-5 w-9 rounded-full transition-colors ${autoTerm ? 'bg-sky-500' : 'bg-slate-300 dark:bg-white/15'}`}>
+                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${autoTerm ? 'left-[1.15rem]' : 'left-0.5'}`} />
               </span>
             </button>
             {narrow && <button type="button" onClick={() => { onReset(); setOpen(false) }} className="flex h-9 w-full items-center gap-2 rounded-lg px-1 text-slate-700 hover:bg-slate-900/5 dark:text-slate-300 dark:hover:bg-white/10"><RotateCcw size={15} aria-hidden /> Reset code to starter</button>}

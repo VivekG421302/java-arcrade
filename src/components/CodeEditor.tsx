@@ -1,7 +1,20 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { highlight } from './content'
+import { bump, getUsage, loadUsage, suggest, type Kind, type Result, type Sug } from '../lib/suggest'
 
-export type EditorApi = { insert: (text: string, back?: number) => void; move: (dx: number) => void; blur: () => void }
+export type EditorApi = {
+  insert: (text: string, back?: number) => void; move: (dx: number) => void; blur: () => void
+  apply: (s: Sug) => void; vmove: (dy: number) => void; undo: () => void; redo: () => void; comment: () => void
+}
+export const KIND_BADGE: Record<Kind, { letter: string; cls: string }> = {
+  keyword: { letter: 'k', cls: 'bg-blue-500/15 text-blue-600 dark:text-blue-300' },
+  type: { letter: 'T', cls: 'bg-teal-500/15 text-teal-600 dark:text-teal-300' },
+  method: { letter: 'm', cls: 'bg-amber-500/15 text-amber-700 dark:text-amber-300' },
+  field: { letter: 'f', cls: 'bg-orange-500/15 text-orange-700 dark:text-orange-300' },
+  var: { letter: 'v', cls: 'bg-sky-500/15 text-sky-700 dark:text-sky-300' },
+  snippet: { letter: '{}', cls: 'bg-violet-500/15 text-violet-700 dark:text-violet-300' },
+}
+const USAGE_KEY = 'ide:sugusage'
 export type Jump = { line: number; id: number; focus?: boolean }
 
 const PAIRS: Record<string, string> = { '{': '}', '(': ')', '[': ']', '"': '"' }
@@ -19,6 +32,8 @@ type Props = {
   fontSize?: number
   wrap?: boolean
   lang?: 'java' | 'rust'
+  onSuggest?: (r: Result | null) => void   // the current suggestions (the mobile bar shows them)
+  popup?: boolean                          // show the suggestion popup at the caret (desktop)
 }
 
 /** Splits Prism's HTML into one HTML string per source line, closing and reopening spans across line breaks. */
@@ -104,9 +119,10 @@ function textPoint(code: Element, col: number, start = false): [Node, number] {
 
 /**
  * IDE-style editor: a transparent textarea over Prism-highlighted rows (one row per line, so wrapping keeps numbers aligned).
+ * Suggestions: a popup at the caret on desktop (Tab accepts, Ctrl+Space forces), chips above the keyboard on touch screens.
  * Keys: Ctrl+/ toggle comment, Alt+Up/Down move line, Shift+Alt+Up/Down duplicate line, Ctrl+Shift+K delete line, Ctrl+Alt+Up/Down (or Alt+click) add a cursor.
  */
-const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onChange, errorLines = [], jump, onFocusChange, fontSize = 13, wrap = false, lang = 'java' }, ref) {
+const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onChange, errorLines = [], jump, onFocusChange, fontSize = 13, wrap = false, lang = 'java', onSuggest, popup = false }, ref) {
   const ta = useRef<HTMLTextAreaElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const inner = useRef<HTMLDivElement>(null)
@@ -123,7 +139,30 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
   const [extra, setExtra] = useState<number[]>([])
   const [tick, setTick] = useState(0)                  // bumped when the layout changes (resize), so highlights are re-measured
   const extraRef = useRef<number[]>([])
+  const [sel, setSel] = useState(0)                      // highlighted suggestion in the popup
+  const [navd, setNavd] = useState(false)                // true once the arrow keys were used (then Enter accepts too)
+  const [dismissed, setDismissed] = useState('')         // popup closed with Esc at this value/caret
+  const [forced, setForced] = useState('')               // popup forced open with Ctrl+Space at this value/caret
+  const [pop, setPop] = useState<{ left: number; top: number } | null>(null)
+  const popRef = useRef<HTMLDivElement>(null)
   extraRef.current = extra
+
+  // ---- suggestions for the caret position
+  useEffect(() => { try { loadUsage(JSON.parse(localStorage.getItem(USAGE_KEY) || '{}')) } catch { /* ignore */ } }, [])
+  const sug = useMemo(() => (caret && caret.s === caret.e && !extra.length && caret.s <= value.length ? suggest(value, caret.s, lang) : null), [value, caret, extra.length, lang])
+  useEffect(() => { onSuggest?.(sug) }, [sug]) // eslint-disable-line react-hooks/exhaustive-deps
+  const sigKey = `${value.length}:${caret?.s ?? -1}`
+  const popItems = useMemo<Sug[]>(() => {
+    if (!popup || !sug || !sug.items.length || dismissed === sigKey) return []
+    if (forced === sigKey) return sug.items
+    const first = sug.items[0]
+    if (sug.ctx === 'member' || sug.ctx === 'init') return sug.items
+    if (sug.ctx === 'word' && first.replace >= 2 && !(sug.items.length === 1 && first.insert.trim() === first.label && first.label.length === first.replace)) return sug.items
+    return []
+  }, [popup, sug, dismissed, forced, sigKey])
+  const popOpen = popItems.length > 0
+  useEffect(() => { setSel(0); setNavd(false) }, [sigKey])
+  useEffect(() => { (popRef.current?.children[sel] as HTMLElement | undefined)?.scrollIntoView?.({ block: 'nearest' }) }, [sel, popOpen])
   const busy = useRef(false)                           // true while this component is itself editing the textarea
   const lastMulti = useRef<string | null>(null)        // the text produced by the last multi-cursor edit
   const altDown = useRef<number | null>(null)          // caret position at an Alt+mouse-down (becomes an extra cursor)
@@ -150,7 +189,34 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
 
   const clearExtra = () => { if (extraRef.current.length) setExtra([]) }
 
+  /** Insert a suggestion in place of the word typed so far; the caret lands where the snippet says. */
+  const accept = (sg: Sug) => {
+    const el = ta.current!
+    const v = el.value, p = el.selectionStart
+    const ls = lineStartOf(v, p)
+    const indent = (v.slice(ls).match(/^[ \t]*/) as RegExpMatchArray)[0]
+    const idx = sg.insert.length - sg.back
+    const pre = sg.insert.slice(0, idx).replace(/\n/g, '\n' + indent), post = sg.insert.slice(idx).replace(/\n/g, '\n' + indent)
+    bump(sg.label)
+    try { localStorage.setItem(USAGE_KEY, JSON.stringify(getUsage())) } catch { /* ignore */ }
+    edit(p - sg.replace, p, pre + post, p - sg.replace + pre.length)
+  }
+  const vmove = (dy: number) => {
+    const el = ta.current!
+    el.focus()
+    const v = el.value, p = el.selectionStart, ls = lineStartOf(v, p), col = p - ls
+    let to: number
+    if (dy < 0) { if (ls === 0) to = 0; else { const ps = lineStartOf(v, ls - 1); to = Math.min(ps + col, ls - 1) } }
+    else { const le = lineEndOf(v, p); if (le >= v.length) to = v.length; else { const ne = lineEndOf(v, le + 1); to = Math.min(le + 1 + col, ne) } }
+    el.setSelectionRange(to, to)
+    setCaret({ s: to, e: to })
+  }
+
   useImperativeHandle(ref, () => ({
+    apply: accept, vmove,
+    undo: () => { ta.current?.focus(); document.execCommand('undo') },
+    redo: () => { ta.current?.focus(); document.execCommand('redo') },
+    comment: () => { const el = ta.current; if (el) toggleComment(el.value, el.selectionStart, el.selectionEnd) },
     insert: (text, back = 0) => { const el = ta.current!; edit(el.selectionStart, el.selectionEnd, text, el.selectionStart + text.length - back) },
     move: (dx) => {
       const el = ta.current!
@@ -191,6 +257,27 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
     ro.observe(sc)
     return () => { ro.disconnect(); window.clearTimeout(t) }
   }, [])
+
+  // popup position: just under the caret (above it when there is no room below)
+  useLayoutEffect(() => {
+    const host = inner.current
+    if (!popOpen || !host || !caret) { setPop(null); return }
+    const codes = host.querySelectorAll<HTMLElement>('[data-line] code')
+    const before = value.slice(0, caret.s)
+    const li = before.split('\n').length - 1
+    const code = codes[li]
+    if (!code) return
+    const col = caret.s - (before.lastIndexOf('\n') + 1)
+    const r = document.createRange()
+    const [n, o] = textPoint(code, col)
+    r.setStart(n, o); r.setEnd(n, o)
+    const rect = r.getClientRects()[0] ?? code.getBoundingClientRect()
+    const base = host.getBoundingClientRect()
+    const h = Math.min(popItems.length, 8) * 30 + 12
+    const below = window.innerHeight - rect.bottom
+    const top = below < h + 24 && rect.top > h + 24 ? rect.top - base.top - h - 4 : rect.bottom - base.top + 4
+    setPop((c) => { const left = Math.max(gutter, rect.left - base.left - 6); return c && c.left === left && c.top === top ? c : { left, top } })
+  }, [popOpen, popItems, caret, value, wrap, fontSize, tick, gutter])
 
   // ---- highlights: same-word occurrences, matching bracket pair, extra cursors (measured from the rendered rows) ----
   useLayoutEffect(() => {
@@ -362,10 +449,21 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
     const mod = e.ctrlKey || e.metaKey
     const multi = extraRef.current.length > 0
 
-    if (e.key === 'Escape') { if (multi) { e.preventDefault(); setExtra([]); return } document.getElementById('ide-run')?.focus(); return }   // leave the editor (Tab otherwise indents)
+    if (e.key === 'Escape') {
+      if (multi) { e.preventDefault(); setExtra([]); return }
+      if (popOpen) { e.preventDefault(); setDismissed(sigKey); return }
+      document.getElementById('ide-run')?.focus(); return
+    }
+    if (e.code === 'Space' && mod && !e.shiftKey && !e.altKey) { e.preventDefault(); setForced(sigKey); setDismissed(''); return }   // Ctrl+Space: suggestions here   // leave the editor (Tab otherwise indents)
 
     // Ctrl+Enter runs the program (handled at the window); it must not add a line here
     if (e.key === 'Enter' && mod) return
+
+    // ---- suggestion popup ----
+    if (popOpen && !mod && !e.altKey) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setNavd(true); setSel((x) => (x + (e.key === 'ArrowDown' ? 1 : popItems.length - 1)) % popItems.length); return }
+      if ((e.key === 'Tab' && !e.shiftKey) || (e.key === 'Enter' && navd && !e.shiftKey)) { e.preventDefault(); accept(popItems[Math.min(sel, popItems.length - 1)]); return }
+    }
 
     // ---- line shortcuts ----
     if (e.code === 'Slash' && mod && !e.shiftKey && !e.altKey) { e.preventDefault(); return toggleComment(v, s, en) }   // Ctrl+/ : toggle comment
@@ -481,8 +579,21 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
           })}
         </div>
         <div ref={overlay} aria-hidden className="pointer-events-none absolute inset-0 z-[5]" />
+        {popOpen && pop && (
+          <div ref={popRef} role="listbox" aria-label="Suggestions" onMouseDown={(e) => e.preventDefault()}
+            className="absolute z-30 max-h-60 w-72 overflow-auto rounded-xl border border-slate-200 bg-white p-1 font-sans shadow-xl dark:border-white/10 dark:bg-[#2a2e38]" style={{ left: pop.left, top: pop.top }}>
+            {popItems.map((it, i) => (
+              <div key={it.label + i} role="option" aria-selected={i === sel} onMouseDown={() => accept(it)} onMouseMove={() => { if (i !== sel) setSel(i) }}
+                className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-[13px] ${i === sel ? 'bg-sky-500/15' : ''}`}>
+                <span className={`grid h-5 min-w-[1.25rem] shrink-0 place-items-center rounded px-0.5 font-mono text-[10px] font-bold ${KIND_BADGE[it.kind].cls}`}>{KIND_BADGE[it.kind].letter}</span>
+                <span className="truncate font-mono text-slate-900 dark:text-slate-100">{it.label}</span>
+                {it.detail && <span className="ml-auto truncate pl-2 text-[11px] text-slate-400 dark:text-slate-500">{it.detail}</span>}
+              </div>
+            ))}
+          </div>
+        )}
         <textarea
-          ref={ta} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown}
+          ref={ta} value={value} onChange={(e) => { onChange(e.target.value); setCaret({ s: e.target.selectionStart, e: e.target.selectionEnd }) }} onKeyDown={onKeyDown}
           onSelect={sync} onMouseDown={onMouseDown} onMouseUp={onMouseUp} onPaste={onPaste} onCopy={(e) => onCopyCut(e, false)} onCut={(e) => onCopyCut(e, true)}
           onFocus={() => onFocusChange?.(true)} onBlur={() => onFocusChange?.(false)}
           id="ide-editor" spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" wrap={wrap ? 'soft' : 'off'} aria-label={`${lang === 'rust' ? 'Rust' : 'Java'} code editor`}

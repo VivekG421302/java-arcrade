@@ -17,6 +17,8 @@ type Ctx = {
   wrap: boolean | null       // editor line wrapping; null = automatic (on for small screens)
   setFontSize: (n: number | ((prev: number) => number)) => void
   setWrap: (w: boolean) => void
+  autoTerm: boolean          // Run opens the terminal when it is closed
+  setAutoTerm: (v: boolean) => void
   termH: number              // terminal height when docked top/bottom
   termW: number              // terminal width when docked left/right
   openFor: (n: number | null) => void
@@ -49,6 +51,7 @@ export function IdeProvider({ children }: { children: ReactNode }) {
   const [termOpen, setTermOpen] = usePersisted('ide:termOpen', true)
   const [fontSize, setFontSize] = usePersisted('ide:fontSize', 13)
   const [wrap, setWrap] = usePersisted<boolean | null>('ide:wrap', null)
+  const [autoTerm, setAutoTerm] = usePersisted('ide:autoTerm', true)
   const [phoneW, setPhone] = useState(() => num('ide:phoneW', DEFAULTS.phoneW))
   const [termH, setH] = useState(() => num('ide:termH', DEFAULTS.termH))
   const [termW, setW] = useState(() => num('ide:termW', DEFAULTS.termW))
@@ -66,7 +69,7 @@ export function IdeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<Ctx>(() => ({
-    open, qn, hidden, dock, termOpen, phoneW, termH, termW, fontSize, wrap, setFontSize, setWrap,
+    open, qn, hidden, dock, termOpen, phoneW, termH, termW, fontSize, wrap, setFontSize, setWrap, autoTerm, setAutoTerm,
     openFor, go, setDock, setTermOpen, setPhoneW, setTermSize,
     toggle: () => { if (open) { setOpen(false); setHidden(false) } else setOpen(true) },
     toggleSmart: (narrow: boolean) => { if (narrow && open && !hidden) setHidden(true); else if (open) { setOpen(false); setHidden(false) } else setOpen(true) },
@@ -74,7 +77,7 @@ export function IdeProvider({ children }: { children: ReactNode }) {
     close: () => { setOpen(false); setHidden(false) },
     toggleHidden: () => setHidden((h) => !h),
     toggleTerm: () => setTermOpen((t) => !t),
-  }), [open, qn, hidden, dock, termOpen, phoneW, termH, termW, fontSize, wrap, setFontSize, setWrap, setOpen, setQn, setHidden, setTermOpen, openFor, go, setDock, setPhoneW, setTermSize])
+  }), [open, qn, hidden, dock, termOpen, phoneW, termH, termW, fontSize, wrap, autoTerm, setAutoTerm, setFontSize, setWrap, setOpen, setQn, setHidden, setTermOpen, openFor, go, setDock, setPhoneW, setTermSize])
   return <C.Provider value={value}>{children}</C.Provider>
 }
 export const useIde = () => useContext(C)
