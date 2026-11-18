@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { highlight } from './content'
 import { bump, getUsage, loadUsage, suggest, type Kind, type Result, type Sug } from '../lib/suggest'
@@ -143,7 +144,7 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
   const [navd, setNavd] = useState(false)                // true once the arrow keys were used (then Enter accepts too)
   const [dismissed, setDismissed] = useState('')         // popup closed with Esc at this value/caret
   const [forced, setForced] = useState('')               // popup forced open with Ctrl+Space at this value/caret
-  const [pop, setPop] = useState<{ left: number; top: number } | null>(null)
+  const [pop, setPop] = useState<{ left: number; top?: number; bottom?: number; maxH: number } | null>(null)
   const popRef = useRef<HTMLDivElement>(null)
   extraRef.current = extra
 
@@ -255,29 +256,35 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
     let t = 0
     const ro = new ResizeObserver(() => { window.clearTimeout(t); t = window.setTimeout(() => setTick((x) => x + 1), 60) })
     ro.observe(sc)
-    return () => { ro.disconnect(); window.clearTimeout(t) }
+    let raf = 0
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; setTick((x) => x + 1) }) }   // keep the popup attached to the caret
+    sc.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => { ro.disconnect(); window.clearTimeout(t); sc.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); cancelAnimationFrame(raf) }
   }, [])
 
-  // popup position: just under the caret (above it when there is no room below)
+  // popup position (viewport coordinates, drawn in a portal so no panel can clip it): right under the caret, above it when there is no room below
   useLayoutEffect(() => {
-    const host = inner.current
-    if (!popOpen || !host || !caret) { setPop(null); return }
+    const host = inner.current, sc = scroller.current
+    if (!popOpen || !host || !sc || !caret) { setPop(null); return }
     const codes = host.querySelectorAll<HTMLElement>('[data-line] code')
     const before = value.slice(0, caret.s)
-    const li = before.split('\n').length - 1
-    const code = codes[li]
+    const code = codes[before.split('\n').length - 1]
     if (!code) return
-    const col = caret.s - (before.lastIndexOf('\n') + 1)
     const r = document.createRange()
-    const [n, o] = textPoint(code, col)
+    const [n, o] = textPoint(code, caret.s - (before.lastIndexOf('\n') + 1))
     r.setStart(n, o); r.setEnd(n, o)
     const rect = r.getClientRects()[0] ?? code.getBoundingClientRect()
-    const base = host.getBoundingClientRect()
-    const h = Math.min(popItems.length, 8) * 30 + 12
-    const below = window.innerHeight - rect.bottom
-    const top = below < h + 24 && rect.top > h + 24 ? rect.top - base.top - h - 4 : rect.bottom - base.top + 4
-    setPop((c) => { const left = Math.max(gutter, rect.left - base.left - 6); return c && c.left === left && c.top === top ? c : { left, top } })
-  }, [popOpen, popItems, caret, value, wrap, fontSize, tick, gutter])
+    const view = sc.getBoundingClientRect()
+    if (rect.bottom < view.top || rect.top > view.bottom) { setPop(null); return }   // caret scrolled out of the editor
+    const want = Math.min(popItems.length, 8) * 30 + 12
+    const below = window.innerHeight - rect.bottom - 10, above = rect.top - 10
+    const down = below >= Math.min(want, 160) || below >= above
+    const maxH = Math.max(90, Math.min(want, 260, down ? below : above))
+    const left = Math.max(8, Math.min(rect.left - 6, window.innerWidth - 288 - 8))
+    const next = down ? { left, top: Math.round(rect.bottom + 3), maxH } : { left, bottom: Math.round(window.innerHeight - rect.top + 3), maxH }
+    setPop((c) => (c && c.left === next.left && c.top === next.top && c.bottom === next.bottom && c.maxH === next.maxH ? c : next))
+  }, [popOpen, popItems, caret, value, wrap, fontSize, tick])
 
   // ---- highlights: same-word occurrences, matching bracket pair, extra cursors (measured from the rendered rows) ----
   useLayoutEffect(() => {
@@ -579,19 +586,6 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
           })}
         </div>
         <div ref={overlay} aria-hidden className="pointer-events-none absolute inset-0 z-[5]" />
-        {popOpen && pop && (
-          <div ref={popRef} role="listbox" aria-label="Suggestions" onMouseDown={(e) => e.preventDefault()}
-            className="absolute z-30 max-h-60 w-72 overflow-auto rounded-xl border border-slate-200 bg-white p-1 font-sans shadow-xl dark:border-white/10 dark:bg-[#2a2e38]" style={{ left: pop.left, top: pop.top }}>
-            {popItems.map((it, i) => (
-              <div key={it.label + i} role="option" aria-selected={i === sel} onMouseDown={() => accept(it)} onMouseMove={() => { if (i !== sel) setSel(i) }}
-                className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-[13px] ${i === sel ? 'bg-sky-500/15' : ''}`}>
-                <span className={`grid h-5 min-w-[1.25rem] shrink-0 place-items-center rounded px-0.5 font-mono text-[10px] font-bold ${KIND_BADGE[it.kind].cls}`}>{KIND_BADGE[it.kind].letter}</span>
-                <span className="truncate font-mono text-slate-900 dark:text-slate-100">{it.label}</span>
-                {it.detail && <span className="ml-auto truncate pl-2 text-[11px] text-slate-400 dark:text-slate-500">{it.detail}</span>}
-              </div>
-            ))}
-          </div>
-        )}
         <textarea
           ref={ta} value={value} onChange={(e) => { onChange(e.target.value); setCaret({ s: e.target.selectionStart, e: e.target.selectionEnd }) }} onKeyDown={onKeyDown}
           onSelect={sync} onMouseDown={onMouseDown} onMouseUp={onMouseUp} onPaste={onPaste} onCopy={(e) => onCopyCut(e, false)} onCut={(e) => onCopyCut(e, true)}
@@ -601,6 +595,20 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
           style={{ left: gutter, fontSize, lineHeight: `${lh}px`, tabSize: 4 }}
         />
       </div>
+      {popOpen && pop && createPortal(
+        <div ref={popRef} role="listbox" aria-label="Suggestions" onMouseDown={(e) => e.preventDefault()}
+          className="fixed z-[80] w-72 overflow-auto rounded-xl border border-slate-200 bg-white p-1 font-sans shadow-xl dark:border-white/10 dark:bg-[#2a2e38]" style={{ left: pop.left, top: pop.top, bottom: pop.bottom, maxHeight: pop.maxH }}>
+          {popItems.map((it, i) => (
+            <div key={it.label + i} role="option" aria-selected={i === sel} onMouseDown={() => accept(it)} onMouseMove={() => { if (i !== sel) setSel(i) }}
+              className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-[13px] ${i === sel ? 'bg-sky-500/15' : ''}`}>
+              <span className={`grid h-5 min-w-[1.25rem] shrink-0 place-items-center rounded px-0.5 font-mono text-[10px] font-bold ${KIND_BADGE[it.kind].cls}`}>{KIND_BADGE[it.kind].letter}</span>
+              <span className="truncate font-mono text-slate-900 dark:text-slate-100">{it.label}</span>
+              {it.detail && <span className="ml-auto truncate pl-2 text-[11px] text-slate-400 dark:text-slate-500">{it.detail}</span>}
+            </div>
+          ))}
+        </div>,
+        document.body,
+      )}
     </div>
   )
 })
