@@ -673,13 +673,6 @@ app:
 - `secret: ${JWT_SECRET}` – Read from an environment variable so the key is never in Git. Anyone holding this key can forge tokens.
 - `expiry-ms: 900000` – 15 minutes. A short life limits the damage if a token is stolen.
 
-#### Line by line: why each part exists
-
-- `ddl-auto: validate` – Hibernate only checks that the tables match your entities and never changes them, so a typo cannot damage production data.
-- `open-in-view: false` – Stops Hibernate holding a database connection for the whole web request, which wastes connections from the pool.
-- `secret: ${JWT_SECRET}` – Read from an environment variable so the key is never in Git. Anyone holding this key can forge tokens.
-- `expiry-ms: 900000` – 15 minutes. A short life limits the damage if a token is stolen.
-
 **Step 3 – Create the folder structure** (package com.example.shop). Each name below is a file you will create in the next steps.
 
 #### Line by line: why each part exists
@@ -1141,18 +1134,6 @@ public class OAuthSuccessHandler implements AuthenticationSuccessHandler {
 - `setPath("/") and setMaxAge(900)` – Sent on every path of the site and lasts 15 minutes, matching the token life.
 - `res.sendRedirect("/")` – Sends the browser back into your app.
 
-#### Line by line: why each part exists
-
-- `implements AuthenticationSuccessHandler` – Spring calls onAuthenticationSuccess after Google has confirmed the user.
-- `(OAuth2User) auth.getPrincipal()` – Holds what Google told us about the person.
-- `p.getAttribute("email")` – Available because the yml asked for the email scope.
-- `findByEmail(email).orElseGet(...)` – Reuses an existing user and creates one only if missing. orElseGet runs lazily, unlike orElse.
-- `encoder.encode(UUID.randomUUID().toString())` – Social users have no password. A random hash keeps the column filled and unguessable.
-- `new Cookie("access_token", jwt.generate(...))` – Your own JWT, issued after Google approved the user.
-- `c.setHttpOnly(true)` – JavaScript cannot read the cookie, which protects it from theft through XSS.
-- `setPath("/") and setMaxAge(900)` – Sent on every path of the site and lasts 15 minutes, matching the token life.
-- `res.sendRedirect("/")` – Sends the browser back into your app.
-
 **Step 5 – Change SecurityConfig.java.** Add the OAuth login, allow its paths, and let a short session exist, because the login handshake needs to remember its state.
 
 #### Line by line: why each part exists
@@ -1247,13 +1228,6 @@ Page<OrderDto> list(@RequestParam(required = false) String status,
 - `repo.findAll(p)` – Runs the SQL with LIMIT and OFFSET, plus a COUNT query for the totals.
 - `page.map(o -> new OrderDto(...))` – Converts each entity to a DTO and keeps the paging details. Entities are never returned directly.
 
-#### Line by line: why each part exists
-
-- `@PageableDefault(size = 20, sort = "id", direction = DESC)` – Builds the Pageable from ?page, ?size and ?sort. These defaults apply when the client sends nothing.
-- `status == null ? repo.findAll(p) : repo.findByStatus(status, p)` – The filter is optional, so pick the matching repository call.
-- `repo.findAll(p)` – Runs the SQL with LIMIT and OFFSET, plus a COUNT query for the totals.
-- `page.map(o -> new OrderDto(...))` – Converts each entity to a DTO and keeps the paging details. Entities are never returned directly.
-
 **Step 4 – Read the response.** It includes content, totalElements, totalPages, number and size. Try: GET /api/orders?page=2&size=10&sort=id,desc
 
 **Step 5 – Cursor version (large tables).** Return a Slice and let the client send the last id it saw. There is no COUNT query, so it stays fast.
@@ -1325,10 +1299,6 @@ spring:
 @EnableCaching
 public class ShopApplication { /* main method as usual */ }
 ```
-
-#### Line by line: why each part exists
-
-- `@EnableCaching` – Turns on the proxy that checks the cache. Without it the cache annotations are silently ignored.
 
 #### Line by line: why each part exists
 
