@@ -181,3 +181,12 @@ html:not(.dark) .ide-code .token.attr-name, html:not(.dark) .ide-code .token.pro
 .dark .ide-caret { background: #ffffff; }
 @keyframes ide-blink { to { visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .ide-caret { animation: none; } }
+
+/* module status badge: a text chip in a wide list, a small progress ring in a narrow one (phones and the side panel next to the IDE) */
+.badge-box { container-type: inline-size; }
+.pb-ring { display: none; }
+.pb-chip { display: inline-flex; }
+@container (max-width: 520px) {
+  .pb-ring { display: grid; }
+  .pb-chip { display: none; }
+}

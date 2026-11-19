@@ -157,8 +157,9 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
     if (!popup || !sug || !sug.items.length || dismissed === sigKey) return []
     if (forced === sigKey) return sug.items
     const first = sug.items[0]
-    if (sug.ctx === 'member' || sug.ctx === 'init') return sug.items
-    if (sug.ctx === 'word' && first.replace >= 2 && !(sug.items.length === 1 && first.insert.trim() === first.label && first.label.length === first.replace)) return sug.items
+    // opens by itself like an IDE: after '.', after 'Type name =', after 'Type ' (names), and from the first typed letter
+    if (sug.ctx === 'member' || sug.ctx === 'init' || sug.ctx === 'name') return sug.items
+    if (sug.ctx === 'word' && first.replace >= 1 && !(sug.items.length === 1 && first.insert.trim() === first.label && first.label.length === first.replace)) return sug.items
     return []
   }, [popup, sug, dismissed, forced, sigKey])
   const popOpen = popItems.length > 0

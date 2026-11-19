@@ -30,8 +30,8 @@ export default function PhaseView() {
   const score = row(phase.id)?.test_score
   return (
     <article>
-      <header className="mb-8">
-        <PhaseBadge status={st} score={score != null ? Math.round(score) : null} />
+      <header className="badge-box mb-8">
+        <PhaseBadge status={st} score={score != null ? Math.round(score) : null} pct={pct} />
         <h1 className="mt-3 text-3xl font-bold tracking-tight">{unit} {phase.id}: {phase.title}</h1>
         <div className="mt-4"><ProgressBar pct={pct} label="Sections read" /><p className="mt-1 text-xs text-slate-500">{pct}% of sections read</p></div>
       </header>

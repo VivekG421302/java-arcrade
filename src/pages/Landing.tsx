@@ -21,7 +21,7 @@ export default function Landing() {
       <h1 className="text-3xl font-bold tracking-tight">{meta.title}</h1>
       <p className="mt-2 font-serif text-slate-500">{meta.tagline} Score 80% on each {unit.toLowerCase()} test to unlock the next.</p>
       {!enabled && <p className="mt-2 text-xs text-slate-400">Guest mode: progress is saved in this browser.</p>}
-      <ul className="mt-8 divide-y divide-slate-200/70 dark:divide-white/10">
+      <ul className="badge-box mt-8 divide-y divide-slate-200/70 dark:divide-white/10">
         {PHASES.map((p) => {
           const st = statusOf(p.id)
           const score = row(p.id)?.test_score
@@ -31,7 +31,7 @@ export default function Landing() {
                 <p className="font-semibold">{unit} {p.id}: {p.title}</p>
                 {st === 'in_progress' && <div className="mt-2 max-w-xs"><ProgressBar pct={readPct(p)} label={`${unit} ${p.id} read progress`} /></div>}
               </div>
-              <PhaseBadge status={st} score={score != null ? Math.round(score) : null} />
+              <PhaseBadge status={st} score={score != null ? Math.round(score) : null} pct={readPct(p)} />
             </>
           )
           return (

@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronRight, Lock, Moon, RefreshCw, Sun, type LucideIcon } from 'lucide-react'
+import { Check, CheckCircle2, ChevronRight, Lock, Moon, RefreshCw, Sun, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { Status } from '../hooks/useProgress'
 
@@ -11,19 +11,45 @@ export function ProgressBar({ pct, label }: { pct: number; label?: string }) {
   )
 }
 
-export function PhaseBadge({ status, score }: { status: Status; score?: number | null }) {
-  const m: Record<Status, [LucideIcon, string, string]> = {
-    locked: [Lock, 'Locked', 'bg-slate-500/15 text-slate-500'],
-    in_progress: [RefreshCw, 'In progress', 'bg-sky-500/15 text-sky-500'],
-    completed: [CheckCircle2, score != null ? `Completed · ${score}%` : 'Completed', 'bg-emerald-500/15 text-emerald-500'],
+const RING = { size: 30, stroke: 2.75 }
+const RING_R = (RING.size - RING.stroke) / 2
+const RING_C = 2 * Math.PI * RING_R
+
+/**
+ * Status of a module. Wide lists: a chip with its text ("Completed · 100%", "In progress · 45%").
+ * Narrow lists (decided by the width of the list, see .badge-box in index.css): a small circle that takes almost no width. A ring around its border always shows how much is read, starting at
+ * the top (12 o'clock), and the middle shows the % - or a tick once completed (the ring still shows the progress), or a lock.
+ */
+export function PhaseBadge({ status, score, pct = 0 }: { status: Status; score?: number | null; pct?: number }) {
+  const done = status === 'completed'
+  const read = status === 'locked' ? 0 : Math.max(0, Math.min(100, Math.round(pct)))
+  const m: Record<Status, [LucideIcon, string, string, string]> = {
+    locked: [Lock, 'Locked', 'bg-slate-500/15 text-slate-500', 'text-slate-500'],
+    in_progress: [RefreshCw, `In progress · ${read}%`, 'bg-sky-500/15 text-sky-500', 'text-sky-500'],
+    completed: [CheckCircle2, score != null ? `Completed · ${score}%` : 'Completed', 'bg-emerald-500/15 text-emerald-500', 'text-emerald-500'],
   }
-  const [Icon, label, cls] = m[status]
-  // Icon-only chip; on hover it grows to fit its text (grid 0fr -> 1fr animates to the label's natural width)
+  const [Icon, label, chip, tone] = m[status]
+  const full = done ? `${label}, ${read}% read` : label
   return (
-    <span role="img" aria-label={label} className={`group inline-flex shrink-0 items-center rounded-full p-1.5 font-sans text-xs font-medium ${cls}`}>
-      <Icon size={16} aria-hidden />
-      <span aria-hidden className="grid grid-cols-[0fr] transition-[grid-template-columns,margin] duration-300 ease-out group-hover:ml-1.5 group-hover:mr-1 group-hover:grid-cols-[1fr] group-hover/row:ml-1.5 group-hover/row:mr-1 group-hover/row:grid-cols-[1fr] motion-reduce:transition-none">
-        <span className="overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-hover/row:opacity-100 motion-reduce:transition-none">{label}</span>
+    <span role="img" aria-label={full} title={full} className="inline-flex shrink-0">
+      {/* narrow list (phone, or the side panel next to the IDE): ring + % (or tick / lock) */}
+      <span aria-hidden className={`pb-ring relative place-items-center ${tone}`} style={{ width: RING.size, height: RING.size }}>
+        <svg width={RING.size} height={RING.size} viewBox={`0 0 ${RING.size} ${RING.size}`} className="absolute inset-0 -rotate-90">
+          <circle cx={RING.size / 2} cy={RING.size / 2} r={RING_R} fill="none" stroke="currentColor" strokeOpacity={0.2} strokeWidth={RING.stroke} />
+          {read > 0 && (
+            <circle cx={RING.size / 2} cy={RING.size / 2} r={RING_R} fill="none" stroke="currentColor" strokeWidth={RING.stroke} strokeLinecap="round"
+              strokeDasharray={`${(RING_C * read) / 100} ${RING_C}`} className="transition-[stroke-dasharray] duration-500 motion-reduce:transition-none" />
+          )}
+        </svg>
+        {status === 'locked' ? <Lock size={12} />
+          : done ? null
+          : <span className="font-sans text-[9px] font-bold leading-none tabular-nums">{read}%</span>}
+        {done && <Check size={14} strokeWidth={3} />}
+      </span>
+      {/* wide list: icon + text */}
+      <span aria-hidden className={`pb-chip items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 font-sans text-xs font-medium ${chip}`}>
+        <Icon size={14} />
+        {label}
       </span>
     </span>
   )

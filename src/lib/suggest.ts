@@ -405,7 +405,7 @@ function matchScore(prefix: string, label: string, aliases: string[] = []): numb
   let best = 0
   for (const c of [label, ...aliases]) {
     const l = lc(c)
-    const s = l === p ? 100 : l.startsWith(p) ? 80 : new RegExp(`[._ (]${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(l) ? 55 : l.includes(p) ? 40 : prefix.length >= 2 && subseq(p, l) ? 20 : 0
+    const s = l === p ? 100 : l.startsWith(p) ? 80 : new RegExp(`[._ (]${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(l) ? 55 : l.includes(p) ? (prefix.length >= 2 ? 40 : 0) : prefix.length >= 2 && subseq(p, l) ? 20 : 0
     best = Math.max(best, s)
   }
   return best
@@ -523,7 +523,10 @@ export function suggest(text: string, caret: number, lang: Lang, limit = 24): Re
   const stmts = lang === 'java' ? J_STATEMENTS : R_STATEMENTS
 
   // smart loops from the nearest declared array / collection
-  for (const l of loopSnippets(decls, names, lang)) add(l.label, l.body, 'snippet', l.detail, 300, ['for', 'fori', 'foreach', 'iter'])
+  for (const l of loopSnippets(decls, names, lang)) {
+    const ms = matchScore(prefix, 'for', ['fori', 'foreach', 'iter'])   // only typing "for..." asks for a loop, not any word inside its label
+    if (ms) cands.push({ s: mk(l.label, l.body, 'snippet', l.detail, prefix.length), score: (prefix ? ms * 3 : 0) + 300 + boost(l.label) })
+  }
 
   stmts.forEach((s, idx) => {
     // inside a class body (not a method) only declarations make sense; at top level only imports/classes
@@ -547,7 +550,7 @@ export function suggest(text: string, caret: number, lang: Lang, limit = 24): Re
     if (lineIsJustPrefix && lang === 'java') {
       const name = t.names.find((n) => !names.has(n)) || t.vname
       const body = t.decl.replace(` ${t.vname} = `, ` ${name} = `)
-      cands.push({ s: mk(body.replace(MARK, ''), body, 'snippet', 'declare', prefix.length), score: ms * 3 + 260 - idx * 2 + boost(t.decl) })
+      cands.push({ s: mk(body.replace(MARK, ''), body, 'snippet', 'declare', prefix.length), score: ms * 3 + (prefix.length >= 2 ? 260 : 120) - idx * 2 + boost(t.decl) })
     } else if (lineIsJustPrefix) {
       cands.push({ s: mk(t.name, `${t.name}<${MARK}>`, 'type', undefined, prefix.length), score: ms * 3 + 200 - idx * 2 + boost(t.name) })
     }
