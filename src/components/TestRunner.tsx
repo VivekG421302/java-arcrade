@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { PASS_THRESHOLD } from '../lib/content'
-import { shuffleOptions, testsFor, type TestQ } from '../lib/tests'
+import { shuffleOptions, testOf, type TestQ } from '../lib/tests'
 import { useCourse } from '../hooks/useCourse'
 import { useProgress, MAX_ATTEMPTS } from '../hooks/useProgress'
 import { CodeBlock } from './content'
@@ -28,8 +28,8 @@ export default function TestRunner({ phaseId }: { phaseId: number }) {
   const { course, data, meta } = useCourse()
   const unit = meta.unit
   const [attempt, setAttempt] = useState(0)
-  const qs = useMemo(() => shuffleOptions(testsFor(course)[phaseId]), [course, phaseId, attempt])   // new option order on every attempt
   const PHASES = data.phases
+  const qs = useMemo(() => shuffleOptions(testOf(course, PHASES.find((p) => p.id === phaseId) ?? { id: phaseId }) ?? []), [course, phaseId, attempt])   // new option order on every attempt
   const { submit, attemptsLeft, lockedUntil } = useProgress()
   const [idx, setIdx] = useState(0)
   const [ans, setAns] = useState<Ans[]>(Array(qs.length).fill(undefined))

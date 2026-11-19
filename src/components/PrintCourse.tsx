@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createPortal } from 'react-dom'
 import { useCourse } from '../hooks/useCourse'
 import { buildPaper } from '../lib/papers'
-import { testsFor } from '../lib/tests'
+import { testOf, testsFor } from '../lib/tests'
 import { CodeBlock, Inline, Markdown } from './content'
 
 const THEME = {
@@ -63,7 +63,7 @@ function PrintDocument({ parts, mode, page, pages }: { parts: PartId[]; mode: 's
   const tests = testsFor(course)
   const unit = meta.unit
   const th = THEME[course]
-  const papers = useMemo(() => data.phases.map((p) => ({ p, paper: buildPaper(p, tests[p.id]) })), [data, tests])
+  const papers = useMemo(() => data.phases.map((p) => ({ p, paper: buildPaper(p, testOf(course, p)) })), [data, tests])
   const has = (id: PartId) => parts.includes(id)
   const stats = ([
     [has('roadmap') ? data.phases.length : 0, `${unit}s`],
@@ -151,12 +151,12 @@ function PrintDocument({ parts, mode, page, pages }: { parts: PartId[]; mode: 's
           {has('tests') && <>
             {part('tests')}
             <section>
-              {data.phases.filter((p) => tests[p.id]).map((p) => (
+              {data.phases.filter((p) => testOf(course, p)).map((p) => (
                 <div key={p.id}>
                   <H2 id={`t-${p.id}`}>{unit} {p.id} test · answers</H2>
                   <p className="mb-3 font-sans text-slate-600">{p.title}</p>
                   <ol className="list-decimal space-y-4 pl-5">
-                    {tests[p.id].map((t, i) => (
+                    {(testOf(course, p) ?? []).map((t, i) => (
                       <li key={i} className="avoid-break">
                         <p className="font-sans font-semibold">{t.q}</p>
                         {t.type === 'mcq' ? (

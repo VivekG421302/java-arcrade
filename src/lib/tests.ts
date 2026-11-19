@@ -164,3 +164,6 @@ export const shuffleOptions = (qs: TestQ[]): TestQ[] =>
   })
 
 export const testsFor = (course: 'java' | 'rust' | 'postgres'): Record<number, TestQ[]> => (course === 'rust' ? RUST_TESTS : course === 'postgres' ? POSTGRES_TESTS : JAVA_TESTS)
+
+/** The test of a module. Tests are written per module key (the stable number a module keeps when modules are reordered), not per position. */
+export const testOf = (course: 'java' | 'rust' | 'postgres', phase: { id: number; key?: number }): TestQ[] | undefined => testsFor(course)[phase.key ?? phase.id]
