@@ -28,7 +28,14 @@ const rowsOf = (body) =>
     .map((l) => l.split('|').slice(1, -1).map((c) => c.trim().replace(/^\*\*(.*)\*\*$/, '$1')))
 
 /** One roadmap file -> phases, question list (Part 2), anti-patterns (Part 3), scenarios (Part 4). */
-function parseRoadmap(file, prefix) {
+/**
+ * Java roadmap order changed (the "Build It" module moved from 5th to 9th, after Spring Boot). A module's number is its position,
+ * but saved progress (read marks g5-s1.., test results, Supabase phase ids) was stored under the old numbers, so each module keeps
+ * its original number as a storage `key`: new position -> old number. Everything not listed keeps its number.
+ */
+const JAVA_KEYS = { 5: 6, 6: 7, 7: 8, 8: 9, 9: 5 }
+
+function parseRoadmap(file, prefix, keys = {}) {
   const empty = { phases: [], base: [], antiPatterns: [], antiMatrix: [], scenarios: [], scenarioMatrix: [] }
   if (!fs.existsSync(file)) return empty
   const text = clean(fs.readFileSync(file, 'utf8').replace(/\r/g, ''))
@@ -45,10 +52,10 @@ function parseRoadmap(file, prefix) {
           .split(/^### (?:\d+\. )?(.*)$/m)
           .slice(1)
           .reduce((s, x, j, b) => {
-            if (j % 2 === 0) s.push({ id: `${prefix}${id}-s${s.length + 1}`, title: x.trim(), md: strip(b[j + 1]) })
+            if (j % 2 === 0) s.push({ id: `${prefix}${keys[id] ?? id}-s${s.length + 1}`, title: x.trim(), md: strip(b[j + 1]) })
             return s
           }, [])
-        acc.push({ id, title: a[i + 1].trim(), sections })
+        acc.push({ id, ...(keys[id] ? { key: keys[id] } : {}), title: a[i + 1].trim(), sections })
       }
       return acc
     }, [])
@@ -205,7 +212,7 @@ function attach(base, problems, { defsMap, starter, fallback, shortTarget }) {
   }).filter(Boolean)
 }
 
-const javaRoad = parseRoadmap('content/roadmap.md', 'g')
+const javaRoad = parseRoadmap('content/roadmap.md', 'g', JAVA_KEYS)
 const java = {
   phases: javaRoad.phases,
   questions: attach(javaRoad.base, loadProblems('content/problems'), { defsMap: JAVA_DEFS, starter: makeJavaStarter }),

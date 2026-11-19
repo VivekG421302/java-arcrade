@@ -379,7 +379,7 @@ Scope tells Maven when a jar is needed. Getting it right keeps the final jar sma
 
 ### spring-boot-starter-data-jpa
 
-**What it is:** database access made easy. **What it brings:** Spring Data repositories (interfaces that generate queries from method names), Hibernate as the JPA provider, transaction support and HikariCP. **Why you need it:** you write findByEmail(String e) and no SQL. **Watch out:** ddl-auto=update is risky in production (use Flyway or Liquibase), turn off open-in-view, and watch for the N+1 problem (see Module 3).
+**What it is:** database access made easy. **What it brings:** Spring Data repositories (interfaces that generate queries from method names), Hibernate as the JPA provider, transaction support and HikariCP. **Why you need it:** you write findByEmail(String e) and no SQL. **Watch out:** ddl-auto=update is risky in production (use Flyway or Liquibase), turn off open-in-view, and watch for the N+1 problem (see Module 7).
 
 > **Imagine:** A translator that turns your Java objects into table rows and back.
 
@@ -425,7 +425,7 @@ spring.datasource.hikari.leak-detection-threshold=20000
 
 ### spring-boot-starter-security
 
-**What it is:** authentication (who are you) and authorization (what may you do). **What it brings:** Spring Security and its filter chain. **Surprise:** just adding it locks every endpoint and prints a random password at startup. **You then define:** a SecurityFilterChain bean, a PasswordEncoder (BCrypt) and a way to load users. For stateless APIs you add a JWT filter. See Spring Security Filter Flow and the JWT flow in Module 5.
+**What it is:** authentication (who are you) and authorization (what may you do). **What it brings:** Spring Security and its filter chain. **Surprise:** just adding it locks every endpoint and prints a random password at startup. **You then define:** a SecurityFilterChain bean, a PasswordEncoder (BCrypt) and a way to load users. For stateless APIs you add a JWT filter. See Spring Security Filter Flow and the JWT flow in Module 9.
 
 > **Imagine:** A building security desk that checks every visitor before they reach any room.
 
@@ -578,9 +578,840 @@ try (SXSSFWorkbook wb = new SXSSFWorkbook(100)) { // keeps 100 rows in memory
 }
 ```
 
-## Phase 5: Build It: Step-by-Step Implementations
+## Phase 5: Core Java & Servlet/JDBC
+
+### JVM Architecture
+
+Your .java file is compiled to bytecode. The JVM loads it, verifies it, and runs it. It first interprets, then the JIT compiler turns frequently used (hot) code into fast machine code.
+
+> **Imagine:** Bytecode is a recipe that any chef (JVM on any OS) can cook. The chef notices which dishes are ordered all day and prepares them in advance. That is JIT.
+
+#### Lifecycle diagram: JVM Execution Pipeline
+
+```diagram
+{"n":"A:Hello.java:0:0|B:javac:1:0|C:.class bytecode:2:0|D:Class loader:2:1|E:Interpreter:1:1|F:JIT compiler:0:1|G:!Machine code:0:2","e":"A>B|B>C:compile|C>D:load, verify|D>E:run|E>F:hot method|F>G:optimise"}
+```
+
+1. javac compiles source into platform-neutral bytecode.
+2. The class loader loads, verifies and initialises the class.
+3. The interpreter starts running immediately.
+4. Methods called often are marked hot.
+5. The JIT compiles hot methods into native code, so long-running apps speed up.
+
+### Java Memory Model
+
+Rules for when a change made by one thread becomes visible to another. Without them, threads may see stale values because of CPU caches and reordering.
+
+> **Imagine:** Two cooks each keep a private notepad. volatile or synchronized is like shouting the update across the whole kitchen so everyone rewrites their notes.
+
+### Object Internals & Primitives
+
+Every object has a hidden header plus its fields. Primitives (int) hold values; wrappers (Integer) are objects. Integer caches -128 to 127, so == can lie for bigger numbers.
+
+> **Imagine:** int is a number on a card. Integer is a box containing the card. == asks “is this the same box?”, equals() asks “is the card the same?”.
+
+#### Detailed explanation
+
+Boxing wraps a primitive in an object. The JVM caches boxes for -128 to 127, so == behaves differently for small and large values. This is a classic bug source.
+
+```java
+Integer a = 127, b = 127;
+System.out.println(a == b);      // true  (same cached box)
+Integer c = 128, d = 128;
+System.out.println(c == d);      // false (two different boxes)
+System.out.println(c.equals(d)); // true  (compare values)
+```
+
+| Type | Size | Default |
+| --- | --- | --- |
+| **byte** | 1 byte | 0 |
+| **int** | 4 bytes | 0 |
+| **long** | 8 bytes | 0L |
+| **double** | 8 bytes | 0.0 |
+| **boolean** | JVM-dependent | false |
+
+### Generics & Type Erasure
+
+Generics give compile-time type safety, but the types are erased at runtime. Wildcards (? extends, ? super) control what you may read or write.
+
+> **Imagine:** A box labelled “Apples” gets its label removed at the warehouse door. A basket marked ? extends Fruit lets you take fruit out but not put anything in.
+
+### Exception Architecture
+
+Checked exceptions must be handled; unchecked ones (RuntimeException) need not. Use try-with-resources to close things, and never swallow errors silently.
+
+> **Imagine:** Checked is a fire drill you must plan for. Unchecked is a surprise power cut. Swallowing an exception is pulling the batteries out of the smoke alarm.
+
+### Collections Internals
+
+ArrayList is a resizable array. HashMap uses hashCode to choose a bucket and equals to find the key inside it. Break the hashCode/equals contract and lookups fail.
+
+> **Imagine:** HashMap is a hotel with lockers. hashCode picks the corridor; equals finds your exact locker. Change your name after check-in and nobody can find your bag.
+
+#### Lifecycle diagram: HashMap put() Flow
+
+```diagram
+{"n":"K:put(k, v):0:0|H:hash(k):1:0|B:Bucket index:2:0|EM:Bucket empty?:2:1|EQ:equals() match?:1:1|RP:!Replace value:0:1|NW:!Add new node:2:2|RZ:Resize check:1:2","e":"K>H|H>B:spread bits|B>EM:hash & (n-1)|EM>NW:empty|EM>EQ:occupied|EQ>RP:same key|EQ>NW:different key|NW>RZ:over 75%?"}
+```
+
+1. **hash** – hashCode() is mixed so high bits also matter.
+2. **Index** – the bucket is chosen with hash & (length-1).
+3. **Empty bucket** – the new node is placed straight in.
+4. **Occupied** – every node in the bucket is compared with equals().
+5. **Same key** – only the value is replaced.
+6. **Different key** – the node is appended; a chain of 8 or more becomes a tree.
+7. **Resize** – above 75% full the table doubles and entries are re-spread.
+
+#### Detailed explanation
+
+put(key, value) computes hash(key), picks a bucket, and uses equals() to find an existing key. When a bucket gets long (8+ entries) it becomes a tree. The table doubles when it is 75% full. If you mutate a key after inserting it, its hash changes and the entry is lost.
+
+```java
+class UserKey {
+  final long id;
+  UserKey(long id) { this.id = id; }
+  @Override public boolean equals(Object o) {
+    return o instanceof UserKey u && u.id == id;
+  }
+  @Override public int hashCode() { return Long.hashCode(id); } // must match equals
+}
+Map<UserKey, String> m = new HashMap<>();
+m.put(new UserKey(1), "Asha");
+m.get(new UserKey(1)); // "Asha" only because equals+hashCode agree
+```
+
+| Structure | get | insert | Ordered? |
+| --- | --- | --- | --- |
+| **ArrayList** | O(1) by index | O(n) middle | insertion order |
+| **LinkedList** | O(n) | O(1) at ends | insertion order |
+| **HashMap** | O(1) average | O(1) average | no |
+| **TreeMap** | O(log n) | O(log n) | sorted by key |
+
+### I/O, NIO & Files
+
+Classic streams read byte by byte and block. NIO uses buffers and channels, and selectors let one thread watch many connections. Files and Path make file work simple.
+
+> **Imagine:** Streams are carrying water in one bucket at a time. NIO is a pipe system with many taps watched by a single plumber.
+
+### Concurrency: Threads & Locks
+
+Threads run tasks in parallel. Use ExecutorService for pools, locks and atomics to protect shared data, and avoid deadlocks.
+
+> **Imagine:** Two people meet in a narrow doorway, each saying “after you” forever. That is a deadlock. Fix: everybody agrees to use doors in the same order.
+
+#### Lifecycle diagram: Thread Lifecycle
+
+```diagram
+{"n":"N:NEW:0:1|R:RUNNABLE:1:1|BL:BLOCKED:2:0|W:WAITING:2:1|TW:TIMED_WAITING:2:2|TM:!TERMINATED:1:2","e":"N>R:start()|R>BL:needs lock|BL>R:got lock|R>W:wait() / join()|W>R:notify()|R>TW:sleep(ms)|TW>R:time up|R>TM:run() ends"}
+```
+
+1. **NEW** – created but not started.
+2. **RUNNABLE** – running or ready to run.
+3. **BLOCKED** – waiting for a synchronized lock held by another thread.
+4. **WAITING** – waits until another thread signals it.
+5. **TIMED_WAITING** – waits for a limited time.
+6. **TERMINATED** – finished; it cannot be restarted.
+
+#### Detailed explanation
+
+A deadlock happens when threads hold one lock each and wait for the other’s. The cure is a fixed lock order, or timeouts with tryLock. For everyday work, prefer a thread pool over raw threads.
+
+```java
+Object A = new Object(), B = new Object();
+// Thread 1
+synchronized (A) { synchronized (B) { /* work */ } }
+// Thread 2 - opposite order, can deadlock
+synchronized (B) { synchronized (A) { /* work */ } }
+// Fix: both threads lock A first, then B.
+```
+
+```java
+ExecutorService pool = Executors.newFixedThreadPool(4);
+Future<Integer> f = pool.submit(() -> 21 * 2);
+System.out.println(f.get()); // 42
+pool.shutdown();
+```
+
+### Classloading & Reflection
+
+Class loaders find and load classes on demand, asking their parent first. Reflection lets code inspect and call classes at runtime, which frameworks rely on.
+
+> **Imagine:** A new employee always asks their manager before deciding anything (parent delegation). Reflection is reading someone’s name badge and job title without being introduced.
+
+#### Lifecycle diagram: Class Loading Lifecycle
+
+```diagram
+{"n":"L:Loading:0:0|V:Verification:1:0|PR:Preparation:2:0|RS:Resolution:2:1|IN:Initialization:1:1|US:In use:0:1|UN:!Unloaded:0:2","e":"L>V:bytes become a Class|V>PR:bytecode is safe|PR>RS:statics get defaults|RS>IN:names become references|IN>US:static blocks ran|US>UN:loader is collected"}
+```
+
+1. **Loading** – a class loader asks its parent first, then reads the .class bytes.
+2. **Verification** – the JVM checks the bytecode is well formed and safe.
+3. **Preparation** – static fields get default values (0, null).
+4. **Resolution** – symbolic names turn into direct references.
+5. **Initialization** – static initializers run once, thread-safely. A failure here gives ExceptionInInitializerError.
+6. **Unloading** – only when the loader itself is garbage collected. A classic cause of leaks in redeployed apps.
+
+### Garbage Collection
+
+The JVM frees objects nobody references. Most objects die young, so memory is split into young and old regions. G1 and ZGC trade pauses for throughput.
+
+> **Imagine:** A restaurant cleaner clears tables guests have left. Fast-turnover tables (young) are cleaned often; long-stay tables (old) rarely.
+
+#### Lifecycle diagram: Object Lifecycle in GC
+
+```diagram
+{"n":"E:Eden (new):0:0|S:Survivor S0/S1:1:0|O:Old generation:2:0|R:!Reclaimed:1:1","e":"E>S:survives minor GC|S>S:age + 1|S>O:age limit|E>R:dead|O>R:major GC"}
+```
+
+1. new puts the object in Eden.
+2. A minor GC copies live objects to Survivor and frees the rest.
+3. Each survived GC raises the age.
+4. At the age limit the object is promoted to Old.
+5. A major or mixed GC cleans Old. Frequent full GCs signal a leak or undersized heap.
+
+### Streams & Lambdas
+
+A stream is a pipeline (filter, map, collect). Lambdas are short inline functions. Streams are lazy: nothing runs until a terminal step.
+
+> **Imagine:** A factory conveyor belt. You can set up all the machines, but nothing moves until someone presses “collect”.
+
+### java.time API
+
+Immutable, thread-safe date and time types replace Date and Calendar: LocalDate, Instant, ZonedDateTime.
+
+> **Imagine:** “Meet at 9 AM” is meaningless until you say Mumbai or New York. ZonedDateTime carries the city; LocalDateTime does not.
+
+### Serialization
+
+Turning an object into bytes and back. serialVersionUID checks version compatibility. Deserializing untrusted data is a security risk.
+
+> **Imagine:** Flat-pack furniture: you can ship it and rebuild it, but only with matching instructions (version). Never assemble a box from a stranger.
+
+### Servlet API & Lifecycle
+
+A servlet is a Java class that handles HTTP. The container creates one instance and calls service() on many threads, so it must not keep per-user data in fields.
+
+> **Imagine:** One receptionist (the servlet) served by many assistants (threads). If she writes a visitor’s name on her own desk, the next visitor sees it.
+
+#### Lifecycle diagram: Servlet Lifecycle
+
+```diagram
+{"n":"L:Load class:0:0|I:init():1:0|S:service():2:0|D:!destroy():3:0","e":"L>I:create 1 instance|I>S:ready|S>S:every request|S>D:shutdown"}
+```
+
+1. **Load** – the container loads the class and builds one instance.
+2. **init()** – runs once. Open shared resources here.
+3. **service()** – runs on a thread for every request and routes to doGet or doPost. Keep fields free of per-user data.
+4. **destroy()** – runs once at shutdown. Release resources.
+
+### Context, Filters, Listeners, Sessions
+
+Filters run before and after servlets (auth, logging). Listeners react to events. A session is server-side memory tied to a browser by the JSESSIONID cookie.
+
+> **Imagine:** A filter is airport security. A session is the wristband that tells staff you already checked in.
+
+### JSP, JSTL & Legacy Views
+
+JSP is HTML with Java inside that compiles to a servlet. JSTL tags replace messy scriptlets. It is legacy but still met in old systems.
+
+> **Imagine:** A letter template with blanks. The server fills the blanks, then posts it.
+
+### JDBC: Driver to Connection
+
+JDBC is the standard way Java talks to databases. A connection is expensive, so use a DataSource with a connection pool.
+
+> **Imagine:** Phoning a bank takes time to dial and verify you. A pool keeps a few lines open and lends them out.
+
+#### Lifecycle diagram: Connection Pool Lifecycle (HikariCP)
+
+```diagram
+{"n":"P:Pool (idle):0:0|B:Borrowed:1:0|U:Running SQL:2:0|R:close() called:2:1|V:Reset connection:1:1|E:!Evicted, replaced:0:2","e":"P>B:getConnection()|B>U:use|U>R:finished|R>V:rollback if open|V>P:idle again|P>E:maxLifetime reached"}
+```
+
+1. **Pool** – holds idle, already-open connections. If none is free, callers wait up to connectionTimeout and then get an exception.
+2. **Borrowed** – your code owns the connection, so keep this period short.
+3. **Running SQL** – statements and the transaction happen here.
+4. **close()** – does not close the socket. It hands the connection back.
+5. **Reset** – uncommitted work is rolled back and settings are restored.
+6. **Evicted** – past maxLifetime or idle timeout, the connection is closed and a fresh one is made. A leak is a borrow that never returns.
+
+### JDBC: Statements & Transactions
+
+Use PreparedStatement (stops SQL injection), batch many inserts, and commit or rollback as one unit.
+
+> **Imagine:** A bank transfer: debit and credit must both happen or neither. Otherwise money vanishes.
+
+#### Detailed explanation
+
+Never build SQL by joining strings: input like ' OR '1'='1 would rewrite the query (SQL injection). PreparedStatement sends values separately. Wrap related updates in one transaction.
+
+```sql
+-- BAD: "SELECT * FROM users WHERE name = '" + input + "'"
+-- GOOD: SELECT * FROM users WHERE name = ?
+```
+
+```java
+try (Connection c = ds.getConnection()) {
+  c.setAutoCommit(false);
+  try (PreparedStatement debit = c.prepareStatement(
+         "UPDATE account SET bal = bal - ? WHERE id = ?");
+       PreparedStatement credit = c.prepareStatement(
+         "UPDATE account SET bal = bal + ? WHERE id = ?")) {
+    debit.setBigDecimal(1, amt);  debit.setLong(2, from);  debit.executeUpdate();
+    credit.setBigDecimal(1, amt); credit.setLong(2, to);   credit.executeUpdate();
+    c.commit();
+  } catch (SQLException e) { c.rollback(); throw e; }
+}
+```
+
+## Phase 6: Relational Databases (PostgreSQL)
+
+### Relational Theory & Modeling
+
+Data lives in tables linked by keys. Normalization removes duplication so each fact is stored once.
+
+> **Imagine:** Don’t write the customer’s address on every order slip. Store it once and let orders point to it.
+
+### SQL DDL & Schema Objects
+
+CREATE and ALTER define tables, types and constraints (PRIMARY KEY, FOREIGN KEY, UNIQUE, CHECK). The database itself enforces your rules.
+
+### SELECT Mastery
+
+Joins combine tables, subqueries and CTEs break big queries into steps, and window functions calculate across rows without collapsing them.
+
+> **Imagine:** A bank statement’s running balance: every transaction row stays visible, yet each shows the total so far. That is a window function.
+
+### Indexing
+
+An index is a separate sorted structure that makes lookups fast. B-tree is the default; GIN, GiST and BRIN suit text, geometry and huge ordered data.
+
+> **Imagine:** A book’s index at the back: jump to the page instead of reading every page. But each new page means updating the index too.
+
+#### Detailed explanation
+
+Without an index PostgreSQL scans the whole table (Seq Scan). A matching index lets it jump straight to the rows. Indexes speed reads but slow writes and use disk, so add them for real query patterns only.
+
+```sql
+CREATE INDEX idx_orders_cust ON orders (customer_id);
+EXPLAIN ANALYZE SELECT * FROM orders WHERE customer_id = 42;
+-- Index Scan using idx_orders_cust  (instead of Seq Scan)
+CREATE INDEX idx_open ON orders (created_at) WHERE status = 'OPEN'; -- partial index
+```
+
+| Index | Best for |
+| --- | --- |
+| **B-tree** | equality, ranges, sorting (default) |
+| **GIN** | arrays, JSONB, full-text search |
+| **GiST** | geometry, ranges, nearest-neighbour |
+| **BRIN** | huge tables stored in natural order, such as logs |
+
+### Transactions, MVCC & Isolation
+
+ACID keeps data correct. MVCC keeps several versions of a row so readers never block writers. Isolation levels choose how much concurrency anomaly you accept.
+
+> **Imagine:** Like Google Docs history: you read a snapshot while someone else writes a new version.
+
+#### Lifecycle diagram: MVCC Row Lifecycle (PostgreSQL)
+
+```diagram
+{"n":"I:INSERT, xmin set:0:0|L:Live version:1:0|U:UPDATE:2:0|NV:New version:2:1|OV:Old version, xmax set:1:1|DD:Dead tuple:1:2|VC:!VACUUM frees space:0:2","e":"I>L:commit|L>U:other tx|U>NV:writes new copy|U>OV:stamps old copy|OV>DD:no snapshot needs it|DD>VC:autovacuum"}
+```
+
+1. **Insert** – the row records the transaction that created it (xmin).
+2. **Live** – visible to snapshots taken after that commit.
+3. **Update** – a new row version is written.
+4. **Old version** – gets an xmax and stays visible to older snapshots.
+5. **Dead** – once no running transaction can see it, it is garbage.
+6. **VACUUM** – marks the space reusable. Without it tables bloat.
+
+#### Detailed explanation
+
+Isolation levels decide which anomalies you may see. In PostgreSQL, readers use a snapshot, so they never block writers.
+
+| Level | Dirty read | Non-repeatable read | Phantom |
+| --- | --- | --- | --- |
+| **Read Committed (default)** | No | Possible | Possible |
+| **Repeatable Read** | No | No | No (in PostgreSQL) |
+| **Serializable** | No | No | No, may abort and need a retry |
+
+```sql
+BEGIN ISOLATION LEVEL REPEATABLE READ;
+SELECT balance FROM account WHERE id = 1; -- sees one stable snapshot
+COMMIT;
+```
+
+### Query Planning & EXPLAIN
+
+The planner picks the cheapest way to run a query. EXPLAIN shows the plan, EXPLAIN ANALYZE shows what actually happened.
+
+> **Imagine:** A GPS choosing a route. EXPLAIN is the planned route; ANALYZE is the real trip with times.
+
+### Functions, Procedures & Triggers
+
+PL/pgSQL lets you put logic inside the database. Triggers run automatically on insert, update or delete.
+
+### Views & Materialized Views
+
+A view is a saved query. A materialized view stores the result for speed and must be refreshed.
+
+> **Imagine:** A view is a live window. A materialized view is a photograph: quick to look at, but it ages.
+
+### PostgreSQL Internals & VACUUM
+
+Updates leave old row versions behind. VACUUM cleans these dead rows so tables do not bloat.
+
+> **Imagine:** Old drafts pile up in a bin. VACUUM is the cleaner who empties it.
+
+### Performance Tuning
+
+Tune memory settings, keep statistics fresh, and watch slow queries with pg_stat_statements before changing anything.
+
+### Replication, HA & DR
+
+A primary sends changes to replicas for reads and failover. Backups plus WAL give point-in-time recovery.
+
+> **Imagine:** A twin notebook that copies every line you write. If yours burns, the twin takes over.
+
+### Security & Hardening
+
+Least-privilege roles, TLS, row-level security, and parameterised queries to stop injection.
+
+## Phase 7: Spring Core & Hibernate/JPA
+
+### Spring Philosophy & IoC
+
+Inversion of Control: the container creates and wires your objects instead of you using new everywhere.
+
+> **Imagine:** A restaurant manager hires cooks and hands them tools. Cooks do not shop for their own knives.
+
+#### Lifecycle diagram: Spring Bean Lifecycle
+
+```diagram
+{"n":"A:Instantiate:0:0|B:Inject deps:1:0|C:Aware callbacks:2:0|D:BPP before init:2:1|E:@PostConstruct:1:1|F:BPP after (proxy):0:1|G:!Ready to use:0:2|H:@PreDestroy:1:2|I:Destroyed:2:2","e":"A>B|B>C|C>D|D>E|E>F|F>G|G>H:context closes|H>I"}
+```
+
+1. **Instantiate** – the constructor runs.
+2. **Inject** – dependencies and values are set.
+3. **Aware callbacks** – the bean may receive its name or context.
+4. **BeanPostProcessor** – hooks before and after init.
+5. **@PostConstruct** – your start-up logic.
+6. **After-init processor** – this is where AOP and @Transactional proxies are created.
+7. **@PreDestroy** – cleanup on shutdown.
+
+### Dependency Injection & Autowiring
+
+Dependencies arrive via the constructor (preferred), setter or field. Use @Qualifier when several candidates exist. Avoid circular dependencies.
+
+> **Imagine:** A cook who must be handed a stove at hiring (constructor) cannot start work without one, which is exactly what you want.
+
+#### Detailed explanation
+
+Prefer constructor injection. Fields can be final, the object can never exist half-built, and tests can pass fakes without Spring.
+
+```java
+@Service
+public class OrderService {
+  private final PaymentGateway gateway;
+  public OrderService(PaymentGateway gateway) { // one constructor: @Autowired not needed
+    this.gateway = gateway;
+  }
+}
+```
+
+| Style | Verdict |
+| --- | --- |
+| **Constructor** | Immutable, testable, recommended |
+| **Setter** | Fine for optional dependencies |
+| **Field (@Autowired)** | Hides dependencies, hard to test |
+
+### AOP: Proxies & Pointcuts
+
+Spring wraps beans in proxies to add logging, security or transactions around methods. A call from inside the same class skips the proxy.
+
+> **Imagine:** A guard stands at the front door of the building. If you walk between rooms inside, you bypass the guard.
+
+#### Lifecycle diagram: Transaction Lifecycle (@Transactional)
+
+```diagram
+{"n":"C:Caller:0:0|P:Proxy:1:0|M:Your method:2:0|CM:!COMMIT:3:0|RB:!ROLLBACK:3:1","e":"C>P:call|P>M:BEGIN|M>CM:returns normally|M>RB:RuntimeException"}
+```
+
+1. **Caller** – an outside bean calls the method (self-calls skip the proxy).
+2. **Proxy** – gets a connection and begins the transaction.
+3. **Method** – runs your logic.
+4. **Commit** – on normal return.
+5. **Rollback** – on RuntimeException or Error by default; use rollbackFor for checked ones.
+
+### Spring MVC & DispatcherServlet
+
+One front controller receives every request, finds the matching handler, runs interceptors, calls your controller and converts the result to a response.
+
+> **Imagine:** The hotel front desk: every guest arrives there and is sent to the right department.
+
+#### Lifecycle diagram: Spring MVC Request Flow
+
+```diagram
+{"n":"C:Client:0:0|F:Filters:1:0|DS:DispatcherServlet:2:0|HM:HandlerMapping:2:1|I:Interceptors:1:1|CT:Controller:0:1|MC:Message converter:0:2|R:!JSON response:1:2","e":"C>F:HTTP request|F>DS|DS>HM:find handler|HM>I:preHandle|I>CT|CT>MC:return value|MC>R:serialize"}
+```
+
+1. **Filters** – servlet-level work such as security and logging.
+2. **DispatcherServlet** – the single front controller for all requests.
+3. **HandlerMapping** – matches URL and verb to a controller method.
+4. **Interceptors** – preHandle can block the request.
+5. **Controller** – your method runs; arguments are bound and validated.
+6. **Message converter** – Jackson turns the return object into JSON, sent back through the same layers.
+
+### Transaction Management
+
+@Transactional starts and ends transactions via proxies. Learn propagation (REQUIRED, REQUIRES_NEW) and note: rollback happens only for unchecked exceptions by default.
+
+> **Imagine:** Booking flight and hotel together. If the hotel fails, the flight must cancel, but only if the system notices the failure.
+
+#### Lifecycle diagram: Transaction Lifecycle (@Transactional)
+
+```diagram
+{"n":"C:Caller:0:0|P:Proxy:1:0|M:Your method:2:0|CM:!COMMIT:3:0|RB:!ROLLBACK:3:1","e":"C>P:call|P>M:BEGIN|M>CM:returns normally|M>RB:RuntimeException"}
+```
+
+1. **Caller** – an outside bean calls the method (self-calls skip the proxy).
+2. **Proxy** – gets a connection and begins the transaction.
+3. **Method** – runs your logic.
+4. **Commit** – on normal return.
+5. **Rollback** – on RuntimeException or Error by default; use rollbackFor for checked ones.
+
+#### Detailed explanation
+
+@Transactional works through a proxy. Calls from outside go through it; a call inside the same class does not. By default only unchecked exceptions cause rollback.
+
+```java
+@Service
+public class TransferService {
+  @Transactional(rollbackFor = Exception.class) // also roll back on checked exceptions
+  public void transfer(long from, long to, BigDecimal amt) { /* debit + credit */ }
+
+  public void batch() {
+    this.transfer(1, 2, BigDecimal.TEN); // BUG: self-call skips the proxy, no transaction
+  }
+}
+```
+
+| Propagation | Meaning |
+| --- | --- |
+| **REQUIRED** | join the current transaction or start one |
+| **REQUIRES_NEW** | pause the current one and start a fresh one |
+| **MANDATORY** | must already be inside one, else error |
+| **NEVER** | error if one exists |
+
+### Spring JDBC & JdbcTemplate
+
+JdbcTemplate removes connection and exception boilerplate while you still write plain SQL.
+
+### Hibernate Architecture & Session
+
+A Session tracks entities in a persistence context. Entity states: transient, managed, detached, removed. Hibernate spots changes (dirty checking) and writes them on flush.
+
+> **Imagine:** A shopping cart: you add and remove things freely, and the shop only processes it at checkout (flush).
+
+#### Lifecycle diagram: Hibernate Entity States
+
+```diagram
+{"n":"DB:Database:1:0|T:New / Transient:0:1|M:Managed:1:1|DT:Detached:2:1|RM:Removed:1:2|X:!Row deleted:2:2","e":"DB>M:find / query|T>M:persist()|M>DT:close / detach|DT>M:merge()|M>RM:remove()|RM>X:flush / commit"}
+```
+
+1. **Transient** – a plain object Hibernate knows nothing about.
+2. **Managed** – inside a Session; dirty checking writes changes at flush.
+3. **Detached** – the Session closed. Changes are ignored until merge().
+4. **Removed** – scheduled for DELETE; the row goes at flush or commit.
+
+#### Lifecycle diagram: Hibernate Flush & Commit Flow
+
+```sequence
+{"p":"A:Your code|S:Session|C:Persistence context|D:Database","m":"A>S:persist(order)|S>C:track entity + snapshot|A>S:order.setQty(5)|A>S:commit()|S>C:flush: dirty check|C>D:INSERT / UPDATE SQL|D>S:~rows written|S>D:COMMIT"}
+```
+
+1. persist() makes the entity Managed. With IDENTITY ids the INSERT may run at once.
+2. A copy of its loaded state is kept for comparison.
+3. Setters only change the object. No SQL yet.
+4. commit() (or a query in AUTO flush mode) triggers a flush.
+5. Dirty checking compares each entity with its snapshot.
+6. Changed entities become INSERT, UPDATE and DELETE statements.
+7. The database confirms the writes.
+8. Only then is the transaction committed.
+
+### Mapping: Entities & Relationships
+
+@Entity, @Id, @OneToMany, @ManyToOne and inheritance strategies map classes to tables. Keep the owning side clear.
+
+### Fetching, N+1 & Caching
+
+LAZY loads data when touched; EAGER loads upfront. The N+1 problem is one query plus N more. Fix with join fetch or entity graphs. Caches avoid repeat reads.
+
+> **Imagine:** You ask for 100 teachers, then make 100 separate trips to ask for each teacher’s students. One combined list would have been one trip.
+
+#### Detailed explanation
+
+With LAZY collections, looping over parents and touching each child collection fires one extra query per parent. Fetch together instead.
+
+```java
+// BAD: 1 query for teachers + N queries for students
+List<Teacher> ts = em.createQuery("select t from Teacher t", Teacher.class).getResultList();
+ts.forEach(t -> t.getStudents().size());
+
+// GOOD: one query
+em.createQuery("select distinct t from Teacher t join fetch t.students", Teacher.class)
+  .getResultList();
+```
+
+### JPQL, HQL, Criteria & Native SQL
+
+JPQL queries entities, Criteria builds queries in code, and native SQL is the escape hatch for database-specific features.
+
+### Locking & Versioning
+
+Optimistic locking uses a @Version column and fails on conflict. Pessimistic locking blocks others up front.
+
+> **Imagine:** Two editors open the same document. Optimistic: the second save is rejected because the version moved on. Pessimistic: the file is locked while the first edits.
+
+#### Detailed explanation
+
+Optimistic locking assumes conflicts are rare. Hibernate adds the version to each UPDATE and fails if the row has moved on. Pessimistic locking takes a database lock immediately.
+
+```java
+@Entity
+class Product {
+  @Id Long id;
+  @Version long version; // 5 -> 6 on each successful update
+  int stock;
+}
+// Two users load version 5. The first saves (becomes 6).
+// The second save throws OptimisticLockException: reload and retry.
+
+em.find(Product.class, 1L, LockModeType.PESSIMISTIC_WRITE); // SELECT ... FOR UPDATE
+```
+
+### Lifecycle Callbacks & Auditing
+
+@PrePersist, @PostLoad and listeners run on entity events. Auditing records who changed what and when; Envers keeps history.
+
+## Phase 8: Spring Boot & Enterprise REST
+
+### Boot Fundamentals & Auto-Configuration
+
+Starters bring dependencies; auto-configuration creates beans based on what is on the classpath and in your config.
+
+> **Imagine:** A furnished flat that rearranges itself depending on what you carry in. Add a database driver and it sets up a DataSource.
+
+#### Lifecycle diagram: Spring Boot Startup
+
+```diagram
+{"n":"A:main():0:0|B:run():1:0|C:Load config:2:0|D:Create context:2:1|E:Auto-config + scan:1:1|F:Create beans:0:1|G:Start Tomcat:0:2|H:Run runners:1:2|I:!Ready:2:2","e":"A>B|B>C:profiles, yml|C>D|D>E|E>F|F>G|G>H|H>I"}
+```
+
+1. main() calls SpringApplication.run.
+2. **Config** – application.yml, profiles and environment variables are loaded.
+3. The ApplicationContext is created.
+4. Component scan and auto-configuration register bean definitions.
+5. Singleton beans are built (see Bean Lifecycle).
+6. The embedded server starts on the port.
+7. CommandLineRunner beans run, then the app is ready.
+
+### Externalized Configuration
+
+application.yml, profiles and environment variables set values without rebuilding. @ConfigurationProperties binds them to typed classes.
+
+### Embedded Servers & Runtime Tuning
+
+Tomcat runs inside your jar. Tune thread pools, timeouts and keep-alive for real traffic.
+
+### Building Enterprise REST APIs
+
+Model resources, use correct verbs and status codes, paginate, version, and make writes idempotent so a retry is safe.
+
+> **Imagine:** Pressing the lift button twice should not call two lifts. PUT and DELETE behave that way.
+
+#### Detailed explanation
+
+Use the right verb and status code so clients know what happened.
+
+| Action | Verb and path | Success | Common errors |
+| --- | --- | --- | --- |
+| **List** | GET /orders | 200 | 401, 403 |
+| **Create** | POST /orders | 201 + Location | 400, 409 |
+| **Replace** | PUT /orders/7 | 200 or 204 | 404, 409 |
+| **Delete** | DELETE /orders/7 | 204 | 404 |
+
+```java
+@RestController @RequestMapping("/orders")
+class OrderController {
+  @PostMapping
+  ResponseEntity<Order> create(@Valid @RequestBody OrderDto d) {
+    Order o = service.create(d);
+    return ResponseEntity.created(URI.create("/orders/" + o.getId())).body(o);
+  }
+}
+```
+
+### Jackson Serialization
+
+Converts objects to JSON and back. Annotations control names and formats. Beware lazy entities and cyclic references.
+
+### Validation & Error Handling
+
+@Valid checks input, @ControllerAdvice handles errors in one place, and RFC 7807 gives errors a standard JSON shape.
+
+#### Detailed explanation
+
+Declare rules on the input, trigger them with @Valid, and translate failures into one consistent error shape in a single place.
+
+```java
+record OrderDto(@NotBlank String sku, @Min(1) int qty) {}
+
+@RestControllerAdvice
+class Errors {
+  @ExceptionHandler(MethodArgumentNotValidException.class)
+  ProblemDetail bad(MethodArgumentNotValidException e) {
+    return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Validation failed");
+  }
+}
+```
+
+### Observability
+
+Logs say what happened, metrics say how much, traces say where time went. Actuator exposes health and metrics.
+
+> **Imagine:** A car dashboard: speed (metrics), warning light (health), trip log (traces).
+
+### Testing Strategy
+
+Many fast unit tests, some slice tests (@WebMvcTest, @DataJpaTest), few end-to-end. Testcontainers runs a real database in tests.
+
+### Spring Security
+
+Authentication is who you are; authorization is what you may do. Requests pass a filter chain. Know JWT, OAuth2, CSRF and password hashing (BCrypt).
+
+> **Imagine:** Authentication is showing ID at the gate. Authorization is the badge that opens only some rooms.
+
+#### Lifecycle diagram: Spring Security Filter Flow
+
+```diagram
+{"n":"R:Request:0:0|F1:Auth filter (JWT):1:0|SC:SecurityContext:2:0|AZ:Authorization:2:1|CT:!Controller:1:1|E1:!401:0:1|E3:!403:2:2","e":"R>F1|F1>SC:token valid|F1>E1:invalid|SC>AZ|AZ>CT:allowed|AZ>E3:denied"}
+```
+
+1. The filter reads the token (Authorization header).
+2. Valid: the user is stored in the SecurityContext.
+3. Invalid or missing: 401 Unauthorized.
+4. The authorization rules check roles and paths.
+5. Allowed: the controller runs. Denied: 403 Forbidden.
+
+#### Lifecycle diagram: JWT Login & Request Flow
+
+```sequence
+{"p":"C:Client|F:Auth filter|S:Auth service|D:Database","m":"C>S:POST /login|S>D:load user|D>S:~stored BCrypt hash|S>S:hash matches?|S>C:~200 + signed JWT|C>F:GET /orders + Bearer token|F>F:check signature, expiry|F>C:~401 or continue to controller"}
+```
+
+1. **Login** – the client sends credentials once over HTTPS.
+2. The user and password hash are loaded.
+3. The hash is returned; the password is never stored in plain text.
+4. BCrypt compares the typed password with the hash.
+5. **Success** – a signed JWT with short expiry is returned.
+6. Every later call carries the token in the Authorization header.
+7. The filter verifies signature and expiry without touching the database.
+8. Invalid gives 401; valid fills the SecurityContext and the request goes on.
+
+#### Detailed explanation
+
+Every request passes the SecurityFilterChain. Below, public paths are open, everything else needs a valid JWT. Disabling CSRF is acceptable only for stateless token APIs, not for cookie sessions.
+
+```java
+@Bean
+SecurityFilterChain chain(HttpSecurity http) throws Exception {
+  return http
+    .csrf(c -> c.disable())
+    .authorizeHttpRequests(a -> a
+      .requestMatchers("/public/**").permitAll()
+      .anyRequest().authenticated())
+    .oauth2ResourceServer(o -> o.jwt(Customizer.withDefaults()))
+    .build();
+}
+```
+
+| Code | Meaning |
+| --- | --- |
+| **401** | not authenticated (who are you?) |
+| **403** | authenticated but not allowed |
+
+### Data Access: Repositories, Hikari, Migrations
+
+Spring Data repositories generate queries from method names. HikariCP pools connections. Flyway or Liquibase version your schema.
+
+#### Lifecycle diagram: Connection Pool Lifecycle (HikariCP)
+
+```diagram
+{"n":"P:Pool (idle):0:0|B:Borrowed:1:0|U:Running SQL:2:0|R:close() called:2:1|V:Reset connection:1:1|E:!Evicted, replaced:0:2","e":"P>B:getConnection()|B>U:use|U>R:finished|R>V:rollback if open|V>P:idle again|P>E:maxLifetime reached"}
+```
+
+1. **Pool** – holds idle, already-open connections. If none is free, callers wait up to connectionTimeout and then get an exception.
+2. **Borrowed** – your code owns the connection, so keep this period short.
+3. **Running SQL** – statements and the transaction happen here.
+4. **close()** – does not close the socket. It hands the connection back.
+5. **Reset** – uncommitted work is rolled back and settings are restored.
+6. **Evicted** – past maxLifetime or idle timeout, the connection is closed and a fresh one is made. A leak is a borrow that never returns.
+
+### Messaging & Async Processing
+
+Queues (Kafka, RabbitMQ) decouple services. The outbox pattern saves the event and data in one transaction.
+
+> **Imagine:** Drop a letter in a post box and walk away; the postal system delivers later, even if the receiver is out.
+
+#### Lifecycle diagram: Outbox & Event Flow (Kafka)
+
+```sequence
+{"p":"A:Service|D:Database|R:Relay|K:Kafka|C:Consumer","m":"A>D:BEGIN: save order + outbox row|A>D:COMMIT (both or neither)|R>D:poll unsent rows|R>K:publish event|K>R:~ack|R>D:mark row sent|K>C:deliver event|C>C:process idempotently"}
+```
+
+1. One local transaction writes the business row and an outbox row.
+2. Commit makes both visible together.
+3. A relay (poller or CDC) finds unsent events.
+4. It publishes them to the broker.
+5. Kafka acknowledges.
+6. The row is marked sent. A crash before this causes a duplicate.
+7. Consumers receive events at least once.
+8. So handlers must be idempotent, for example by checking an event id.
+
+### Caching & Scheduling
+
+@Cacheable stores results (Redis, Caffeine) with expiry. @Scheduled runs jobs; use a lock so only one instance runs it.
+
+### Deployment & Cloud-Native
+
+Package as a container, use health probes, shut down gracefully, and set JVM memory to respect container limits.
+
+#### Lifecycle diagram: Pod Lifecycle & Graceful Shutdown
+
+```diagram
+{"n":"P:Pending:0:0|S:Starting:1:0|RD:Ready:2:0|TR:Terminating (SIGTERM):2:1|DR:Drain requests:1:1|X:!Exit cleanly:0:1|K:!SIGKILL:0:2","e":"P>S:image pulled|S>RD:probes pass|RD>TR:deploy / scale-down|TR>DR:off Service|DR>X:work done|DR>K:grace period over"}
+```
+
+1. **Pending** – scheduled and the image is pulled.
+2. **Starting** – the app boots; the startup probe waits for it.
+3. **Ready** – the readiness probe passes and traffic arrives.
+4. **Terminating** – SIGTERM is sent and the pod leaves the load balancer.
+5. **Drain** – with server.shutdown=graceful Spring finishes active requests.
+6. **Exit** – beans are destroyed (@PreDestroy) and the process ends.
+7. **SIGKILL** – if the grace period runs out, the process is killed and open requests are cut.
+
+### Production Debugging Playbook
+
+Use thread dumps (jstack), heap dumps (MAT), GC logs and flame graphs to find hangs, leaks and slowness.
+
+> **Imagine:** Like a doctor: take the pulse (CPU), an X-ray (heap dump), and a video of the heartbeat (thread dumps over time).
+
+## Phase 9: Build It: Step-by-Step Implementations
 
 ### Build it – JWT login (register, login, protected API)
+
+> **Before you start:** these builds put together what Modules 5 to 8 teach: Core Java, databases, Spring and Hibernate, and Spring Boot. If a word below is new, go back to that module first, then return here.
 
 The most common backend task, built from zero. Follow the steps below in order: dependencies, settings, folders, then each file.
 
@@ -1361,835 +2192,6 @@ spring:
 ```
 
 **Remember:** cache DTOs (they must be serializable for Redis), not JPA entities; a call from inside the same class skips the cache (proxy rule); and expiry is your safety net against stale data.
-
-## Phase 6: Core Java & Servlet/JDBC
-
-### JVM Architecture
-
-Your .java file is compiled to bytecode. The JVM loads it, verifies it, and runs it. It first interprets, then the JIT compiler turns frequently used (hot) code into fast machine code.
-
-> **Imagine:** Bytecode is a recipe that any chef (JVM on any OS) can cook. The chef notices which dishes are ordered all day and prepares them in advance. That is JIT.
-
-#### Lifecycle diagram: JVM Execution Pipeline
-
-```diagram
-{"n":"A:Hello.java:0:0|B:javac:1:0|C:.class bytecode:2:0|D:Class loader:2:1|E:Interpreter:1:1|F:JIT compiler:0:1|G:!Machine code:0:2","e":"A>B|B>C:compile|C>D:load, verify|D>E:run|E>F:hot method|F>G:optimise"}
-```
-
-1. javac compiles source into platform-neutral bytecode.
-2. The class loader loads, verifies and initialises the class.
-3. The interpreter starts running immediately.
-4. Methods called often are marked hot.
-5. The JIT compiles hot methods into native code, so long-running apps speed up.
-
-### Java Memory Model
-
-Rules for when a change made by one thread becomes visible to another. Without them, threads may see stale values because of CPU caches and reordering.
-
-> **Imagine:** Two cooks each keep a private notepad. volatile or synchronized is like shouting the update across the whole kitchen so everyone rewrites their notes.
-
-### Object Internals & Primitives
-
-Every object has a hidden header plus its fields. Primitives (int) hold values; wrappers (Integer) are objects. Integer caches -128 to 127, so == can lie for bigger numbers.
-
-> **Imagine:** int is a number on a card. Integer is a box containing the card. == asks “is this the same box?”, equals() asks “is the card the same?”.
-
-#### Detailed explanation
-
-Boxing wraps a primitive in an object. The JVM caches boxes for -128 to 127, so == behaves differently for small and large values. This is a classic bug source.
-
-```java
-Integer a = 127, b = 127;
-System.out.println(a == b);      // true  (same cached box)
-Integer c = 128, d = 128;
-System.out.println(c == d);      // false (two different boxes)
-System.out.println(c.equals(d)); // true  (compare values)
-```
-
-| Type | Size | Default |
-| --- | --- | --- |
-| **byte** | 1 byte | 0 |
-| **int** | 4 bytes | 0 |
-| **long** | 8 bytes | 0L |
-| **double** | 8 bytes | 0.0 |
-| **boolean** | JVM-dependent | false |
-
-### Generics & Type Erasure
-
-Generics give compile-time type safety, but the types are erased at runtime. Wildcards (? extends, ? super) control what you may read or write.
-
-> **Imagine:** A box labelled “Apples” gets its label removed at the warehouse door. A basket marked ? extends Fruit lets you take fruit out but not put anything in.
-
-### Exception Architecture
-
-Checked exceptions must be handled; unchecked ones (RuntimeException) need not. Use try-with-resources to close things, and never swallow errors silently.
-
-> **Imagine:** Checked is a fire drill you must plan for. Unchecked is a surprise power cut. Swallowing an exception is pulling the batteries out of the smoke alarm.
-
-### Collections Internals
-
-ArrayList is a resizable array. HashMap uses hashCode to choose a bucket and equals to find the key inside it. Break the hashCode/equals contract and lookups fail.
-
-> **Imagine:** HashMap is a hotel with lockers. hashCode picks the corridor; equals finds your exact locker. Change your name after check-in and nobody can find your bag.
-
-#### Lifecycle diagram: HashMap put() Flow
-
-```diagram
-{"n":"K:put(k, v):0:0|H:hash(k):1:0|B:Bucket index:2:0|EM:Bucket empty?:2:1|EQ:equals() match?:1:1|RP:!Replace value:0:1|NW:!Add new node:2:2|RZ:Resize check:1:2","e":"K>H|H>B:spread bits|B>EM:hash & (n-1)|EM>NW:empty|EM>EQ:occupied|EQ>RP:same key|EQ>NW:different key|NW>RZ:over 75%?"}
-```
-
-1. **hash** – hashCode() is mixed so high bits also matter.
-2. **Index** – the bucket is chosen with hash & (length-1).
-3. **Empty bucket** – the new node is placed straight in.
-4. **Occupied** – every node in the bucket is compared with equals().
-5. **Same key** – only the value is replaced.
-6. **Different key** – the node is appended; a chain of 8 or more becomes a tree.
-7. **Resize** – above 75% full the table doubles and entries are re-spread.
-
-#### Detailed explanation
-
-put(key, value) computes hash(key), picks a bucket, and uses equals() to find an existing key. When a bucket gets long (8+ entries) it becomes a tree. The table doubles when it is 75% full. If you mutate a key after inserting it, its hash changes and the entry is lost.
-
-```java
-class UserKey {
-  final long id;
-  UserKey(long id) { this.id = id; }
-  @Override public boolean equals(Object o) {
-    return o instanceof UserKey u && u.id == id;
-  }
-  @Override public int hashCode() { return Long.hashCode(id); } // must match equals
-}
-Map<UserKey, String> m = new HashMap<>();
-m.put(new UserKey(1), "Asha");
-m.get(new UserKey(1)); // "Asha" only because equals+hashCode agree
-```
-
-| Structure | get | insert | Ordered? |
-| --- | --- | --- | --- |
-| **ArrayList** | O(1) by index | O(n) middle | insertion order |
-| **LinkedList** | O(n) | O(1) at ends | insertion order |
-| **HashMap** | O(1) average | O(1) average | no |
-| **TreeMap** | O(log n) | O(log n) | sorted by key |
-
-### I/O, NIO & Files
-
-Classic streams read byte by byte and block. NIO uses buffers and channels, and selectors let one thread watch many connections. Files and Path make file work simple.
-
-> **Imagine:** Streams are carrying water in one bucket at a time. NIO is a pipe system with many taps watched by a single plumber.
-
-### Concurrency: Threads & Locks
-
-Threads run tasks in parallel. Use ExecutorService for pools, locks and atomics to protect shared data, and avoid deadlocks.
-
-> **Imagine:** Two people meet in a narrow doorway, each saying “after you” forever. That is a deadlock. Fix: everybody agrees to use doors in the same order.
-
-#### Lifecycle diagram: Thread Lifecycle
-
-```diagram
-{"n":"N:NEW:0:1|R:RUNNABLE:1:1|BL:BLOCKED:2:0|W:WAITING:2:1|TW:TIMED_WAITING:2:2|TM:!TERMINATED:1:2","e":"N>R:start()|R>BL:needs lock|BL>R:got lock|R>W:wait() / join()|W>R:notify()|R>TW:sleep(ms)|TW>R:time up|R>TM:run() ends"}
-```
-
-1. **NEW** – created but not started.
-2. **RUNNABLE** – running or ready to run.
-3. **BLOCKED** – waiting for a synchronized lock held by another thread.
-4. **WAITING** – waits until another thread signals it.
-5. **TIMED_WAITING** – waits for a limited time.
-6. **TERMINATED** – finished; it cannot be restarted.
-
-#### Detailed explanation
-
-A deadlock happens when threads hold one lock each and wait for the other’s. The cure is a fixed lock order, or timeouts with tryLock. For everyday work, prefer a thread pool over raw threads.
-
-```java
-Object A = new Object(), B = new Object();
-// Thread 1
-synchronized (A) { synchronized (B) { /* work */ } }
-// Thread 2 - opposite order, can deadlock
-synchronized (B) { synchronized (A) { /* work */ } }
-// Fix: both threads lock A first, then B.
-```
-
-```java
-ExecutorService pool = Executors.newFixedThreadPool(4);
-Future<Integer> f = pool.submit(() -> 21 * 2);
-System.out.println(f.get()); // 42
-pool.shutdown();
-```
-
-### Classloading & Reflection
-
-Class loaders find and load classes on demand, asking their parent first. Reflection lets code inspect and call classes at runtime, which frameworks rely on.
-
-> **Imagine:** A new employee always asks their manager before deciding anything (parent delegation). Reflection is reading someone’s name badge and job title without being introduced.
-
-#### Lifecycle diagram: Class Loading Lifecycle
-
-```diagram
-{"n":"L:Loading:0:0|V:Verification:1:0|PR:Preparation:2:0|RS:Resolution:2:1|IN:Initialization:1:1|US:In use:0:1|UN:!Unloaded:0:2","e":"L>V:bytes become a Class|V>PR:bytecode is safe|PR>RS:statics get defaults|RS>IN:names become references|IN>US:static blocks ran|US>UN:loader is collected"}
-```
-
-1. **Loading** – a class loader asks its parent first, then reads the .class bytes.
-2. **Verification** – the JVM checks the bytecode is well formed and safe.
-3. **Preparation** – static fields get default values (0, null).
-4. **Resolution** – symbolic names turn into direct references.
-5. **Initialization** – static initializers run once, thread-safely. A failure here gives ExceptionInInitializerError.
-6. **Unloading** – only when the loader itself is garbage collected. A classic cause of leaks in redeployed apps.
-
-### Garbage Collection
-
-The JVM frees objects nobody references. Most objects die young, so memory is split into young and old regions. G1 and ZGC trade pauses for throughput.
-
-> **Imagine:** A restaurant cleaner clears tables guests have left. Fast-turnover tables (young) are cleaned often; long-stay tables (old) rarely.
-
-#### Lifecycle diagram: Object Lifecycle in GC
-
-```diagram
-{"n":"E:Eden (new):0:0|S:Survivor S0/S1:1:0|O:Old generation:2:0|R:!Reclaimed:1:1","e":"E>S:survives minor GC|S>S:age + 1|S>O:age limit|E>R:dead|O>R:major GC"}
-```
-
-1. new puts the object in Eden.
-2. A minor GC copies live objects to Survivor and frees the rest.
-3. Each survived GC raises the age.
-4. At the age limit the object is promoted to Old.
-5. A major or mixed GC cleans Old. Frequent full GCs signal a leak or undersized heap.
-
-### Streams & Lambdas
-
-A stream is a pipeline (filter, map, collect). Lambdas are short inline functions. Streams are lazy: nothing runs until a terminal step.
-
-> **Imagine:** A factory conveyor belt. You can set up all the machines, but nothing moves until someone presses “collect”.
-
-### java.time API
-
-Immutable, thread-safe date and time types replace Date and Calendar: LocalDate, Instant, ZonedDateTime.
-
-> **Imagine:** “Meet at 9 AM” is meaningless until you say Mumbai or New York. ZonedDateTime carries the city; LocalDateTime does not.
-
-### Serialization
-
-Turning an object into bytes and back. serialVersionUID checks version compatibility. Deserializing untrusted data is a security risk.
-
-> **Imagine:** Flat-pack furniture: you can ship it and rebuild it, but only with matching instructions (version). Never assemble a box from a stranger.
-
-### Servlet API & Lifecycle
-
-A servlet is a Java class that handles HTTP. The container creates one instance and calls service() on many threads, so it must not keep per-user data in fields.
-
-> **Imagine:** One receptionist (the servlet) served by many assistants (threads). If she writes a visitor’s name on her own desk, the next visitor sees it.
-
-#### Lifecycle diagram: Servlet Lifecycle
-
-```diagram
-{"n":"L:Load class:0:0|I:init():1:0|S:service():2:0|D:!destroy():3:0","e":"L>I:create 1 instance|I>S:ready|S>S:every request|S>D:shutdown"}
-```
-
-1. **Load** – the container loads the class and builds one instance.
-2. **init()** – runs once. Open shared resources here.
-3. **service()** – runs on a thread for every request and routes to doGet or doPost. Keep fields free of per-user data.
-4. **destroy()** – runs once at shutdown. Release resources.
-
-### Context, Filters, Listeners, Sessions
-
-Filters run before and after servlets (auth, logging). Listeners react to events. A session is server-side memory tied to a browser by the JSESSIONID cookie.
-
-> **Imagine:** A filter is airport security. A session is the wristband that tells staff you already checked in.
-
-### JSP, JSTL & Legacy Views
-
-JSP is HTML with Java inside that compiles to a servlet. JSTL tags replace messy scriptlets. It is legacy but still met in old systems.
-
-> **Imagine:** A letter template with blanks. The server fills the blanks, then posts it.
-
-### JDBC: Driver to Connection
-
-JDBC is the standard way Java talks to databases. A connection is expensive, so use a DataSource with a connection pool.
-
-> **Imagine:** Phoning a bank takes time to dial and verify you. A pool keeps a few lines open and lends them out.
-
-#### Lifecycle diagram: Connection Pool Lifecycle (HikariCP)
-
-```diagram
-{"n":"P:Pool (idle):0:0|B:Borrowed:1:0|U:Running SQL:2:0|R:close() called:2:1|V:Reset connection:1:1|E:!Evicted, replaced:0:2","e":"P>B:getConnection()|B>U:use|U>R:finished|R>V:rollback if open|V>P:idle again|P>E:maxLifetime reached"}
-```
-
-1. **Pool** – holds idle, already-open connections. If none is free, callers wait up to connectionTimeout and then get an exception.
-2. **Borrowed** – your code owns the connection, so keep this period short.
-3. **Running SQL** – statements and the transaction happen here.
-4. **close()** – does not close the socket. It hands the connection back.
-5. **Reset** – uncommitted work is rolled back and settings are restored.
-6. **Evicted** – past maxLifetime or idle timeout, the connection is closed and a fresh one is made. A leak is a borrow that never returns.
-
-### JDBC: Statements & Transactions
-
-Use PreparedStatement (stops SQL injection), batch many inserts, and commit or rollback as one unit.
-
-> **Imagine:** A bank transfer: debit and credit must both happen or neither. Otherwise money vanishes.
-
-#### Detailed explanation
-
-Never build SQL by joining strings: input like ' OR '1'='1 would rewrite the query (SQL injection). PreparedStatement sends values separately. Wrap related updates in one transaction.
-
-```sql
--- BAD: "SELECT * FROM users WHERE name = '" + input + "'"
--- GOOD: SELECT * FROM users WHERE name = ?
-```
-
-```java
-try (Connection c = ds.getConnection()) {
-  c.setAutoCommit(false);
-  try (PreparedStatement debit = c.prepareStatement(
-         "UPDATE account SET bal = bal - ? WHERE id = ?");
-       PreparedStatement credit = c.prepareStatement(
-         "UPDATE account SET bal = bal + ? WHERE id = ?")) {
-    debit.setBigDecimal(1, amt);  debit.setLong(2, from);  debit.executeUpdate();
-    credit.setBigDecimal(1, amt); credit.setLong(2, to);   credit.executeUpdate();
-    c.commit();
-  } catch (SQLException e) { c.rollback(); throw e; }
-}
-```
-
-## Phase 7: Relational Databases (PostgreSQL)
-
-### Relational Theory & Modeling
-
-Data lives in tables linked by keys. Normalization removes duplication so each fact is stored once.
-
-> **Imagine:** Don’t write the customer’s address on every order slip. Store it once and let orders point to it.
-
-### SQL DDL & Schema Objects
-
-CREATE and ALTER define tables, types and constraints (PRIMARY KEY, FOREIGN KEY, UNIQUE, CHECK). The database itself enforces your rules.
-
-### SELECT Mastery
-
-Joins combine tables, subqueries and CTEs break big queries into steps, and window functions calculate across rows without collapsing them.
-
-> **Imagine:** A bank statement’s running balance: every transaction row stays visible, yet each shows the total so far. That is a window function.
-
-### Indexing
-
-An index is a separate sorted structure that makes lookups fast. B-tree is the default; GIN, GiST and BRIN suit text, geometry and huge ordered data.
-
-> **Imagine:** A book’s index at the back: jump to the page instead of reading every page. But each new page means updating the index too.
-
-#### Detailed explanation
-
-Without an index PostgreSQL scans the whole table (Seq Scan). A matching index lets it jump straight to the rows. Indexes speed reads but slow writes and use disk, so add them for real query patterns only.
-
-```sql
-CREATE INDEX idx_orders_cust ON orders (customer_id);
-EXPLAIN ANALYZE SELECT * FROM orders WHERE customer_id = 42;
--- Index Scan using idx_orders_cust  (instead of Seq Scan)
-CREATE INDEX idx_open ON orders (created_at) WHERE status = 'OPEN'; -- partial index
-```
-
-| Index | Best for |
-| --- | --- |
-| **B-tree** | equality, ranges, sorting (default) |
-| **GIN** | arrays, JSONB, full-text search |
-| **GiST** | geometry, ranges, nearest-neighbour |
-| **BRIN** | huge tables stored in natural order, such as logs |
-
-### Transactions, MVCC & Isolation
-
-ACID keeps data correct. MVCC keeps several versions of a row so readers never block writers. Isolation levels choose how much concurrency anomaly you accept.
-
-> **Imagine:** Like Google Docs history: you read a snapshot while someone else writes a new version.
-
-#### Lifecycle diagram: MVCC Row Lifecycle (PostgreSQL)
-
-```diagram
-{"n":"I:INSERT, xmin set:0:0|L:Live version:1:0|U:UPDATE:2:0|NV:New version:2:1|OV:Old version, xmax set:1:1|DD:Dead tuple:1:2|VC:!VACUUM frees space:0:2","e":"I>L:commit|L>U:other tx|U>NV:writes new copy|U>OV:stamps old copy|OV>DD:no snapshot needs it|DD>VC:autovacuum"}
-```
-
-1. **Insert** – the row records the transaction that created it (xmin).
-2. **Live** – visible to snapshots taken after that commit.
-3. **Update** – a new row version is written.
-4. **Old version** – gets an xmax and stays visible to older snapshots.
-5. **Dead** – once no running transaction can see it, it is garbage.
-6. **VACUUM** – marks the space reusable. Without it tables bloat.
-
-#### Detailed explanation
-
-Isolation levels decide which anomalies you may see. In PostgreSQL, readers use a snapshot, so they never block writers.
-
-| Level | Dirty read | Non-repeatable read | Phantom |
-| --- | --- | --- | --- |
-| **Read Committed (default)** | No | Possible | Possible |
-| **Repeatable Read** | No | No | No (in PostgreSQL) |
-| **Serializable** | No | No | No, may abort and need a retry |
-
-```sql
-BEGIN ISOLATION LEVEL REPEATABLE READ;
-SELECT balance FROM account WHERE id = 1; -- sees one stable snapshot
-COMMIT;
-```
-
-### Query Planning & EXPLAIN
-
-The planner picks the cheapest way to run a query. EXPLAIN shows the plan, EXPLAIN ANALYZE shows what actually happened.
-
-> **Imagine:** A GPS choosing a route. EXPLAIN is the planned route; ANALYZE is the real trip with times.
-
-### Functions, Procedures & Triggers
-
-PL/pgSQL lets you put logic inside the database. Triggers run automatically on insert, update or delete.
-
-### Views & Materialized Views
-
-A view is a saved query. A materialized view stores the result for speed and must be refreshed.
-
-> **Imagine:** A view is a live window. A materialized view is a photograph: quick to look at, but it ages.
-
-### PostgreSQL Internals & VACUUM
-
-Updates leave old row versions behind. VACUUM cleans these dead rows so tables do not bloat.
-
-> **Imagine:** Old drafts pile up in a bin. VACUUM is the cleaner who empties it.
-
-### Performance Tuning
-
-Tune memory settings, keep statistics fresh, and watch slow queries with pg_stat_statements before changing anything.
-
-### Replication, HA & DR
-
-A primary sends changes to replicas for reads and failover. Backups plus WAL give point-in-time recovery.
-
-> **Imagine:** A twin notebook that copies every line you write. If yours burns, the twin takes over.
-
-### Security & Hardening
-
-Least-privilege roles, TLS, row-level security, and parameterised queries to stop injection.
-
-## Phase 8: Spring Core & Hibernate/JPA
-
-### Spring Philosophy & IoC
-
-Inversion of Control: the container creates and wires your objects instead of you using new everywhere.
-
-> **Imagine:** A restaurant manager hires cooks and hands them tools. Cooks do not shop for their own knives.
-
-#### Lifecycle diagram: Spring Bean Lifecycle
-
-```diagram
-{"n":"A:Instantiate:0:0|B:Inject deps:1:0|C:Aware callbacks:2:0|D:BPP before init:2:1|E:@PostConstruct:1:1|F:BPP after (proxy):0:1|G:!Ready to use:0:2|H:@PreDestroy:1:2|I:Destroyed:2:2","e":"A>B|B>C|C>D|D>E|E>F|F>G|G>H:context closes|H>I"}
-```
-
-1. **Instantiate** – the constructor runs.
-2. **Inject** – dependencies and values are set.
-3. **Aware callbacks** – the bean may receive its name or context.
-4. **BeanPostProcessor** – hooks before and after init.
-5. **@PostConstruct** – your start-up logic.
-6. **After-init processor** – this is where AOP and @Transactional proxies are created.
-7. **@PreDestroy** – cleanup on shutdown.
-
-### Dependency Injection & Autowiring
-
-Dependencies arrive via the constructor (preferred), setter or field. Use @Qualifier when several candidates exist. Avoid circular dependencies.
-
-> **Imagine:** A cook who must be handed a stove at hiring (constructor) cannot start work without one, which is exactly what you want.
-
-#### Detailed explanation
-
-Prefer constructor injection. Fields can be final, the object can never exist half-built, and tests can pass fakes without Spring.
-
-```java
-@Service
-public class OrderService {
-  private final PaymentGateway gateway;
-  public OrderService(PaymentGateway gateway) { // one constructor: @Autowired not needed
-    this.gateway = gateway;
-  }
-}
-```
-
-| Style | Verdict |
-| --- | --- |
-| **Constructor** | Immutable, testable, recommended |
-| **Setter** | Fine for optional dependencies |
-| **Field (@Autowired)** | Hides dependencies, hard to test |
-
-### AOP: Proxies & Pointcuts
-
-Spring wraps beans in proxies to add logging, security or transactions around methods. A call from inside the same class skips the proxy.
-
-> **Imagine:** A guard stands at the front door of the building. If you walk between rooms inside, you bypass the guard.
-
-#### Lifecycle diagram: Transaction Lifecycle (@Transactional)
-
-```diagram
-{"n":"C:Caller:0:0|P:Proxy:1:0|M:Your method:2:0|CM:!COMMIT:3:0|RB:!ROLLBACK:3:1","e":"C>P:call|P>M:BEGIN|M>CM:returns normally|M>RB:RuntimeException"}
-```
-
-1. **Caller** – an outside bean calls the method (self-calls skip the proxy).
-2. **Proxy** – gets a connection and begins the transaction.
-3. **Method** – runs your logic.
-4. **Commit** – on normal return.
-5. **Rollback** – on RuntimeException or Error by default; use rollbackFor for checked ones.
-
-### Spring MVC & DispatcherServlet
-
-One front controller receives every request, finds the matching handler, runs interceptors, calls your controller and converts the result to a response.
-
-> **Imagine:** The hotel front desk: every guest arrives there and is sent to the right department.
-
-#### Lifecycle diagram: Spring MVC Request Flow
-
-```diagram
-{"n":"C:Client:0:0|F:Filters:1:0|DS:DispatcherServlet:2:0|HM:HandlerMapping:2:1|I:Interceptors:1:1|CT:Controller:0:1|MC:Message converter:0:2|R:!JSON response:1:2","e":"C>F:HTTP request|F>DS|DS>HM:find handler|HM>I:preHandle|I>CT|CT>MC:return value|MC>R:serialize"}
-```
-
-1. **Filters** – servlet-level work such as security and logging.
-2. **DispatcherServlet** – the single front controller for all requests.
-3. **HandlerMapping** – matches URL and verb to a controller method.
-4. **Interceptors** – preHandle can block the request.
-5. **Controller** – your method runs; arguments are bound and validated.
-6. **Message converter** – Jackson turns the return object into JSON, sent back through the same layers.
-
-### Transaction Management
-
-@Transactional starts and ends transactions via proxies. Learn propagation (REQUIRED, REQUIRES_NEW) and note: rollback happens only for unchecked exceptions by default.
-
-> **Imagine:** Booking flight and hotel together. If the hotel fails, the flight must cancel, but only if the system notices the failure.
-
-#### Lifecycle diagram: Transaction Lifecycle (@Transactional)
-
-```diagram
-{"n":"C:Caller:0:0|P:Proxy:1:0|M:Your method:2:0|CM:!COMMIT:3:0|RB:!ROLLBACK:3:1","e":"C>P:call|P>M:BEGIN|M>CM:returns normally|M>RB:RuntimeException"}
-```
-
-1. **Caller** – an outside bean calls the method (self-calls skip the proxy).
-2. **Proxy** – gets a connection and begins the transaction.
-3. **Method** – runs your logic.
-4. **Commit** – on normal return.
-5. **Rollback** – on RuntimeException or Error by default; use rollbackFor for checked ones.
-
-#### Detailed explanation
-
-@Transactional works through a proxy. Calls from outside go through it; a call inside the same class does not. By default only unchecked exceptions cause rollback.
-
-```java
-@Service
-public class TransferService {
-  @Transactional(rollbackFor = Exception.class) // also roll back on checked exceptions
-  public void transfer(long from, long to, BigDecimal amt) { /* debit + credit */ }
-
-  public void batch() {
-    this.transfer(1, 2, BigDecimal.TEN); // BUG: self-call skips the proxy, no transaction
-  }
-}
-```
-
-| Propagation | Meaning |
-| --- | --- |
-| **REQUIRED** | join the current transaction or start one |
-| **REQUIRES_NEW** | pause the current one and start a fresh one |
-| **MANDATORY** | must already be inside one, else error |
-| **NEVER** | error if one exists |
-
-### Spring JDBC & JdbcTemplate
-
-JdbcTemplate removes connection and exception boilerplate while you still write plain SQL.
-
-### Hibernate Architecture & Session
-
-A Session tracks entities in a persistence context. Entity states: transient, managed, detached, removed. Hibernate spots changes (dirty checking) and writes them on flush.
-
-> **Imagine:** A shopping cart: you add and remove things freely, and the shop only processes it at checkout (flush).
-
-#### Lifecycle diagram: Hibernate Entity States
-
-```diagram
-{"n":"DB:Database:1:0|T:New / Transient:0:1|M:Managed:1:1|DT:Detached:2:1|RM:Removed:1:2|X:!Row deleted:2:2","e":"DB>M:find / query|T>M:persist()|M>DT:close / detach|DT>M:merge()|M>RM:remove()|RM>X:flush / commit"}
-```
-
-1. **Transient** – a plain object Hibernate knows nothing about.
-2. **Managed** – inside a Session; dirty checking writes changes at flush.
-3. **Detached** – the Session closed. Changes are ignored until merge().
-4. **Removed** – scheduled for DELETE; the row goes at flush or commit.
-
-#### Lifecycle diagram: Hibernate Flush & Commit Flow
-
-```sequence
-{"p":"A:Your code|S:Session|C:Persistence context|D:Database","m":"A>S:persist(order)|S>C:track entity + snapshot|A>S:order.setQty(5)|A>S:commit()|S>C:flush: dirty check|C>D:INSERT / UPDATE SQL|D>S:~rows written|S>D:COMMIT"}
-```
-
-1. persist() makes the entity Managed. With IDENTITY ids the INSERT may run at once.
-2. A copy of its loaded state is kept for comparison.
-3. Setters only change the object. No SQL yet.
-4. commit() (or a query in AUTO flush mode) triggers a flush.
-5. Dirty checking compares each entity with its snapshot.
-6. Changed entities become INSERT, UPDATE and DELETE statements.
-7. The database confirms the writes.
-8. Only then is the transaction committed.
-
-### Mapping: Entities & Relationships
-
-@Entity, @Id, @OneToMany, @ManyToOne and inheritance strategies map classes to tables. Keep the owning side clear.
-
-### Fetching, N+1 & Caching
-
-LAZY loads data when touched; EAGER loads upfront. The N+1 problem is one query plus N more. Fix with join fetch or entity graphs. Caches avoid repeat reads.
-
-> **Imagine:** You ask for 100 teachers, then make 100 separate trips to ask for each teacher’s students. One combined list would have been one trip.
-
-#### Detailed explanation
-
-With LAZY collections, looping over parents and touching each child collection fires one extra query per parent. Fetch together instead.
-
-```java
-// BAD: 1 query for teachers + N queries for students
-List<Teacher> ts = em.createQuery("select t from Teacher t", Teacher.class).getResultList();
-ts.forEach(t -> t.getStudents().size());
-
-// GOOD: one query
-em.createQuery("select distinct t from Teacher t join fetch t.students", Teacher.class)
-  .getResultList();
-```
-
-### JPQL, HQL, Criteria & Native SQL
-
-JPQL queries entities, Criteria builds queries in code, and native SQL is the escape hatch for database-specific features.
-
-### Locking & Versioning
-
-Optimistic locking uses a @Version column and fails on conflict. Pessimistic locking blocks others up front.
-
-> **Imagine:** Two editors open the same document. Optimistic: the second save is rejected because the version moved on. Pessimistic: the file is locked while the first edits.
-
-#### Detailed explanation
-
-Optimistic locking assumes conflicts are rare. Hibernate adds the version to each UPDATE and fails if the row has moved on. Pessimistic locking takes a database lock immediately.
-
-```java
-@Entity
-class Product {
-  @Id Long id;
-  @Version long version; // 5 -> 6 on each successful update
-  int stock;
-}
-// Two users load version 5. The first saves (becomes 6).
-// The second save throws OptimisticLockException: reload and retry.
-
-em.find(Product.class, 1L, LockModeType.PESSIMISTIC_WRITE); // SELECT ... FOR UPDATE
-```
-
-### Lifecycle Callbacks & Auditing
-
-@PrePersist, @PostLoad and listeners run on entity events. Auditing records who changed what and when; Envers keeps history.
-
-## Phase 9: Spring Boot & Enterprise REST
-
-### Boot Fundamentals & Auto-Configuration
-
-Starters bring dependencies; auto-configuration creates beans based on what is on the classpath and in your config.
-
-> **Imagine:** A furnished flat that rearranges itself depending on what you carry in. Add a database driver and it sets up a DataSource.
-
-#### Lifecycle diagram: Spring Boot Startup
-
-```diagram
-{"n":"A:main():0:0|B:run():1:0|C:Load config:2:0|D:Create context:2:1|E:Auto-config + scan:1:1|F:Create beans:0:1|G:Start Tomcat:0:2|H:Run runners:1:2|I:!Ready:2:2","e":"A>B|B>C:profiles, yml|C>D|D>E|E>F|F>G|G>H|H>I"}
-```
-
-1. main() calls SpringApplication.run.
-2. **Config** – application.yml, profiles and environment variables are loaded.
-3. The ApplicationContext is created.
-4. Component scan and auto-configuration register bean definitions.
-5. Singleton beans are built (see Bean Lifecycle).
-6. The embedded server starts on the port.
-7. CommandLineRunner beans run, then the app is ready.
-
-### Externalized Configuration
-
-application.yml, profiles and environment variables set values without rebuilding. @ConfigurationProperties binds them to typed classes.
-
-### Embedded Servers & Runtime Tuning
-
-Tomcat runs inside your jar. Tune thread pools, timeouts and keep-alive for real traffic.
-
-### Building Enterprise REST APIs
-
-Model resources, use correct verbs and status codes, paginate, version, and make writes idempotent so a retry is safe.
-
-> **Imagine:** Pressing the lift button twice should not call two lifts. PUT and DELETE behave that way.
-
-#### Detailed explanation
-
-Use the right verb and status code so clients know what happened.
-
-| Action | Verb and path | Success | Common errors |
-| --- | --- | --- | --- |
-| **List** | GET /orders | 200 | 401, 403 |
-| **Create** | POST /orders | 201 + Location | 400, 409 |
-| **Replace** | PUT /orders/7 | 200 or 204 | 404, 409 |
-| **Delete** | DELETE /orders/7 | 204 | 404 |
-
-```java
-@RestController @RequestMapping("/orders")
-class OrderController {
-  @PostMapping
-  ResponseEntity<Order> create(@Valid @RequestBody OrderDto d) {
-    Order o = service.create(d);
-    return ResponseEntity.created(URI.create("/orders/" + o.getId())).body(o);
-  }
-}
-```
-
-### Jackson Serialization
-
-Converts objects to JSON and back. Annotations control names and formats. Beware lazy entities and cyclic references.
-
-### Validation & Error Handling
-
-@Valid checks input, @ControllerAdvice handles errors in one place, and RFC 7807 gives errors a standard JSON shape.
-
-#### Detailed explanation
-
-Declare rules on the input, trigger them with @Valid, and translate failures into one consistent error shape in a single place.
-
-```java
-record OrderDto(@NotBlank String sku, @Min(1) int qty) {}
-
-@RestControllerAdvice
-class Errors {
-  @ExceptionHandler(MethodArgumentNotValidException.class)
-  ProblemDetail bad(MethodArgumentNotValidException e) {
-    return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Validation failed");
-  }
-}
-```
-
-### Observability
-
-Logs say what happened, metrics say how much, traces say where time went. Actuator exposes health and metrics.
-
-> **Imagine:** A car dashboard: speed (metrics), warning light (health), trip log (traces).
-
-### Testing Strategy
-
-Many fast unit tests, some slice tests (@WebMvcTest, @DataJpaTest), few end-to-end. Testcontainers runs a real database in tests.
-
-### Spring Security
-
-Authentication is who you are; authorization is what you may do. Requests pass a filter chain. Know JWT, OAuth2, CSRF and password hashing (BCrypt).
-
-> **Imagine:** Authentication is showing ID at the gate. Authorization is the badge that opens only some rooms.
-
-#### Lifecycle diagram: Spring Security Filter Flow
-
-```diagram
-{"n":"R:Request:0:0|F1:Auth filter (JWT):1:0|SC:SecurityContext:2:0|AZ:Authorization:2:1|CT:!Controller:1:1|E1:!401:0:1|E3:!403:2:2","e":"R>F1|F1>SC:token valid|F1>E1:invalid|SC>AZ|AZ>CT:allowed|AZ>E3:denied"}
-```
-
-1. The filter reads the token (Authorization header).
-2. Valid: the user is stored in the SecurityContext.
-3. Invalid or missing: 401 Unauthorized.
-4. The authorization rules check roles and paths.
-5. Allowed: the controller runs. Denied: 403 Forbidden.
-
-#### Lifecycle diagram: JWT Login & Request Flow
-
-```sequence
-{"p":"C:Client|F:Auth filter|S:Auth service|D:Database","m":"C>S:POST /login|S>D:load user|D>S:~stored BCrypt hash|S>S:hash matches?|S>C:~200 + signed JWT|C>F:GET /orders + Bearer token|F>F:check signature, expiry|F>C:~401 or continue to controller"}
-```
-
-1. **Login** – the client sends credentials once over HTTPS.
-2. The user and password hash are loaded.
-3. The hash is returned; the password is never stored in plain text.
-4. BCrypt compares the typed password with the hash.
-5. **Success** – a signed JWT with short expiry is returned.
-6. Every later call carries the token in the Authorization header.
-7. The filter verifies signature and expiry without touching the database.
-8. Invalid gives 401; valid fills the SecurityContext and the request goes on.
-
-#### Detailed explanation
-
-Every request passes the SecurityFilterChain. Below, public paths are open, everything else needs a valid JWT. Disabling CSRF is acceptable only for stateless token APIs, not for cookie sessions.
-
-```java
-@Bean
-SecurityFilterChain chain(HttpSecurity http) throws Exception {
-  return http
-    .csrf(c -> c.disable())
-    .authorizeHttpRequests(a -> a
-      .requestMatchers("/public/**").permitAll()
-      .anyRequest().authenticated())
-    .oauth2ResourceServer(o -> o.jwt(Customizer.withDefaults()))
-    .build();
-}
-```
-
-| Code | Meaning |
-| --- | --- |
-| **401** | not authenticated (who are you?) |
-| **403** | authenticated but not allowed |
-
-### Data Access: Repositories, Hikari, Migrations
-
-Spring Data repositories generate queries from method names. HikariCP pools connections. Flyway or Liquibase version your schema.
-
-#### Lifecycle diagram: Connection Pool Lifecycle (HikariCP)
-
-```diagram
-{"n":"P:Pool (idle):0:0|B:Borrowed:1:0|U:Running SQL:2:0|R:close() called:2:1|V:Reset connection:1:1|E:!Evicted, replaced:0:2","e":"P>B:getConnection()|B>U:use|U>R:finished|R>V:rollback if open|V>P:idle again|P>E:maxLifetime reached"}
-```
-
-1. **Pool** – holds idle, already-open connections. If none is free, callers wait up to connectionTimeout and then get an exception.
-2. **Borrowed** – your code owns the connection, so keep this period short.
-3. **Running SQL** – statements and the transaction happen here.
-4. **close()** – does not close the socket. It hands the connection back.
-5. **Reset** – uncommitted work is rolled back and settings are restored.
-6. **Evicted** – past maxLifetime or idle timeout, the connection is closed and a fresh one is made. A leak is a borrow that never returns.
-
-### Messaging & Async Processing
-
-Queues (Kafka, RabbitMQ) decouple services. The outbox pattern saves the event and data in one transaction.
-
-> **Imagine:** Drop a letter in a post box and walk away; the postal system delivers later, even if the receiver is out.
-
-#### Lifecycle diagram: Outbox & Event Flow (Kafka)
-
-```sequence
-{"p":"A:Service|D:Database|R:Relay|K:Kafka|C:Consumer","m":"A>D:BEGIN: save order + outbox row|A>D:COMMIT (both or neither)|R>D:poll unsent rows|R>K:publish event|K>R:~ack|R>D:mark row sent|K>C:deliver event|C>C:process idempotently"}
-```
-
-1. One local transaction writes the business row and an outbox row.
-2. Commit makes both visible together.
-3. A relay (poller or CDC) finds unsent events.
-4. It publishes them to the broker.
-5. Kafka acknowledges.
-6. The row is marked sent. A crash before this causes a duplicate.
-7. Consumers receive events at least once.
-8. So handlers must be idempotent, for example by checking an event id.
-
-### Caching & Scheduling
-
-@Cacheable stores results (Redis, Caffeine) with expiry. @Scheduled runs jobs; use a lock so only one instance runs it.
-
-### Deployment & Cloud-Native
-
-Package as a container, use health probes, shut down gracefully, and set JVM memory to respect container limits.
-
-#### Lifecycle diagram: Pod Lifecycle & Graceful Shutdown
-
-```diagram
-{"n":"P:Pending:0:0|S:Starting:1:0|RD:Ready:2:0|TR:Terminating (SIGTERM):2:1|DR:Drain requests:1:1|X:!Exit cleanly:0:1|K:!SIGKILL:0:2","e":"P>S:image pulled|S>RD:probes pass|RD>TR:deploy / scale-down|TR>DR:off Service|DR>X:work done|DR>K:grace period over"}
-```
-
-1. **Pending** – scheduled and the image is pulled.
-2. **Starting** – the app boots; the startup probe waits for it.
-3. **Ready** – the readiness probe passes and traffic arrives.
-4. **Terminating** – SIGTERM is sent and the pod leaves the load balancer.
-5. **Drain** – with server.shutdown=graceful Spring finishes active requests.
-6. **Exit** – beans are destroyed (@PreDestroy) and the process ends.
-7. **SIGKILL** – if the grace period runs out, the process is killed and open requests are cut.
-
-### Production Debugging Playbook
-
-Use thread dumps (jstack), heap dumps (MAT), GC logs and flame graphs to find hangs, leaks and slowness.
-
-> **Imagine:** Like a doctor: take the pulse (CPU), an X-ray (heap dump), and a video of the heartbeat (thread dumps over time).
 
 ## Phase 10: Appendices
 

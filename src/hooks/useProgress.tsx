@@ -34,6 +34,11 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const { course, data: courseData, meta } = useCourse()
   const PHASES = courseData.phases
+  // A module's number is its position; saved progress is stored under its stable key (they differ for modules that were reordered)
+  const keyOf = (id: number) => PHASES.find((p) => p.id === id)?.key ?? id
+  const idOf = (key: number) => PHASES.find((p) => (p.key ?? p.id) === key)?.id ?? key
+  const fromStored = (r: Record<number, Row>) => Object.fromEntries(Object.entries(r).map(([k, row]) => [idOf(+k), { ...row, phase_id: idOf(+k) }])) as Record<number, Row>
+  const toStored = (r: Record<number, Row>) => Object.fromEntries(Object.entries(r).map(([id, row]) => [keyOf(+id), { ...row, phase_id: keyOf(+id) }])) as Record<number, Row>
   const uid = user?.id ?? 'guest'
   const off = meta.off        // Supabase phase_id offset so the courses share one table (Java 201+, Rust 301+, PostgreSQL 401+: the module roadmaps, separate from the old phase-based ones)
   const sfx = meta.sfx   // localStorage suffix
@@ -43,7 +48,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   const [, bump] = useState(0)
 
   useEffect(() => {
-    setRows(load(`rows:${uid}${sfx}`, {}))
+    setRows(fromStored(load<Record<number, Row>>(`rows:${uid}${sfx}`, {})))
     setRead(load(`read:${uid}`, {}))
     const days = Array.from(new Set([...load<string[]>(`days:${uid}`, []), today()])).sort()
     save(`days:${uid}`, days)
@@ -54,7 +59,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       supabase.from('phase_progress').select('*').eq('user_id', user.id).then(({ data }) => {
         if (!data) return
         const r: Record<number, Row> = {}
-        data.filter((d) => (d.phase_id > off && d.phase_id <= off + 100)).forEach((d) => (r[d.phase_id - off] = { ...(d as Row), phase_id: d.phase_id - off }))
+        data.filter((d) => (d.phase_id > off && d.phase_id <= off + 100)).forEach((d) => { const id = idOf(d.phase_id - off); r[id] = { ...(d as Row), phase_id: id } })
         setRows((prev) => ({ ...prev, ...r }))
       })
     }
@@ -67,10 +72,10 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   )
 
   const lockedUntil = (id: number) => {
-    const u = load<number>(`lock:${uid}${sfx}:${id}`, 0)
+    const u = load<number>(`lock:${uid}${sfx}:${keyOf(id)}`, 0)
     return u > Date.now() ? u : 0
   }
-  const sessKey = (id: number) => `att:${uid}${sfx}:${id}`
+  const sessKey = (id: number) => `att:${uid}${sfx}:${keyOf(id)}`
   const attemptsLeft = (id: number) =>
     lockedUntil(id) ? 0 : MAX_ATTEMPTS - Number(sessionStorage.getItem(sessKey(id)) ?? 0)
 
@@ -78,7 +83,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     const passed = score >= PASS_THRESHOLD
     const n = Number(sessionStorage.getItem(sessKey(phaseId)) ?? 0) + 1
     if (!passed && n >= MAX_ATTEMPTS) {
-      save(`lock:${uid}${sfx}:${phaseId}`, Date.now() + LOCK_MS)
+      save(`lock:${uid}${sfx}:${keyOf(phaseId)}`, Date.now() + LOCK_MS)
       sessionStorage.removeItem(sessKey(phaseId))
     } else sessionStorage.setItem(sessKey(phaseId), String(passed ? 0 : n))
 
@@ -93,15 +98,15 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     }
     const all = { ...rows, [phaseId]: next }
     setRows(all)
-    save(`rows:${uid}${sfx}`, all)
+    save(`rows:${uid}${sfx}`, toStored(all))
     bump((x) => x + 1)
 
     if (supabase && user) {
-      const upserts: object[] = [{ user_id: user.id, ...next, phase_id: off + phaseId }]
+      const upserts: object[] = [{ user_id: user.id, ...next, phase_id: off + keyOf(phaseId) }]
       if (passed && PHASES.some((p) => p.id === phaseId + 1) && !rows[phaseId + 1])
-        upserts.push({ user_id: user.id, phase_id: off + phaseId + 1, status: 'in_progress', attempts: 0 })
+        upserts.push({ user_id: user.id, phase_id: off + keyOf(phaseId + 1), status: 'in_progress', attempts: 0 })
       await supabase.from('phase_progress').upsert(upserts, { onConflict: 'user_id,phase_id' })
-      await supabase.from('test_attempts').insert({ user_id: user.id, phase_id: off + phaseId, answers, score: pct, passed })
+      await supabase.from('test_attempts').insert({ user_id: user.id, phase_id: off + keyOf(phaseId), answers, score: pct, passed })
     }
     return passed
   }

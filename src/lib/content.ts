@@ -1,7 +1,7 @@
 import data from '../content.json'
 
 export type Section = { id: string; title: string; md: string }
-export type Phase = { id: number; title: string; sections: Section[] }
+export type Phase = { id: number; key?: number; title: string; sections: Section[] }   // id = position in the course; key = number saved progress is stored under (differs for reordered modules)
 export type TestCase = { input: string; output: string }
 export type LcQuestion = {
   n: number; title: string; lc: number; difficulty: string; target: string; category: string
