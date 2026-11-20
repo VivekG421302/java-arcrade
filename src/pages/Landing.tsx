@@ -27,7 +27,7 @@ export default function Landing() {
           const score = row(p.id)?.test_score
           const inner = (
             <>
-              <div className="min-w-0 flex-1">
+              <div className={`min-w-0 flex-1 ${st === 'locked' ? 'opacity-50' : ''}`}>   {/* only the title dims, never the chip */}
                 <p className="font-semibold">{unit} {p.id}: {p.title}</p>
                 {st === 'in_progress' && <div className="mt-2 max-w-xs"><ProgressBar pct={readPct(p)} label={`${unit} ${p.id} read progress`} /></div>}
               </div>
@@ -37,7 +37,7 @@ export default function Landing() {
           return (
             <li key={p.id}>
               {st === 'locked' ? (
-                <div data-tip={`Complete ${unit} ${p.id - 1} test to unlock`} data-tip-start="" className="group/row flex items-center gap-4 py-4 opacity-45">{inner}</div>
+                <div data-tip={`Complete ${unit} ${p.id - 1} test to unlock`} data-tip-start="" className="group/row flex items-center gap-4 py-4">{inner}</div>
               ) : (
                 <Link to={`/phase/${p.id}`} className="group/row flex items-center gap-4 py-4 hover:text-sky-500">{inner}</Link>
               )}

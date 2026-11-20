@@ -108,7 +108,7 @@ function TopBar({ onMenu, menuOpen, onToc, tocAvailable }: { onMenu: () => void;
   return (
     <header className={`relative z-30 flex h-14 shrink-0 items-center gap-1 px-2 ${ide.open ? '' : 'md:px-4'}`}>
       <button type="button" onClick={onMenu} data-menu-toggle="" aria-expanded={menuOpen} aria-controls="app-menu" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} {...tip(menuOpen ? 'Close menu' : 'Menu', 'menu')} data-tip-start="" className={btn}>{menuOpen ? <X size={20} aria-hidden /> : <Menu size={20} aria-hidden />}</button>
-      <Link to="/" aria-label="Home" data-tip="Home" className={btn}><Coffee size={18} aria-hidden /></Link>
+      <Link to="/" aria-label="Home" {...tip('Home', 'home')} className={btn}><Coffee size={18} aria-hidden /></Link>
       <div className="flex min-w-0 flex-1 justify-center"><CourseSwitcher /></div>
       <div className="flex items-center gap-1">
         {tocAvailable && <button type="button" onClick={onToc} aria-label="Contents of this phase" data-tip="Contents" className={btn}><ListTree size={20} aria-hidden /></button>}
@@ -278,6 +278,11 @@ export default function Layout() {
   useEffect(() => { if (!hash) scroller.current?.scrollTo(0, 0) }, [pathname, hash])
   useEffect(() => { setToc(false); if (overlay) setPop(false) }, [pathname, hash, search])   // picking something closes the overlay menu
   useEffect(() => { setPop(false) }, [overlay])
+  useEffect(() => {                                                                           // Alt+G: go Home
+    const h = (e: KeyboardEvent) => { if (matches(e, 'home')) { e.preventDefault(); nav('/') } }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [nav])
   useEffect(() => {                                                                           // Alt+O: switch course
     const h = (e: KeyboardEvent) => {
       if (!matches(e, 'course')) return

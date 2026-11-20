@@ -25,25 +25,25 @@ export function PhaseBadge({ status, score, pct = 0 }: { status: Status; score?:
   const done = status === 'completed'
   const read = status === 'locked' ? 0 : Math.max(0, Math.min(100, Math.round(pct)))
   const tint: Record<Status, string> = {
-    locked: 'bg-slate-500/15 text-slate-500',
+    locked: 'bg-slate-500/20 text-slate-600 dark:bg-slate-300/15 dark:text-slate-300',   // clearly visible in both themes
     in_progress: 'bg-sky-500/15 text-sky-500',
     completed: 'bg-emerald-500/15 text-emerald-500',
   }
-  // what the grown chip adds: the test score once completed, the read % while in progress, nothing when locked
-  const text = status === 'locked' ? '' : `${done && score != null ? Math.round(score) : read}%`
+  // what the grown chip adds: the test score once completed, the read % while in progress, the word Locked when locked
+  const text = status === 'locked' ? 'Locked' : `${done && score != null ? Math.round(score) : read}%`
   const label = status === 'locked' ? 'Locked' : done ? `Completed${score != null ? `, test score ${Math.round(score)}%` : ''}, ${read}% read` : `In progress, ${read}% read`
   const c = RING.size / 2
   return (
     <span role="img" aria-label={label} className={`pb inline-flex shrink-0 items-center rounded-full font-sans ${tint[status]}`}>
       <span aria-hidden className="relative grid place-items-center" style={{ width: RING.size, height: RING.size }}>
         <svg width={RING.size} height={RING.size} viewBox={`0 0 ${RING.size} ${RING.size}`} className="absolute inset-0 -rotate-90">
-          <circle cx={c} cy={c} r={RING_R} fill="none" stroke="currentColor" strokeOpacity={0.22} strokeWidth={RING.stroke} />
+          <circle cx={c} cy={c} r={RING_R} fill="none" stroke="currentColor" strokeOpacity={status === 'locked' ? 0.4 : 0.22} strokeWidth={RING.stroke} />
           {read > 0 && (
             <circle cx={c} cy={c} r={RING_R} fill="none" stroke="currentColor" strokeWidth={RING.stroke} strokeLinecap="round"
               strokeDasharray={`${(RING_C * read) / 100} ${RING_C}`} className="transition-[stroke-dasharray] duration-500 motion-reduce:transition-none" />
           )}
         </svg>
-        {status === 'locked' ? <Lock size={11} />
+        {status === 'locked' ? <Lock size={11} strokeWidth={2.5} />
           : done ? <Check size={13} strokeWidth={3} />
           : <>
               <span className="pb-num text-[8px] font-bold leading-none tabular-nums">{read}%</span>

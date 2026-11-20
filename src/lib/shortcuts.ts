@@ -1,7 +1,7 @@
 // One place for every keyboard shortcut. Matching uses e.code, so Alt+letter works on macOS too.
 export type ShortcutId =
   | 'ide' | 'menu' | 'run' | 'terminal' | 'hideApp' | 'next' | 'prev' | 'dock' | 'reset' | 'focus'
-  | 'solution' | 'leetcode' | 'appNarrower' | 'appWider' | 'termSmaller' | 'termBigger' | 'fontSmaller' | 'fontBigger' | 'wrap' | 'course'
+  | 'solution' | 'leetcode' | 'appNarrower' | 'appWider' | 'termSmaller' | 'termBigger' | 'fontSmaller' | 'fontBigger' | 'wrap' | 'course' | 'home'
 
 type Def = { code: string; alt?: boolean; mod?: boolean }
 const DEFS: Record<ShortcutId, Def> = {
@@ -25,6 +25,7 @@ const DEFS: Record<ShortcutId, Def> = {
   fontBigger: { code: 'Period', alt: true },
   wrap: { code: 'KeyW', alt: true },
   course: { code: 'KeyO', alt: true },
+  home: { code: 'KeyG', alt: true },   // Go home (Alt+H already hides the app)
 }
 const NAMES: Record<string, string> = { Enter: 'Enter', BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=', Comma: ',', Period: '.' }
 
@@ -55,6 +56,7 @@ export function editorKeys(): [string, string][] {
   const j = (...k: string[]) => k.join(isMac ? '' : '+')
   return [
     ['Run the program', keyLabel('run')],
+    ['Go to Home', keyLabel('home')],
     ['Move line up / down', j(alt, '↑') + ' / ' + j(alt, '↓')],
     ['Duplicate line up / down', j(shift, alt, '↑') + ' / ' + j(shift, alt, '↓')],
     ['Delete line', j(mod, shift, 'K')],
