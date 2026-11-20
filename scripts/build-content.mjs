@@ -29,11 +29,11 @@ const rowsOf = (body) =>
 
 /** One roadmap file -> phases, question list (Part 2), anti-patterns (Part 3), scenarios (Part 4). */
 /**
- * Java roadmap order changed (the "Build It" module moved from 5th to 9th, after Spring Boot). A module's number is its position,
+ * Java roadmap order changed (the "Build It" module moved from 5th to 9th, after Spring Boot; "Advanced Concurrency" was added as 10th). A module's number is its position,
  * but saved progress (read marks g5-s1.., test results, Supabase phase ids) was stored under the old numbers, so each module keeps
  * its original number as a storage `key`: new position -> old number. Everything not listed keeps its number.
  */
-const JAVA_KEYS = { 5: 6, 6: 7, 7: 8, 8: 9, 9: 5 }
+const JAVA_KEYS = { 5: 6, 6: 7, 7: 8, 8: 9, 9: 5, 10: 12, 11: 10, 12: 11 }
 
 function parseRoadmap(file, prefix, keys = {}) {
   const empty = { phases: [], base: [], antiPatterns: [], antiMatrix: [], scenarios: [], scenarioMatrix: [] }

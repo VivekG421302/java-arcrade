@@ -83,6 +83,13 @@ export const JAVA_TESTS: Record<number, TestQ[]> = {
     mcq('In PostgreSQL an UPDATE writes a new row version. What later removes the old one?', ['VACUUM', 'COMMIT', 'The client driver', 'EXPLAIN'], 0, 'Readers keep seeing the old version until nobody needs it.'),
     { type: 'code', q: 'After persist(), which of the four entity states is the order in (one word)?', lang: 'java', code: 'em.persist(order);   // order is now ___', accept: ['managed'], why: 'Hibernate tracks and saves changes only for managed entities; flush writes them to the database.' },
   ],
+  12: [
+    mcq('A ThreadPoolExecutor has core size 4, maximum size 8 and an unbounded queue. How many threads will it ever run?', ['4', '8', '12', 'As many as there are queued tasks'], 0, 'Extra threads start only when the queue is full. An unbounded queue never fills, so the maximum is never used.'),
+    mcq('What does a virtual thread do when it makes a blocking call, such as waiting for a socket?', ['It unmounts, and its carrier thread runs another virtual thread', 'It blocks its carrier thread until the data arrives', 'It turns into a platform thread', 'It keeps spinning until the data arrives'], 0, 'Parking releases the carrier, which is why one small pool of real threads can serve huge numbers of waiting tasks.'),
+    mcq('From which Java version does blocking inside a synchronized block no longer pin a virtual thread?', ['Java 17', 'Java 21', 'Java 24', 'Java 8'], 2, 'JEP 491 delivered this in Java 24. Native code can still pin, and the JFR event jdk.VirtualThreadPinned shows it.'),
+    mcq('Thousands of virtual threads call a payment service that allows only 50 calls at a time. What is the right way to limit them?', ['A Semaphore with 50 permits', 'A pool of 50 virtual threads', 'Make every call synchronized', 'A volatile counter'], 0, 'Virtual threads are not pooled. A Semaphore limits concurrency, and a waiting virtual thread is cheap.'),
+    { type: 'code', q: 'Which CompletableFuture method flattens a step that itself returns a future (one word)?', lang: 'java', code: 'CompletableFuture<Integer> score = user.___(\n    u -> CompletableFuture.supplyAsync(() -> fetchScore(u), io));', accept: ['thencompose'], why: 'thenApply would give a future inside a future. thenCompose unwraps it into one future.' },
+  ],
 }
 
 export const RUST_TESTS: Record<number, TestQ[]> = {
