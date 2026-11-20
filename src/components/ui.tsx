@@ -11,46 +11,50 @@ export function ProgressBar({ pct, label }: { pct: number; label?: string }) {
   )
 }
 
-const RING = { size: 30, stroke: 2.75 }
+const RING = { size: 24, stroke: 2.25 }
 const RING_R = (RING.size - RING.stroke) / 2
 const RING_C = 2 * Math.PI * RING_R
 
 /**
- * Status of a module. Wide lists: a chip with its text ("Completed · 100%", "In progress · 45%").
- * Narrow lists (decided by the width of the list, see .badge-box in index.css): a small circle that takes almost no width. A ring around its border always shows how much is read, starting at
- * the top (12 o'clock), and the middle shows the % - or a tick once completed (the ring still shows the progress), or a lock.
+ * Status of a module as one small chip: a progress ring that starts at the top and always shows how much is read, with a
+ * % (in progress), a tick (completed) or a lock inside. The icons say the status, so no status words are used.
+ * In a wide list on a device with hover, hovering the row grows the chip to also show the %, for new users (see .pb-text in
+ * index.css). On phones, tablets and narrow panels it never grows, so it takes no extra width.
  */
 export function PhaseBadge({ status, score, pct = 0 }: { status: Status; score?: number | null; pct?: number }) {
   const done = status === 'completed'
   const read = status === 'locked' ? 0 : Math.max(0, Math.min(100, Math.round(pct)))
-  const m: Record<Status, [LucideIcon, string, string, string]> = {
-    locked: [Lock, 'Locked', 'bg-slate-500/15 text-slate-500', 'text-slate-500'],
-    in_progress: [RefreshCw, `In progress · ${read}%`, 'bg-sky-500/15 text-sky-500', 'text-sky-500'],
-    completed: [CheckCircle2, score != null ? `Completed · ${score}%` : 'Completed', 'bg-emerald-500/15 text-emerald-500', 'text-emerald-500'],
+  const tint: Record<Status, string> = {
+    locked: 'bg-slate-500/15 text-slate-500',
+    in_progress: 'bg-sky-500/15 text-sky-500',
+    completed: 'bg-emerald-500/15 text-emerald-500',
   }
-  const [Icon, label, chip, tone] = m[status]
-  const full = done ? `${label}, ${read}% read` : label
+  // what the grown chip adds: the test score once completed, the read % while in progress, nothing when locked
+  const text = status === 'locked' ? '' : `${done && score != null ? Math.round(score) : read}%`
+  const label = status === 'locked' ? 'Locked' : done ? `Completed${score != null ? `, test score ${Math.round(score)}%` : ''}, ${read}% read` : `In progress, ${read}% read`
+  const c = RING.size / 2
   return (
-    <span role="img" aria-label={full} title={full} className="inline-flex shrink-0">
-      {/* narrow list (phone, or the side panel next to the IDE): ring + % (or tick / lock) */}
-      <span aria-hidden className={`pb-ring relative place-items-center ${tone}`} style={{ width: RING.size, height: RING.size }}>
+    <span role="img" aria-label={label} className={`pb inline-flex shrink-0 items-center rounded-full font-sans ${tint[status]}`}>
+      <span aria-hidden className="relative grid place-items-center" style={{ width: RING.size, height: RING.size }}>
         <svg width={RING.size} height={RING.size} viewBox={`0 0 ${RING.size} ${RING.size}`} className="absolute inset-0 -rotate-90">
-          <circle cx={RING.size / 2} cy={RING.size / 2} r={RING_R} fill="none" stroke="currentColor" strokeOpacity={0.2} strokeWidth={RING.stroke} />
+          <circle cx={c} cy={c} r={RING_R} fill="none" stroke="currentColor" strokeOpacity={0.22} strokeWidth={RING.stroke} />
           {read > 0 && (
-            <circle cx={RING.size / 2} cy={RING.size / 2} r={RING_R} fill="none" stroke="currentColor" strokeWidth={RING.stroke} strokeLinecap="round"
+            <circle cx={c} cy={c} r={RING_R} fill="none" stroke="currentColor" strokeWidth={RING.stroke} strokeLinecap="round"
               strokeDasharray={`${(RING_C * read) / 100} ${RING_C}`} className="transition-[stroke-dasharray] duration-500 motion-reduce:transition-none" />
           )}
         </svg>
-        {status === 'locked' ? <Lock size={12} />
-          : done ? null
-          : <span className="font-sans text-[9px] font-bold leading-none tabular-nums">{read}%</span>}
-        {done && <Check size={14} strokeWidth={3} />}
+        {status === 'locked' ? <Lock size={11} />
+          : done ? <Check size={13} strokeWidth={3} />
+          : <>
+              <span className="pb-num text-[8px] font-bold leading-none tabular-nums">{read}%</span>
+              <RefreshCw size={11} className="pb-ico" />
+            </>}
       </span>
-      {/* wide list: icon + text */}
-      <span aria-hidden className={`pb-chip items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 font-sans text-xs font-medium ${chip}`}>
-        <Icon size={14} />
-        {label}
-      </span>
+      {text && (
+        <span aria-hidden className="pb-text">
+          <span className="text-xs font-semibold tabular-nums">{text}</span>
+        </span>
+      )}
     </span>
   )
 }

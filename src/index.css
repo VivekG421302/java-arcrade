@@ -182,11 +182,18 @@ html:not(.dark) .ide-code .token.attr-name, html:not(.dark) .ide-code .token.pro
 @keyframes ide-blink { to { visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .ide-caret { animation: none; } }
 
-/* module status badge: a text chip in a wide list, a small progress ring in a narrow one (phones and the side panel next to the IDE) */
+/* module status badge (PhaseBadge): a small progress ring. In a wide list on a device that can hover, hovering the row (or the chip)
+   grows it to show the %; in a narrow list (phone, side panel next to the IDE) or without hover it never grows. */
 .badge-box { container-type: inline-size; }
-.pb-ring { display: none; }
-.pb-chip { display: inline-flex; }
-@container (max-width: 520px) {
-  .pb-ring { display: grid; }
-  .pb-chip { display: none; }
+.pb-text { display: grid; grid-template-columns: 0fr; transition: grid-template-columns 0.3s ease-out, margin 0.3s ease-out; }
+.pb-text > span { overflow: hidden; white-space: nowrap; opacity: 0; transition: opacity 0.3s ease-out; }
+.pb-ico { display: none; }
+@container (min-width: 521px) {
+  @media (hover: hover) {
+    .group\/row:hover .pb-text, .pb:hover .pb-text { grid-template-columns: 1fr; margin: 0 9px 0 3px; }
+    .group\/row:hover .pb-text > span, .pb:hover .pb-text > span { opacity: 1; }
+    .group\/row:hover .pb-num, .pb:hover .pb-num { display: none; }   /* the number moves out to the grown chip... */
+    .group\/row:hover .pb-ico, .pb:hover .pb-ico { display: block; }  /* ...and the sync icon takes its place inside the ring */
+  }
 }
+@media (prefers-reduced-motion: reduce) { .pb-text, .pb-text > span { transition: none; } }
