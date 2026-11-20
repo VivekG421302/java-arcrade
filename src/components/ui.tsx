@@ -16,8 +16,8 @@ const RING_R = (RING.size - RING.stroke) / 2
 const RING_C = 2 * Math.PI * RING_R
 
 /**
- * Status of a module as one small chip: a progress ring that starts at the top and always shows how much is read, with a
- * % (in progress), a tick (completed) or a lock inside. The icons say the status, so no status words are used.
+ * Status of a module as one small chip: a progress ring that starts at the top, with a % (in progress), a tick (completed) or a
+ * lock inside. The ring always draws the same number the chip shows (read % while in progress, test score once completed). The icons say the status, so no status words are used.
  * In a wide list on a device with hover, hovering the row grows the chip to also show the %, for new users (see .pb-text in
  * index.css). On phones, tablets and narrow panels it never grows, so it takes no extra width.
  */
@@ -29,24 +29,25 @@ export function PhaseBadge({ status, score, pct = 0 }: { status: Status; score?:
     in_progress: 'bg-sky-500/15 text-sky-500',
     completed: 'bg-emerald-500/15 text-emerald-500',
   }
-  // what the grown chip adds: the test score once completed, the read % while in progress, the word Locked when locked
-  const text = status === 'locked' ? 'Locked' : `${done && score != null ? Math.round(score) : read}%`
-  const label = status === 'locked' ? 'Locked' : done ? `Completed${score != null ? `, test score ${Math.round(score)}%` : ''}, ${read}% read` : `In progress, ${read}% read`
+  // ONE number per chip, and the ring draws exactly that number: the test score once completed, the read % while in progress
+  const shown = status === 'locked' ? 0 : done ? Math.max(0, Math.min(100, Math.round(score ?? 100))) : read
+  const text = status === 'locked' ? 'Locked' : `${shown}%`
+  const label = status === 'locked' ? 'Locked' : done ? `Completed, test score ${shown}%, ${read}% read` : `In progress, ${read}% read`
   const c = RING.size / 2
   return (
     <span role="img" aria-label={label} className={`pb inline-flex shrink-0 items-center rounded-full font-sans ${tint[status]}`}>
       <span aria-hidden className="relative grid place-items-center" style={{ width: RING.size, height: RING.size }}>
         <svg width={RING.size} height={RING.size} viewBox={`0 0 ${RING.size} ${RING.size}`} className="absolute inset-0 -rotate-90">
           <circle cx={c} cy={c} r={RING_R} fill="none" stroke="currentColor" strokeOpacity={status === 'locked' ? 0.4 : 0.22} strokeWidth={RING.stroke} />
-          {read > 0 && (
+          {shown > 0 && (
             <circle cx={c} cy={c} r={RING_R} fill="none" stroke="currentColor" strokeWidth={RING.stroke} strokeLinecap="round"
-              strokeDasharray={`${(RING_C * read) / 100} ${RING_C}`} className="transition-[stroke-dasharray] duration-500 motion-reduce:transition-none" />
+              strokeDasharray={`${(RING_C * shown) / 100} ${RING_C}`} className="transition-[stroke-dasharray] duration-500 motion-reduce:transition-none" />
           )}
         </svg>
         {status === 'locked' ? <Lock size={11} strokeWidth={2.5} />
           : done ? <Check size={13} strokeWidth={3} />
           : <>
-              <span className="pb-num text-[8px] font-bold leading-none tabular-nums">{read}%</span>
+              <span className="pb-num text-[8px] font-bold leading-none tabular-nums">{shown}%</span>
               <RefreshCw size={11} className="pb-ico" />
             </>}
       </span>
