@@ -1,0 +1,61 @@
+id: m10-completable-future
+module: 10
+after: 7
+title: Combine two async calls, with a fallback
+level: Medium
+@@ task
+`price()` and `rate()` each run in the background and return a `CompletableFuture<Double>`.
+
+1. `total()`: start both, **combine** their results when both are ready (`price * rate`), and format it as `Total: 236.00`. Do not block with `get()` or `join()` inside it.
+2. `withFallback(f)`: return a future that gives `-1` if `f` failed, or `f`'s own value if it worked.
+@@ hint
+`price().thenCombine(rate(), (p, r) -> p * r).thenApply(t -> String.format("Total: %.2f", t))`. For the fallback: `f.exceptionally(e -> -1)`.
+@@ expect
+Total: 236.00
+-1
+5
+@@ starter
+import java.util.concurrent.*;
+
+public class Main {
+    static CompletableFuture<Double> price() { return CompletableFuture.supplyAsync(() -> 200.0); }
+    static CompletableFuture<Double> rate()  { return CompletableFuture.supplyAsync(() -> 1.18); }
+
+    static CompletableFuture<String> total() {
+        // TODO: thenCombine(price * rate), then thenApply to format "Total: %.2f"
+        return CompletableFuture.completedFuture("");
+    }
+
+    static CompletableFuture<Integer> withFallback(CompletableFuture<Integer> f) {
+        // TODO: give -1 when f fails (exceptionally)
+        return f;
+    }
+
+    public static void main(String[] args) throws Exception {
+        System.out.println(total().get());                                                                  // Total: 236.00
+        System.out.println(withFallback(CompletableFuture.failedFuture(new RuntimeException("boom"))).get());   // -1
+        System.out.println(withFallback(CompletableFuture.completedFuture(5)).get());                           // 5
+    }
+}
+@@ solution
+import java.util.concurrent.*;
+
+public class Main {
+    static CompletableFuture<Double> price() { return CompletableFuture.supplyAsync(() -> 200.0); }
+    static CompletableFuture<Double> rate()  { return CompletableFuture.supplyAsync(() -> 1.18); }
+
+    static CompletableFuture<String> total() {
+        return price().thenCombine(rate(), (p, r) -> p * r)
+                      .thenApply(t -> String.format("Total: %.2f", t));
+    }
+
+    static CompletableFuture<Integer> withFallback(CompletableFuture<Integer> f) {
+        return f.exceptionally(e -> -1);
+    }
+
+    public static void main(String[] args) throws Exception {
+        System.out.println(total().get());                                                                  // Total: 236.00
+        System.out.println(withFallback(CompletableFuture.failedFuture(new RuntimeException("boom"))).get());   // -1
+        System.out.println(withFallback(CompletableFuture.completedFuture(5)).get());                           // 5
+    }
+}

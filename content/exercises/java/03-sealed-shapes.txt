@@ -1,0 +1,48 @@
+id: m2-sealed-shapes
+module: 2
+after: 11
+title: Sealed shapes and pattern matching
+level: Medium
+@@ task
+A **sealed** interface lists exactly which types may implement it (final in Java 17), and `instanceof` can test and cast in one step (Java 16).
+
+`Shape` is sealed with two records, `Circle(double r)` and `Square(double side)`.
+Write `area(Shape s)` using `instanceof` patterns (`s instanceof Circle c`) and return the area. A circle is `Math.PI * r * r`.
+@@ hint
+`if (s instanceof Circle c) return Math.PI * c.r() * c.r();` then do the same for `Square`. The last `throw` is only there because the compiler cannot see the interface is sealed inside an `if` chain.
+@@ expect
+78.54
+16.00
+@@ starter
+public class Main {
+    sealed interface Shape permits Circle, Square {}
+    record Circle(double r) implements Shape {}
+    record Square(double side) implements Shape {}
+
+    static double area(Shape s) {
+        // TODO: use instanceof patterns for Circle and Square
+        throw new IllegalArgumentException("unknown shape");
+    }
+
+    public static void main(String[] args) {
+        System.out.println(String.format("%.2f", area(new Circle(5))));   // 78.54
+        System.out.println(String.format("%.2f", area(new Square(4))));   // 16.00
+    }
+}
+@@ solution
+public class Main {
+    sealed interface Shape permits Circle, Square {}
+    record Circle(double r) implements Shape {}
+    record Square(double side) implements Shape {}
+
+    static double area(Shape s) {
+        if (s instanceof Circle c) return Math.PI * c.r() * c.r();
+        if (s instanceof Square q) return q.side() * q.side();
+        throw new IllegalArgumentException("unknown shape");
+    }
+
+    public static void main(String[] args) {
+        System.out.println(String.format("%.2f", area(new Circle(5))));   // 78.54
+        System.out.println(String.format("%.2f", area(new Square(4))));   // 16.00
+    }
+}

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useCourse } from './useCourse'
 import { usePersisted } from './usePersisted'
+import { exercisesOf } from '../lib/exercises'
 
 export type Dock = 'bottom' | 'right' | 'top' | 'left'
 
@@ -9,6 +10,8 @@ export const DEFAULTS = { phoneW: 400, termH: 240, termW: 380 }
 type Ctx = {
   open: boolean
   qn: number | null          // question being practised (null = scratch pad)
+  exId: string | null        // roadmap exercise being practised (wins over qn)
+  openExercise: (id: string) => void
   hidden: boolean            // the phone-sized UI is slid out of view
   dock: Dock                 // where the terminal sits
   termOpen: boolean
@@ -42,10 +45,11 @@ const put = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch
 const num = (k: string, d: number) => { const v = Number(get(k)); return v > 0 ? v : d }
 
 export function IdeProvider({ children }: { children: ReactNode }) {
-  const { data, meta } = useCourse()
+  const { data, meta, course } = useCourse()
   const [openSaved, setOpen] = usePersisted('ide:open', false)
   const open = openSaved && meta.ide   // courses without a runnable IDE (SQL) never show it, but the saved choice is kept for the others
   const [qn, setQn] = usePersisted<number | null>('ide:qn', null)
+  const [exId, setExId] = usePersisted<string | null>('ide:ex', null)
   const [hidden, setHidden] = usePersisted('ide:hidden', false)
   const [dock, setDockState] = useState<Dock>((get('ide:dock') as Dock) || 'bottom')
   const [termOpen, setTermOpen] = usePersisted('ide:termOpen', true)
@@ -58,10 +62,16 @@ export function IdeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { if (!open && hidden) setHidden(false) }, [open, hidden, setHidden])   // closing the IDE (button, Alt+I, Esc) must never leave the app hidden or inert
 
-  const openFor = useCallback((n: number | null) => { setQn(n); setOpen(true) }, [setQn, setOpen])
+  const openFor = useCallback((n: number | null) => { setExId(null); setQn(n); setOpen(true) }, [setExId, setQn, setOpen])
+  const openExercise = useCallback((id: string) => { setExId(id); setOpen(true) }, [setExId, setOpen])
   const go = useCallback((delta: number) => {
+    if (exId) {   // an exercise is open: step through the exercises of this course
+      const list = exercisesOf(course)
+      const at = list.findIndex((e) => e.id === exId)
+      if (at >= 0) { setExId(list[Math.min(list.length - 1, Math.max(0, at + delta))].id); return }
+    }
     setQn((cur) => Math.min(data.questions.length, Math.max(1, (cur ?? (delta > 0 ? 0 : 2)) + delta)))
-  }, [setQn, data.questions.length])
+  }, [exId, course, setExId, setQn, data.questions.length])
   const setDock = useCallback((d: Dock) => { setDockState(d); put('ide:dock', d) }, [])
   const setPhoneW = useCallback((n: number) => { setPhone(n); put('ide:phoneW', String(Math.round(n))) }, [])
   const setTermSize = useCallback((axis: 'h' | 'w', n: number) => {
@@ -69,7 +79,7 @@ export function IdeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<Ctx>(() => ({
-    open, qn, hidden, dock, termOpen, phoneW, termH, termW, fontSize, wrap, setFontSize, setWrap, autoTerm, setAutoTerm,
+    open, qn, exId, openExercise, hidden, dock, termOpen, phoneW, termH, termW, fontSize, wrap, setFontSize, setWrap, autoTerm, setAutoTerm,
     openFor, go, setDock, setTermOpen, setPhoneW, setTermSize,
     toggle: () => { if (open) { setOpen(false); setHidden(false) } else setOpen(true) },
     toggleSmart: (narrow: boolean) => { if (narrow && open && !hidden) setHidden(true); else if (open) { setOpen(false); setHidden(false) } else setOpen(true) },
@@ -77,7 +87,7 @@ export function IdeProvider({ children }: { children: ReactNode }) {
     close: () => { setOpen(false); setHidden(false) },
     toggleHidden: () => setHidden((h) => !h),
     toggleTerm: () => setTermOpen((t) => !t),
-  }), [open, qn, hidden, dock, termOpen, phoneW, termH, termW, fontSize, wrap, autoTerm, setAutoTerm, setFontSize, setWrap, setOpen, setQn, setHidden, setTermOpen, openFor, go, setDock, setPhoneW, setTermSize])
+  }), [open, qn, exId, openExercise, hidden, dock, termOpen, phoneW, termH, termW, fontSize, wrap, autoTerm, setAutoTerm, setFontSize, setWrap, setOpen, setQn, setHidden, setTermOpen, openFor, go, setDock, setPhoneW, setTermSize])
   return <C.Provider value={value}>{children}</C.Provider>
 }
 export const useIde = () => useContext(C)

@@ -1,0 +1,57 @@
+id: m10-thread-pool
+module: 10
+after: 6
+title: Sum of squares on a thread pool
+level: Medium
+@@ task
+Write `sumOfSquares(n)`: add up `1*1 + 2*2 + ... + n*n`, but compute each square as a separate task on a fixed pool of 4 threads.
+
+Submit all tasks, collect the answers from the `Future`s, and **shut the pool down** before returning (a pool that is never shut down keeps the program alive).
+@@ hint
+Build a `List<Callable<Long>>`, call `pool.invokeAll(tasks)`, then `future.get()` for each and add them up. Put `pool.shutdown()` in a `finally`.
+@@ expect
+385
+338350
+@@ starter
+import java.util.*;
+import java.util.concurrent.*;
+
+public class Main {
+    static long sumOfSquares(int n) throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        // TODO: one Callable per number, invokeAll, add the Future results, shutdown the pool
+        pool.shutdown();
+        return 0;
+    }
+
+    public static void main(String[] args) throws Exception {
+        System.out.println(sumOfSquares(10));    // 385
+        System.out.println(sumOfSquares(100));   // 338350
+    }
+}
+@@ solution
+import java.util.*;
+import java.util.concurrent.*;
+
+public class Main {
+    static long sumOfSquares(int n) throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        try {
+            List<Callable<Long>> tasks = new ArrayList<>();
+            for (int i = 1; i <= n; i++) {
+                final long x = i;
+                tasks.add(() -> x * x);
+            }
+            long sum = 0;
+            for (Future<Long> f : pool.invokeAll(tasks)) sum += f.get();
+            return sum;
+        } finally {
+            pool.shutdown();
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        System.out.println(sumOfSquares(10));    // 385
+        System.out.println(sumOfSquares(100));   // 338350
+    }
+}

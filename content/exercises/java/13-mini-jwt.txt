@@ -1,0 +1,95 @@
+id: m9-mini-jwt
+module: 9
+after: 1
+title: Sign and verify a token by hand
+level: Hard
+@@ task
+A JWT is three Base64URL parts joined by dots: `header.payload.signature`. The signature is an HMAC-SHA256 of `header.payload` with a secret key.
+
+Write:
+- `sign(payloadJson, secret)`: returns the token. The header is always `{"alg":"HS256","typ":"JWT"}`. Use Base64URL **without padding**.
+- `verify(token, secret)`: returns `true` only if the signature matches the first two parts. A token whose payload was edited must fail.
+@@ hint
+`Mac mac = Mac.getInstance("HmacSHA256"); mac.init(new SecretKeySpec(secret.getBytes(UTF_8), "HmacSHA256")); byte[] sig = mac.doFinal(data.getBytes(UTF_8));` and `Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)`. To verify, sign the first two parts again and compare with `MessageDigest.isEqual` (constant-time).
+@@ expect
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ2aXZlayJ9.3D6m35WJoD4dfIGcrBO5lMCTn4XdeXin1-CjEac60Ls
+true
+false
+false
+@@ starter
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
+public class Main {
+    static final String HEADER = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
+
+    static String b64(byte[] bytes) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    static String sign(String payloadJson, String secret) throws Exception {
+        // TODO: b64(header) + "." + b64(payload) + "." + b64(HMAC-SHA256 of the first two parts)
+        return "";
+    }
+
+    static boolean verify(String token, String secret) throws Exception {
+        // TODO: sign the first two parts again and compare with the third (use MessageDigest.isEqual)
+        return false;
+    }
+
+    public static void main(String[] args) throws Exception {
+        String token = sign("{\"sub\":\"vivek\"}", "s3cret");
+        System.out.println(token);
+        System.out.println(verify(token, "s3cret"));     // true
+        System.out.println(verify(token, "wrong"));      // false (wrong key)
+        String[] p = token.split("\\.");
+        String forged = p[0] + "." + b64("{\"sub\":\"admin\"}".getBytes(StandardCharsets.UTF_8)) + "." + p[2];
+        System.out.println(verify(forged, "s3cret"));    // false (payload was edited)
+    }
+}
+@@ solution
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
+public class Main {
+    static final String HEADER = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
+
+    static String b64(byte[] bytes) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    static String hmac(String data, String secret) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        return b64(mac.doFinal(data.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    static String sign(String payloadJson, String secret) throws Exception {
+        String head = b64(HEADER.getBytes(StandardCharsets.UTF_8));
+        String body = b64(payloadJson.getBytes(StandardCharsets.UTF_8));
+        return head + "." + body + "." + hmac(head + "." + body, secret);
+    }
+
+    static boolean verify(String token, String secret) throws Exception {
+        String[] parts = token.split("\\.");
+        if (parts.length != 3) return false;
+        String expected = hmac(parts[0] + "." + parts[1], secret);
+        return MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), parts[2].getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static void main(String[] args) throws Exception {
+        String token = sign("{\"sub\":\"vivek\"}", "s3cret");
+        System.out.println(token);
+        System.out.println(verify(token, "s3cret"));     // true
+        System.out.println(verify(token, "wrong"));      // false (wrong key)
+        String[] p = token.split("\\.");
+        String forged = p[0] + "." + b64("{\"sub\":\"admin\"}".getBytes(StandardCharsets.UTF_8)) + "." + p[2];
+        System.out.println(verify(forged, "s3cret"));    // false (payload was edited)
+    }
+}

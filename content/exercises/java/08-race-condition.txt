@@ -1,0 +1,67 @@
+id: m5-race-condition
+module: 5
+after: 8
+title: Fix the lost updates
+level: Medium
+@@ task
+Four threads each add 1000 to a shared counter, so the answer must be **4000**. `increment()` reads the value, gives other threads a chance to run (this just makes the unlucky timing easy to see), then writes it back, so updates get lost.
+
+Make `Counter` thread-safe. Either `synchronized` or an `AtomicInteger` works; do not remove the `Thread.yield()` line.
+@@ hint
+Reading and writing as two steps is the bug. `synchronized` on the method makes the whole read-yield-write one step for everyone; `AtomicInteger.incrementAndGet()` does the same in a single atomic operation (then the yield is not needed at all).
+@@ expect
+4000
+@@ starter
+public class Main {
+    static class Counter {
+        private int value;
+
+        void increment() {
+            int current = value;
+            Thread.yield();          // another thread may run right here
+            value = current + 1;
+        }
+
+        int get() { return value; }
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        Counter counter = new Counter();
+        Thread[] threads = new Thread[4];
+        for (int t = 0; t < threads.length; t++) {
+            threads[t] = new Thread(() -> {
+                for (int i = 0; i < 1000; i++) counter.increment();
+            });
+            threads[t].start();
+        }
+        for (Thread t : threads) t.join();
+        System.out.println(counter.get());   // 4000
+    }
+}
+@@ solution
+public class Main {
+    static class Counter {
+        private int value;
+
+        synchronized void increment() {
+            int current = value;
+            Thread.yield();          // another thread may run right here
+            value = current + 1;
+        }
+
+        synchronized int get() { return value; }
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        Counter counter = new Counter();
+        Thread[] threads = new Thread[4];
+        for (int t = 0; t < threads.length; t++) {
+            threads[t] = new Thread(() -> {
+                for (int i = 0; i < 1000; i++) counter.increment();
+            });
+            threads[t].start();
+        }
+        for (Thread t : threads) t.join();
+        System.out.println(counter.get());   // 4000
+    }
+}

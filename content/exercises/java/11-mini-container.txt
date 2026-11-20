@@ -1,0 +1,107 @@
+id: m7-mini-container
+module: 7
+after: 2
+title: Build a tiny IoC container
+level: Medium
+@@ task
+Spring's container creates your objects and hands them their dependencies. Build the smallest version of that idea.
+
+`Container` needs two methods:
+- `register(type, factory)`: remember how to build a `type`
+- `get(type)`: build it the **first** time and return that same object every time after (a singleton). If nothing was registered, throw `IllegalStateException("No bean of type <SimpleName>")`
+
+The factory of `Service` asks the container for its `Repo`, which is dependency injection by hand.
+@@ hint
+Keep two maps: `Map<Class<?>, Supplier<?>> factories` and `Map<Class<?>, Object> singletons`. In `get`: `singletons.computeIfAbsent` is tempting, but a factory that calls `get` again would modify the map while it is being computed, so check, build, then `put`.
+@@ expect
+Hello user-7
+true
+No bean of type String
+@@ starter
+import java.util.*;
+import java.util.function.Supplier;
+
+public class Main {
+    interface Repo { String find(int id); }
+    static class MemoryRepo implements Repo { public String find(int id) { return "user-" + id; } }
+
+    static class Service {
+        private final Repo repo;
+        Service(Repo repo) { this.repo = repo; }
+        String hello(int id) { return "Hello " + repo.find(id); }
+    }
+
+    static class Container {
+        // TODO: keep the factories and the already-built singletons
+
+        <T> void register(Class<T> type, Supplier<? extends T> factory) {
+            // TODO
+        }
+
+        <T> T get(Class<T> type) {
+            // TODO: build once, then reuse; throw IllegalStateException("No bean of type " + type.getSimpleName()) when unknown
+            return null;
+        }
+    }
+
+    public static void main(String[] args) {
+        Container c = new Container();
+        c.register(Repo.class, MemoryRepo::new);
+        c.register(Service.class, () -> new Service(c.get(Repo.class)));
+
+        System.out.println(c.get(Service.class).hello(7));                  // Hello user-7
+        System.out.println(c.get(Service.class) == c.get(Service.class));   // true (one shared instance)
+        try {
+            c.get(String.class);
+        } catch (IllegalStateException e) {
+            System.out.println(e.getMessage());                             // No bean of type String
+        }
+    }
+}
+@@ solution
+import java.util.*;
+import java.util.function.Supplier;
+
+public class Main {
+    interface Repo { String find(int id); }
+    static class MemoryRepo implements Repo { public String find(int id) { return "user-" + id; } }
+
+    static class Service {
+        private final Repo repo;
+        Service(Repo repo) { this.repo = repo; }
+        String hello(int id) { return "Hello " + repo.find(id); }
+    }
+
+    static class Container {
+        private final Map<Class<?>, Supplier<?>> factories = new HashMap<>();
+        private final Map<Class<?>, Object> singletons = new HashMap<>();
+
+        <T> void register(Class<T> type, Supplier<? extends T> factory) {
+            factories.put(type, factory);
+        }
+
+        <T> T get(Class<T> type) {
+            Object existing = singletons.get(type);
+            if (existing != null) return type.cast(existing);
+            Supplier<?> factory = factories.get(type);
+            if (factory == null) throw new IllegalStateException("No bean of type " + type.getSimpleName());
+            Object created = factory.get();
+            singletons.put(type, created);
+            return type.cast(created);
+        }
+    }
+
+    public static void main(String[] args) {
+        Container c = new Container();
+        c.register(Repo.class, MemoryRepo::new);
+        c.register(Service.class, () -> new Service(c.get(Repo.class)));
+
+        System.out.println(c.get(Service.class).hello(7));                  // Hello user-7
+        System.out.println(c.get(Service.class) == c.get(Service.class));   // true (one shared instance)
+        try {
+            c.get(String.class);
+        } catch (IllegalStateException e) {
+            System.out.println(e.getMessage());                             // No bean of type String
+        }
+    }
+}

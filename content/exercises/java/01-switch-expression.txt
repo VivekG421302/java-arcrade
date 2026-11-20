@@ -1,0 +1,52 @@
+id: m2-switch-expression
+module: 2
+after: 8
+title: Weekday or weekend? (switch expression)
+level: Easy
+@@ task
+Java 14 made `switch` an **expression**: it produces a value, uses `->` arrows and needs no `break`.
+
+Write `dayType(String day)`:
+- `SATURDAY` or `SUNDAY` gives `Weekend`
+- `MONDAY` to `FRIDAY` gives `Weekday`
+- anything else gives `Unknown`
+
+Use one `return switch (day) { ... };` and no `if`.
+@@ hint
+Several labels can share one arrow: `case "SATURDAY", "SUNDAY" -> "Weekend";` and `default -> "Unknown";` catches the rest.
+@@ expect
+Weekend
+Weekday
+Weekday
+Unknown
+@@ starter
+public class Main {
+    static String dayType(String day) {
+        // TODO: return a switch expression with arrows (no break, no if)
+        return "";
+    }
+
+    public static void main(String[] args) {
+        System.out.println(dayType("SATURDAY"));   // Weekend
+        System.out.println(dayType("MONDAY"));     // Weekday
+        System.out.println(dayType("FRIDAY"));     // Weekday
+        System.out.println(dayType("Funday"));     // Unknown
+    }
+}
+@@ solution
+public class Main {
+    static String dayType(String day) {
+        return switch (day) {
+            case "SATURDAY", "SUNDAY" -> "Weekend";
+            case "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY" -> "Weekday";
+            default -> "Unknown";
+        };
+    }
+
+    public static void main(String[] args) {
+        System.out.println(dayType("SATURDAY"));   // Weekend
+        System.out.println(dayType("MONDAY"));     // Weekday
+        System.out.println(dayType("FRIDAY"));     // Weekday
+        System.out.println(dayType("Funday"));     // Unknown
+    }
+}

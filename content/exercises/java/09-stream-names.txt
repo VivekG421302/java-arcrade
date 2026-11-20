@@ -1,0 +1,45 @@
+id: m5-stream-names
+module: 5
+after: 11
+title: Names through a stream
+level: Easy
+@@ task
+Write `shout(List<String> names)` with one stream pipeline: keep names with **4 or more** letters, turn them to UPPER CASE, sort them alphabetically, and join them with `", "`.
+@@ hint
+`names.stream().filter(...).map(String::toUpperCase).sorted().collect(Collectors.joining(", "))`.
+@@ expect
+ANITA, KABIR, RAVI, ZOYA
+CCCC
+@@ starter
+import java.util.*;
+import java.util.stream.*;
+
+public class Main {
+    static String shout(List<String> names) {
+        // TODO: filter, map, sorted, collect(Collectors.joining(", "))
+        return "";
+    }
+
+    public static void main(String[] args) {
+        System.out.println(shout(List.of("ravi", "li", "anita", "om", "zoya", "kabir")));   // ANITA, KABIR, RAVI, ZOYA
+        System.out.println(shout(List.of("a", "bb", "cccc")));                              // CCCC
+    }
+}
+@@ solution
+import java.util.*;
+import java.util.stream.*;
+
+public class Main {
+    static String shout(List<String> names) {
+        return names.stream()
+                .filter(n -> n.length() >= 4)
+                .map(String::toUpperCase)
+                .sorted()
+                .collect(Collectors.joining(", "));
+    }
+
+    public static void main(String[] args) {
+        System.out.println(shout(List.of("ravi", "li", "anita", "om", "zoya", "kabir")));   // ANITA, KABIR, RAVI, ZOYA
+        System.out.println(shout(List.of("a", "bb", "cccc")));                              // CCCC
+    }
+}

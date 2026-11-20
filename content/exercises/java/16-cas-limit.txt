@@ -1,0 +1,78 @@
+id: m10-cas-limit
+module: 10
+after: 3
+title: Never go over the limit (compare-and-set)
+level: Hard
+@@ task
+`incrementIfBelow(n, max)` must add 1 to `n` only while it is below `max`, and tell the caller whether it did.
+
+Right now it **checks**, then **acts**; another thread can sneak in between (the `Thread.yield()` makes that gap easy to hit). Eight threads try 100 times each against a limit of 500, so the final value must be **exactly 500**, never more.
+
+Rewrite it as a loop with `compareAndSet`, which only succeeds if nobody changed the value since you read it.
+@@ hint
+`while (true) { int cur = n.get(); if (cur >= max) return false; if (n.compareAndSet(cur, cur + 1)) return true; }` If the compare fails, someone else won the race: loop and read again.
+@@ expect
+true
+true
+true
+false
+false
+500
+@@ starter
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class Main {
+    static boolean incrementIfBelow(AtomicInteger n, int max) {
+        // TODO: replace check-then-act with a compareAndSet loop
+        if (n.get() < max) {
+            Thread.yield();          // the gap where another thread can sneak in
+            n.incrementAndGet();
+            return true;
+        }
+        return false;
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        AtomicInteger small = new AtomicInteger();
+        for (int i = 0; i < 5; i++) System.out.println(incrementIfBelow(small, 3));   // true true true false false
+
+        AtomicInteger shared = new AtomicInteger();
+        Thread[] threads = new Thread[8];
+        for (int t = 0; t < threads.length; t++) {
+            threads[t] = new Thread(() -> {
+                for (int i = 0; i < 100; i++) incrementIfBelow(shared, 500);
+            });
+            threads[t].start();
+        }
+        for (Thread t : threads) t.join();
+        System.out.println(shared.get());   // 500
+    }
+}
+@@ solution
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class Main {
+    static boolean incrementIfBelow(AtomicInteger n, int max) {
+        while (true) {
+            int cur = n.get();
+            if (cur >= max) return false;
+            if (n.compareAndSet(cur, cur + 1)) return true;
+        }
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        AtomicInteger small = new AtomicInteger();
+        for (int i = 0; i < 5; i++) System.out.println(incrementIfBelow(small, 3));   // true true true false false
+
+        AtomicInteger shared = new AtomicInteger();
+        Thread[] threads = new Thread[8];
+        for (int t = 0; t < threads.length; t++) {
+            threads[t] = new Thread(() -> {
+                for (int i = 0; i < 100; i++) incrementIfBelow(shared, 500);
+            });
+            threads[t].start();
+        }
+        for (Thread t : threads) t.join();
+        System.out.println(shared.get());   // 500
+    }
+}

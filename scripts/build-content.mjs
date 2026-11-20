@@ -1,6 +1,7 @@
 // Builds src/content.json = { java, rust } from the markdown/problem files.
 import fs from 'node:fs'
 import { loadProblems } from './problems.mjs'
+import { loadExercises } from './exercises.mjs'
 import { javaCalls, parseJavaSig, parseRustSig, rustCalls } from './calls.mjs'
 
 // Turn inline LaTeX ($O(N \log N)$) into readable plain text.
@@ -239,6 +240,10 @@ const postgres = {
 }
 
 fs.writeFileSync('src/content.json', JSON.stringify({ java, rust, postgres }))
+// Hands-on exercises placed between roadmap sections (Java for now): src/exercises.json = { java: [...] }
+const exercises = { java: loadExercises('content/exercises/java') }
+fs.writeFileSync('src/exercises.json', JSON.stringify(exercises))
+console.log('exercises: java=' + exercises.java.length)
 const sum = (c) => `phases=${c.phases.length} sections=${c.phases.reduce((s, p) => s + p.sections.length, 0)} questions=${c.questions.length} antiPatterns=${c.antiPatterns.length}+${c.antiMatrix.length} scenarios=${c.scenarios.length}+${c.scenarioMatrix.length} projects=${c.projects.length}`
 console.log('java: ' + sum(java))
 console.log('rust: ' + sum(rust))

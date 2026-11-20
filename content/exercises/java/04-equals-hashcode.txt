@@ -1,0 +1,63 @@
+id: m5-equals-hashcode
+module: 5
+after: 3
+title: Make two equal points one set entry
+level: Easy
+@@ task
+A `HashSet` finds duplicates with `hashCode()` first and `equals()` second. Right now `Point` uses the default identity versions, so two points with the same `x` and `y` count as different.
+
+Override **both** methods in `Point` so that points with equal `x` and `y` are equal, have the same hash code, and a `Point` is never equal to `null`.
+@@ hint
+`equals`: return true if `o == this`; if `o instanceof Point p`, compare `x == p.x && y == p.y`; otherwise false. `hashCode`: `Objects.hash(x, y)`.
+@@ expect
+1
+true
+false
+true
+@@ starter
+import java.util.*;
+
+public class Main {
+    static class Point {
+        final int x, y;
+        Point(int x, int y) { this.x = x; this.y = y; }
+
+        // TODO: override equals(Object) and hashCode()
+    }
+
+    public static void main(String[] args) {
+        Set<Point> set = new HashSet<>();
+        set.add(new Point(1, 2));
+        set.add(new Point(1, 2));
+        System.out.println(set.size());                                          // 1
+        System.out.println(set.contains(new Point(1, 2)));                       // true
+        System.out.println(new Point(1, 2).equals(null));                        // false
+        System.out.println(new Point(1, 2).hashCode() == new Point(1, 2).hashCode());   // true
+    }
+}
+@@ solution
+import java.util.*;
+
+public class Main {
+    static class Point {
+        final int x, y;
+        Point(int x, int y) { this.x = x; this.y = y; }
+
+        @Override public boolean equals(Object o) {
+            if (this == o) return true;
+            return o instanceof Point p && x == p.x && y == p.y;
+        }
+
+        @Override public int hashCode() { return Objects.hash(x, y); }
+    }
+
+    public static void main(String[] args) {
+        Set<Point> set = new HashSet<>();
+        set.add(new Point(1, 2));
+        set.add(new Point(1, 2));
+        System.out.println(set.size());                                          // 1
+        System.out.println(set.contains(new Point(1, 2)));                       // true
+        System.out.println(new Point(1, 2).equals(null));                        // false
+        System.out.println(new Point(1, 2).hashCode() == new Point(1, 2).hashCode());   // true
+    }
+}

@@ -1,0 +1,60 @@
+id: m5-exception-flow
+module: 5
+after: 5
+title: Throw, catch and always clean up
+level: Medium
+@@ task
+Two jobs:
+
+1. In `readAge`, throw `IllegalArgumentException` with the message `age must be a number: <text>` when the text is not a whole number, and `age out of range: <n>` when the number is below 0 or above 150.
+2. In `main`, wrap the call so a bad input prints `error: <message>` instead of crashing, and a `finally` block prints `checked <text>` after **every** input, good or bad.
+@@ hint
+`Integer.parseInt` throws `NumberFormatException` (a kind of `IllegalArgumentException`) on bad text; catch it and throw your own message. In `main`: `try { ... } catch (IllegalArgumentException e) { ... } finally { ... }`.
+@@ expect
+ok 42
+checked 42
+error: age must be a number: abc
+checked abc
+error: age out of range: -5
+checked -5
+@@ starter
+public class Main {
+    static int readAge(String text) {
+        // TODO: parse the text; throw IllegalArgumentException with the messages from the task
+        return 0;
+    }
+
+    public static void main(String[] args) {
+        for (String text : new String[] {"42", "abc", "-5"}) {
+            // TODO: wrap in try / catch (IllegalArgumentException) / finally
+            int age = readAge(text);
+            System.out.println("ok " + age);
+        }
+    }
+}
+@@ solution
+public class Main {
+    static int readAge(String text) {
+        int age;
+        try {
+            age = Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("age must be a number: " + text);
+        }
+        if (age < 0 || age > 150) throw new IllegalArgumentException("age out of range: " + age);
+        return age;
+    }
+
+    public static void main(String[] args) {
+        for (String text : new String[] {"42", "abc", "-5"}) {
+            try {
+                int age = readAge(text);
+                System.out.println("ok " + age);
+            } catch (IllegalArgumentException e) {
+                System.out.println("error: " + e.getMessage());
+            } finally {
+                System.out.println("checked " + text);
+            }
+        }
+    }
+}

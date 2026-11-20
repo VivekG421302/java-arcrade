@@ -1,0 +1,55 @@
+id: m7-logging-proxy
+module: 7
+after: 3
+title: A logging proxy, the way AOP works
+level: Hard
+@@ task
+Spring AOP wraps your bean in a **proxy** that runs extra code around each call. Build one by hand with `java.lang.reflect.Proxy`.
+
+Write `logged(iface, target)` so every call on the returned object prints `before <method name>`, then calls the real method, then prints `after <method name>`, and returns the real result.
+@@ hint
+`Proxy.newProxyInstance(iface.getClassLoader(), new Class<?>[] { iface }, (proxy, method, args) -> { ... })`. Inside, call `method.invoke(target, args)` and return what it gives back.
+@@ expect
+before add
+after add
+5
+@@ starter
+import java.lang.reflect.Proxy;
+
+public class Main {
+    interface Calculator { int add(int a, int b); }
+
+    @SuppressWarnings("unchecked")
+    static <T> T logged(Class<T> iface, T target) {
+        // TODO: return a Proxy that prints "before <method>" and "after <method>" around the real call
+        return target;
+    }
+
+    public static void main(String[] args) {
+        Calculator real = (a, b) -> a + b;
+        Calculator calc = logged(Calculator.class, real);
+        System.out.println(calc.add(2, 3));    // before add / after add / 5
+    }
+}
+@@ solution
+import java.lang.reflect.Proxy;
+
+public class Main {
+    interface Calculator { int add(int a, int b); }
+
+    @SuppressWarnings("unchecked")
+    static <T> T logged(Class<T> iface, T target) {
+        return (T) Proxy.newProxyInstance(iface.getClassLoader(), new Class<?>[] { iface }, (proxy, method, args) -> {
+            System.out.println("before " + method.getName());
+            Object result = method.invoke(target, args);
+            System.out.println("after " + method.getName());
+            return result;
+        });
+    }
+
+    public static void main(String[] args) {
+        Calculator real = (a, b) -> a + b;
+        Calculator calc = logged(Calculator.class, real);
+        System.out.println(calc.add(2, 3));    // before add / after add / 5
+    }
+}

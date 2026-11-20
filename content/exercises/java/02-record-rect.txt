@@ -1,0 +1,57 @@
+id: m2-record-rect
+module: 2
+after: 10
+title: A rectangle as a record
+level: Easy
+@@ task
+Records (final in Java 16) are data classes in one line: constructor, getters, `equals`, `hashCode` and `toString` come free.
+
+Complete `record Rect(int w, int h)`:
+- a **compact constructor** that throws `IllegalArgumentException("size must be positive")` when `w` or `h` is zero or negative
+- a method `int area()` that returns `w * h`
+@@ hint
+A compact constructor has no parameter list: `Rect { if (w <= 0 || h <= 0) throw new IllegalArgumentException("size must be positive"); }`. The fields `w` and `h` are assigned for you after it.
+@@ expect
+12
+Rect[w=3, h=4]
+true
+size must be positive
+@@ starter
+public class Main {
+    // TODO: add the compact constructor (validation) and make area() return w * h
+    record Rect(int w, int h) {
+        int area() { return 0; }
+    }
+
+    public static void main(String[] args) {
+        System.out.println(new Rect(3, 4).area());                      // 12
+        System.out.println(new Rect(3, 4));                             // Rect[w=3, h=4]
+        System.out.println(new Rect(2, 5).equals(new Rect(2, 5)));      // true
+        try {
+            new Rect(0, 5);
+        } catch (IllegalArgumentException e) {
+            System.out.println(e.getMessage());                         // size must be positive
+        }
+    }
+}
+@@ solution
+public class Main {
+    record Rect(int w, int h) {
+        Rect {
+            if (w <= 0 || h <= 0) throw new IllegalArgumentException("size must be positive");
+        }
+
+        int area() { return w * h; }
+    }
+
+    public static void main(String[] args) {
+        System.out.println(new Rect(3, 4).area());                      // 12
+        System.out.println(new Rect(3, 4));                             // Rect[w=3, h=4]
+        System.out.println(new Rect(2, 5).equals(new Rect(2, 5)));      // true
+        try {
+            new Rect(0, 5);
+        } catch (IllegalArgumentException e) {
+            System.out.println(e.getMessage());                         // size must be positive
+        }
+    }
+}

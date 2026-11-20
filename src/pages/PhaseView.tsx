@@ -1,14 +1,18 @@
 import { Check, Lock } from 'lucide-react'
-import { useEffect } from 'react'
+import { Fragment, useEffect } from 'react'
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { useCourse } from '../hooks/useCourse'
 import { useProgress } from '../hooks/useProgress'
 import { Markdown } from '../components/content'
 import { PhaseBadge, ProgressBar } from '../components/ui'
+import ExerciseCard from '../components/ExerciseCard'
+import { exercisesOf } from '../lib/exercises'
+import { useExercises } from '../hooks/useExercises'
 
 export default function PhaseView() {
   const { id } = useParams()
-  const { data, meta } = useCourse()
+  const { data, meta, course } = useCourse()
+  const { isDone: exDone } = useExercises()
   const PHASES = data.phases
   const unit = meta.unit
   const { hash } = useLocation()
@@ -28,15 +32,17 @@ export default function PhaseView() {
     )
   const pct = readPct(phase)
   const score = row(phase.id)?.test_score
+  const exs = meta.ide ? exercisesOf(course).filter((e) => e.module === phase.id) : []   // hands-on exercises placed between this module's sections
   return (
     <article>
       <header className="badge-box mb-8">
         <PhaseBadge status={st} score={score != null ? Math.round(score) : null} pct={pct} />
         <h1 className="mt-3 text-3xl font-bold tracking-tight">{unit} {phase.id}: {phase.title}</h1>
-        <div className="mt-4"><ProgressBar pct={pct} label="Sections read" /><p className="mt-1 text-xs text-slate-500">{pct}% of sections read</p></div>
+        <div className="mt-4"><ProgressBar pct={pct} label="Sections read" /><p className="mt-1 text-xs text-slate-500">{pct}% of sections read{exs.length > 0 && ` · ${exs.filter((e) => exDone(e.id)).length}/${exs.length} exercises done`}</p></div>
       </header>
-      {phase.sections.map((s) => (
-        <section key={s.id} id={s.id} className="scroll-mt-20 py-6">
+      {phase.sections.map((s, i) => (
+        <Fragment key={s.id}>
+        <section id={s.id} className="scroll-mt-20 py-6">
           <h2 className="text-2xl font-semibold">{s.title}</h2>
           <Markdown md={s.md} />
           <button type="button" aria-pressed={isRead(s.id)} onClick={() => toggleRead(s.id)}
@@ -44,6 +50,8 @@ export default function PhaseView() {
             {isRead(s.id) ? <><Check size={16} aria-hidden /> Marked as read</> : 'Mark as read'}
           </button>
         </section>
+        {exs.filter((e) => e.after === i + 1).map((e) => <ExerciseCard key={e.id} ex={e} />)}
+        </Fragment>
       ))}
       <footer className="mt-10 border-t border-slate-200/70 pt-6 dark:border-white/10">
         <Link to={`/phase/${phase.id}/test`} className="inline-flex min-h-[44px] items-center rounded-md bg-sky-600 px-5 font-medium text-white">{st === 'completed' ? `Retake ${unit.toLowerCase()} test` : `Take ${unit.toLowerCase()} test`}</Link>

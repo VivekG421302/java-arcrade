@@ -1,0 +1,59 @@
+id: m5-generic-max
+module: 5
+after: 4
+title: One max() for any comparable type
+level: Easy
+@@ task
+Write a generic method `maxOf` that returns the largest element of a list, whatever the element type (numbers, strings...), as long as the elements can be compared.
+
+If the list is empty, throw `NoSuchElementException`.
+@@ hint
+The signature is already there: `<T extends Comparable<T>>` says "T must be able to compare itself". Keep the best so far in a variable and use `item.compareTo(best) > 0`.
+@@ expect
+9
+zebra
+empty list
+@@ starter
+import java.util.*;
+
+public class Main {
+    static <T extends Comparable<T>> T maxOf(List<T> items) {
+        // TODO: return the largest item; throw NoSuchElementException when the list is empty
+        return null;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(maxOf(List.of(3, 9, 4)));                       // 9
+        System.out.println(maxOf(List.of("pear", "apple", "zebra")));      // zebra
+        try {
+            maxOf(new ArrayList<Integer>());
+            System.out.println("no error");
+        } catch (NoSuchElementException e) {
+            System.out.println("empty list");                              // empty list
+        }
+    }
+}
+@@ solution
+import java.util.*;
+
+public class Main {
+    static <T extends Comparable<T>> T maxOf(List<T> items) {
+        if (items.isEmpty()) throw new NoSuchElementException();
+        T best = items.get(0);
+        for (T item : items) {
+            if (item.compareTo(best) > 0) best = item;
+        }
+        return best;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(maxOf(List.of(3, 9, 4)));                       // 9
+        System.out.println(maxOf(List.of("pear", "apple", "zebra")));      // zebra
+        try {
+            maxOf(new ArrayList<Integer>());
+            System.out.println("no error");
+        } catch (NoSuchElementException e) {
+            System.out.println("empty list");                              // empty list
+        }
+    }
+}

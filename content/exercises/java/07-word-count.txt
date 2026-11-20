@@ -1,0 +1,48 @@
+id: m5-word-count
+module: 5
+after: 6
+title: Count the words, sorted
+level: Medium
+@@ task
+Write `countWords(String text)` that returns how many times each word appears.
+
+- compare words ignoring upper/lower case (`Hello` and `hello` are the same word)
+- words are runs of letters; punctuation and spaces only separate them
+- return a `TreeMap` so the words come out in alphabetical order
+@@ hint
+`text.toLowerCase().split("[^a-z]+")` gives the words (skip empty strings; the first piece can be empty). `map.merge(word, 1, Integer::sum)` counts in one line.
+@@ expect
+{and=2, bat=1, cat=1, hat=1, the=3}
+{hello=3}
+@@ starter
+import java.util.*;
+
+public class Main {
+    static Map<String, Integer> countWords(String text) {
+        Map<String, Integer> counts = new TreeMap<>();
+        // TODO: lowercase, split on anything that is not a letter, count each word
+        return counts;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(countWords("the cat and the hat and the bat"));   // {and=2, bat=1, cat=1, hat=1, the=3}
+        System.out.println(countWords("Hello, hello!! HELLO?"));             // {hello=3}
+    }
+}
+@@ solution
+import java.util.*;
+
+public class Main {
+    static Map<String, Integer> countWords(String text) {
+        Map<String, Integer> counts = new TreeMap<>();
+        for (String word : text.toLowerCase().split("[^a-z]+")) {
+            if (!word.isEmpty()) counts.merge(word, 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(countWords("the cat and the hat and the bat"));   // {and=2, bat=1, cat=1, hat=1, the=3}
+        System.out.println(countWords("Hello, hello!! HELLO?"));             // {hello=3}
+    }
+}

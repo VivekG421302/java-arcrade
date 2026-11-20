@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, CircleCheck, Keyboard, Loader2, PanelBottom, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelTop, Play, RotateCcw, SquareTerminal, Type, WrapText, X, Minus, Plus } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, CircleCheck, FlaskConical, Keyboard, Loader2, PanelBottom, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelTop, Play, RotateCcw, SquareTerminal, Type, WrapText, X, Minus, Plus } from 'lucide-react'
 import { leetUrl, type CourseMeta } from '../lib/content'
 import { errorLines, runCode, type RunResult } from '../lib/runner'
 import { useCourse } from '../hooks/useCourse'
@@ -10,6 +10,10 @@ import { NARROW, useKeyboardInset, useMedia } from '../hooks/useMedia'
 import { useTips } from '../hooks/useTips'
 import { useSolved } from '../hooks/useSolved'
 import { isSolved as runSolves } from '../lib/solved'
+import { exerciseById, exercisesOf, type Exercise } from '../lib/exercises'
+import { useExercises } from '../hooks/useExercises'
+import { usePersisted } from '../hooks/usePersisted'
+import { Markdown } from './content'
 import { editorKeys, keyLabel, matches, tip } from '../lib/shortcuts'
 import CodeEditor, { type EditorApi, type Jump } from './CodeEditor'
 import Resizer from './Resizer'
@@ -106,10 +110,15 @@ function IdePanel({ narrow }: { narrow: boolean }) {
   const wrapOn = ide.wrap ?? narrow                                   // automatic: wrap on small screens
   const bumpFont = (d: number) => setFontSize((n) => Math.max(MIN_FONT, Math.min(MAX_FONT, n + d)))
   const dock: Dock = narrow ? 'bottom' : ide.dock                     // small screens always use the bottom dock
-  const q = qn ? content.questions.find((x) => x.n === qn) : undefined
+  const ex = exerciseById(course, ide.exId)                           // a roadmap exercise wins over a question
+  const exList = exercisesOf(course)
+  const exAt = ex ? exList.findIndex((e) => e.id === ex.id) : -1
+  const exDone = useExercises()
+  const [taskOpen, setTaskOpen] = usePersisted('ide:taskOpen', true)
+  const q = !ex && qn ? content.questions.find((x) => x.n === qn) : undefined
   const lang = meta.lang === 'rust' ? 'rust' : 'java'                    // the IDE only runs these two
-  const starter = q?.starter ?? SCRATCH[lang]
-  const key = `code:${course === 'rust' ? 'rust:' : ''}${qn ?? 'scratch'}`          // Java keys keep their old names
+  const starter = ex?.starter ?? q?.starter ?? SCRATCH[lang]
+  const key = ex ? `code:ex:${ex.id}` : `code:${course === 'rust' ? 'rust:' : ''}${qn ?? 'scratch'}`          // Java keys keep their old names
   const read = () => { try { return localStorage.getItem(key) ?? starter } catch { return starter } }
   const [code, setCode] = useState(read)
   const [res, setRes] = useState<Res>({ state: 'idle' })
@@ -142,7 +151,10 @@ function IdePanel({ narrow }: { narrow: boolean }) {
       setRes({ state: 'done', ...r })
       setErrLines(lines)
       // a clean run that prints every expected answer marks the problem as done
-      if (q) {
+      if (ex) {
+        if (runSolves(ex, code, r)) { exDone.setDone(ex.id, true); setVerdict('done') }
+        else if (/^accepted$/i.test(r.status)) setVerdict('mismatch')
+      } else if (q) {
         if (runSolves(q, code, r)) { setSolved(q.n, true); setVerdict('done') }
         else if (q.expect?.length && /^accepted$/i.test(r.status)) setVerdict('mismatch')
       }
@@ -210,13 +222,15 @@ function IdePanel({ narrow }: { narrow: boolean }) {
         <button type="button" onClick={ide.toggleHidden} aria-label={hidden ? 'Show the app view' : 'Hide the app view'} {...tip(hidden ? 'Bring back the app' : 'Hide the app', 'hideApp')} data-tip-start="" className={ib}>
           {hidden ? <PanelLeftOpen size={18} aria-hidden /> : <PanelLeftClose size={18} aria-hidden />}
         </button>
-        <button type="button" onClick={() => go(-1)} disabled={qn !== null && qn <= 1} aria-label="Previous problem" {...tip('Previous problem', 'prev')} className={ib}><ChevronLeft size={18} aria-hidden /></button>
+        <button type="button" onClick={() => go(-1)} disabled={ex ? exAt <= 0 : qn !== null && qn <= 1} aria-label={ex ? 'Previous exercise' : 'Previous problem'} {...tip(ex ? 'Previous exercise' : 'Previous problem', 'prev')} className={ib}><ChevronLeft size={18} aria-hidden /></button>
         <p className="min-w-0 flex-1 truncate text-center font-sans text-sm text-slate-700 dark:text-slate-300">
-          {q ? <><span className="font-mono text-slate-600 dark:text-slate-400">{q.n}/{total}</span> {q.title}{isDone(q.n) && <CircleCheck size={15} aria-label="Done" className="ml-1.5 inline -translate-y-px text-emerald-500" />}</> : 'Scratch pad'}
+          {ex ? <><span className="font-mono text-slate-600 dark:text-slate-400">Exercise {exAt + 1}/{exList.length}</span> {ex.title}{exDone.isDone(ex.id) && <CircleCheck size={15} aria-label="Done" className="ml-1.5 inline -translate-y-px text-emerald-500" />}</>
+            : q ? <><span className="font-mono text-slate-600 dark:text-slate-400">{q.n}/{total}</span> {q.title}{isDone(q.n) && <CircleCheck size={15} aria-label="Done" className="ml-1.5 inline -translate-y-px text-emerald-500" />}</> : 'Scratch pad'}
           {!narrow && <span className="ml-2 rounded-md bg-slate-900/5 px-1.5 py-0.5 font-mono text-[11px] text-slate-600 dark:bg-white/5 dark:text-slate-400">{meta.file}</span>}
         </p>
+        {ex && <button type="button" onClick={() => exDone.setDone(ex.id, !exDone.isDone(ex.id))} aria-pressed={exDone.isDone(ex.id)} aria-label={exDone.isDone(ex.id) ? 'Marked as done, click to undo' : 'Mark as done'} {...tip(exDone.isDone(ex.id) ? 'Done (click to undo)' : 'Mark as done')} className={`${ib} ${exDone.isDone(ex.id) ? 'text-emerald-600 dark:text-emerald-400' : ''}`}><CircleCheck size={18} aria-hidden /></button>}
         {q && <button type="button" onClick={() => setSolved(q.n, !isDone(q.n))} aria-pressed={isDone(q.n)} aria-label={isDone(q.n) ? 'Marked as done, click to undo' : 'Mark as done'} {...tip(isDone(q.n) ? 'Done (click to undo)' : 'Mark as done')} className={`${ib} ${isDone(q.n) ? 'text-emerald-600 dark:text-emerald-400' : ''}`}><CircleCheck size={18} aria-hidden /></button>}
-        <button type="button" onClick={() => go(1)} disabled={qn !== null && qn >= total} aria-label="Next problem" {...tip('Next problem', 'next')} className={ib}><ChevronRight size={18} aria-hidden /></button>
+        <button type="button" onClick={() => go(1)} disabled={ex ? exAt >= exList.length - 1 : qn !== null && qn >= total} aria-label={ex ? 'Next exercise' : 'Next problem'} {...tip(ex ? 'Next exercise' : 'Next problem', 'next')} className={ib}><ChevronRight size={18} aria-hidden /></button>
         {!narrow && <DockPicker dock={dock} termOpen={termOpen} onPick={moveDock} />}
         <button type="button" onClick={() => setTermOpen(!termOpen)} aria-pressed={termOpen} aria-label="Toggle terminal" {...tip('Toggle terminal', 'terminal')} className={`${ib} ${termOpen ? 'text-sky-600 dark:text-sky-400' : ''}`}><SquareTerminal size={18} aria-hidden /></button>
         {!narrow && <KeysMenu />}
@@ -230,8 +244,11 @@ function IdePanel({ narrow }: { narrow: boolean }) {
       </header>
 
       <div ref={body} className={`flex min-h-0 flex-1 ${dir}`}>
-        <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl ring-1 ring-slate-200 dark:ring-white/10">
-          <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} fontSize={fontSize} wrap={wrapOn} lang={lang} onSuggest={setSug} popup={!touchy} />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl ring-1 ring-slate-200 dark:ring-white/10">
+          {ex && <TaskBar ex={ex} open={taskOpen} onToggle={() => setTaskOpen(!taskOpen)} done={exDone.isDone(ex.id)} />}
+          <div className="min-h-0 flex-1">
+            <CodeEditor ref={editor} value={code} onChange={change} errorLines={errLines} jump={jump} onFocusChange={setFocused} fontSize={fontSize} wrap={wrapOn} lang={lang} onSuggest={setSug} popup={!touchy} />
+          </div>
         </div>
         <AnimatePresence initial={false}>
           {termOpen && (
@@ -254,6 +271,28 @@ function IdePanel({ narrow }: { narrow: boolean }) {
 
       {touchy && focused && createPortal(<SymbolBar editor={api} inset={inset} onHide={api.blur} lang={lang} sug={sug} />, document.body)}
     </motion.section>
+  )
+}
+
+/** The exercise's task, hint and expected output, above the editor so it stays in view while you code (collapsible). */
+function TaskBar({ ex, open, onToggle, done }: { ex: Exercise; open: boolean; onToggle: () => void; done: boolean }) {
+  return (
+    <div className="shrink-0 border-b border-slate-200 bg-slate-50 text-sm dark:border-white/10 dark:bg-[#1c1f26]">
+      <button type="button" onClick={onToggle} aria-expanded={open} className="flex min-h-[40px] w-full items-center gap-2 px-3 text-left font-sans text-slate-700 hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/5">
+        <FlaskConical size={15} aria-hidden className="shrink-0 text-sky-600 dark:text-sky-400" />
+        <span className="min-w-0 flex-1 truncate font-medium">{open ? 'Task' : ex.title}</span>
+        {done && <CircleCheck size={15} aria-label="Done" className="shrink-0 text-emerald-500" />}
+        <ChevronDown size={16} aria-hidden className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="max-h-[38vh] overflow-auto px-4 pb-3 text-[13px] leading-6 [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5">
+          <Markdown md={ex.task} />
+          <p className="mt-2 font-sans text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Expected output</p>
+          <pre className="mt-1 overflow-auto rounded-lg bg-slate-900/5 px-3 py-2 font-mono text-xs text-slate-800 dark:bg-white/5 dark:text-slate-200">{ex.expect.map((a) => a[0]).join('\n')}</pre>
+          {ex.hint && <details className="mt-2 font-sans"><summary className="cursor-pointer select-none text-sky-700 dark:text-sky-400">Hint</summary><div className="mt-1 text-slate-700 dark:text-slate-300"><Markdown md={ex.hint} /></div></details>}
+        </div>
+      )}
+    </div>
   )
 }
 

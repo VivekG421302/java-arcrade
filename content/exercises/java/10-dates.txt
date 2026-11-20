@@ -1,0 +1,59 @@
+id: m5-dates
+module: 5
+after: 12
+title: Days between and day of the week
+level: Easy
+@@ task
+Use `java.time` (never `Date` or `Calendar`) to write:
+
+- `daysBetween(from, to)`: the number of days from one ISO date (`2024-01-01`) to another
+- `weekdayOf(date)`: the day of the week as text, such as `FRIDAY`
+@@ hint
+`LocalDate.parse("2024-01-01")` reads an ISO date. `ChronoUnit.DAYS.between(a, b)` counts the days. `date.getDayOfWeek()` returns an enum; `.toString()` gives the name.
+@@ expect
+366
+35
+FRIDAY
+TUESDAY
+@@ starter
+import java.time.*;
+import java.time.temporal.ChronoUnit;
+
+public class Main {
+    static long daysBetween(String from, String to) {
+        // TODO: LocalDate.parse + ChronoUnit.DAYS.between
+        return 0;
+    }
+
+    static String weekdayOf(String date) {
+        // TODO: LocalDate.parse + getDayOfWeek()
+        return "";
+    }
+
+    public static void main(String[] args) {
+        System.out.println(daysBetween("2024-01-01", "2025-01-01"));   // 366 (2024 is a leap year)
+        System.out.println(daysBetween("2026-11-20", "2026-12-25"));   // 35
+        System.out.println(weekdayOf("2026-11-20"));                   // FRIDAY
+        System.out.println(weekdayOf("2000-02-29"));                   // TUESDAY
+    }
+}
+@@ solution
+import java.time.*;
+import java.time.temporal.ChronoUnit;
+
+public class Main {
+    static long daysBetween(String from, String to) {
+        return ChronoUnit.DAYS.between(LocalDate.parse(from), LocalDate.parse(to));
+    }
+
+    static String weekdayOf(String date) {
+        return LocalDate.parse(date).getDayOfWeek().toString();
+    }
+
+    public static void main(String[] args) {
+        System.out.println(daysBetween("2024-01-01", "2025-01-01"));   // 366 (2024 is a leap year)
+        System.out.println(daysBetween("2026-11-20", "2026-12-25"));   // 35
+        System.out.println(weekdayOf("2026-11-20"));                   // FRIDAY
+        System.out.println(weekdayOf("2000-02-29"));                   // TUESDAY
+    }
+}
