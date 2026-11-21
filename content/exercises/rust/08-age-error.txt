@@ -1,0 +1,98 @@
+id: r2-age-error
+module: 2
+after: 6
+title: Your own error type
+level: Medium
+@@ task
+A custom error enum needs a `Display` message for people, and a `From` impl so `?` can convert library errors into it. The `From` impl is already written for you: read it, it is what makes `text.trim().parse()?` compile.
+
+Your part:
+1. Fill in `Display`: `NotANumber` prints `age must be a number`; `OutOfRange(n)` prints `age out of range: <n>`
+2. In `parse_age`, return `Err(AgeError::OutOfRange(n))` when the age is below 0 or above 150
+@@ hint
+`match self { AgeError::NotANumber => write!(f, "age must be a number"), AgeError::OutOfRange(n) => write!(f, "age out of range: {}", n) }` and `if n < 0 || n > 150 { return Err(AgeError::OutOfRange(n)); }`.
+@@ expect
+ok 42
+error: age must be a number
+error: age out of range: -5
+error: age out of range: 200
+@@ starter
+use std::fmt;
+use std::num::ParseIntError;
+
+#[derive(Debug)]
+enum AgeError {
+    NotANumber,
+    OutOfRange(i32),
+}
+
+impl fmt::Display for AgeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO: NotANumber -> "age must be a number", OutOfRange(n) -> "age out of range: <n>"
+        write!(f, "{:?}", self)
+    }
+}
+
+// This is what lets `?` turn a ParseIntError into our AgeError.
+impl From<ParseIntError> for AgeError {
+    fn from(_: ParseIntError) -> AgeError {
+        AgeError::NotANumber
+    }
+}
+
+fn parse_age(text: &str) -> Result<i32, AgeError> {
+    let n: i32 = text.trim().parse()?;
+    // TODO: return Err(AgeError::OutOfRange(n)) when n is below 0 or above 150
+    Ok(n)
+}
+
+fn main() {
+    for text in &["42", "abc", "-5", "200"] {
+        match parse_age(text) {
+            Ok(age) => println!("ok {}", age),
+            Err(e) => println!("error: {}", e),
+        }
+    }
+}
+@@ solution
+use std::fmt;
+use std::num::ParseIntError;
+
+#[derive(Debug)]
+enum AgeError {
+    NotANumber,
+    OutOfRange(i32),
+}
+
+impl fmt::Display for AgeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AgeError::NotANumber => write!(f, "age must be a number"),
+            AgeError::OutOfRange(n) => write!(f, "age out of range: {}", n),
+        }
+    }
+}
+
+// This is what lets `?` turn a ParseIntError into our AgeError.
+impl From<ParseIntError> for AgeError {
+    fn from(_: ParseIntError) -> AgeError {
+        AgeError::NotANumber
+    }
+}
+
+fn parse_age(text: &str) -> Result<i32, AgeError> {
+    let n: i32 = text.trim().parse()?;
+    if n < 0 || n > 150 {
+        return Err(AgeError::OutOfRange(n));
+    }
+    Ok(n)
+}
+
+fn main() {
+    for text in &["42", "abc", "-5", "200"] {
+        match parse_age(text) {
+            Ok(age) => println!("ok {}", age),
+            Err(e) => println!("error: {}", e),
+        }
+    }
+}

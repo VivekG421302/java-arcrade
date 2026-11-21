@@ -25,7 +25,7 @@ const DEFS: Record<ShortcutId, Def> = {
   fontBigger: { code: 'Period', alt: true },
   wrap: { code: 'KeyW', alt: true },
   course: { code: 'KeyO', alt: true },
-  home: { code: 'KeyG', alt: true },   // Go home (Alt+H already hides the app)
+  home: { code: 'KeyQ', alt: true },   // Go home (Alt+H already hides the app; Alt+Q is free in every browser)
 }
 const NAMES: Record<string, string> = { Enter: 'Enter', BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=', Comma: ',', Period: '.' }
 

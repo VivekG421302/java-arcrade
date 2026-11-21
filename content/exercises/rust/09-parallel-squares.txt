@@ -1,0 +1,43 @@
+id: r3-parallel-squares
+module: 3
+after: 2
+title: One thread per number
+level: Easy
+@@ task
+Write `parallel_squares(nums)`: start **one thread per number** that computes its square, then wait for every thread and return the results in the **same order** as the input.
+
+`thread::spawn` returns a `JoinHandle`; `join()` waits and gives you the thread's result. Use `move` so each closure owns its number.
+@@ hint
+Collect the handles first: `let handles: Vec<_> = nums.into_iter().map(|n| thread::spawn(move || n * n)).collect();` and then `handles.into_iter().map(|h| h.join().unwrap()).collect()`.
+@@ expect
+[1, 4, 9, 16]
+[100, 400]
+@@ starter
+use std::thread;
+
+fn parallel_squares(nums: Vec<u64>) -> Vec<u64> {
+    // TODO: spawn one thread per number (move the number in), join them in order, collect the results
+    let _ = thread::current();
+    let _ = nums;
+    Vec::new()
+}
+
+fn main() {
+    println!("{:?}", parallel_squares(vec![1, 2, 3, 4]));   // [1, 4, 9, 16]
+    println!("{:?}", parallel_squares(vec![10, 20]));       // [100, 400]
+}
+@@ solution
+use std::thread;
+
+fn parallel_squares(nums: Vec<u64>) -> Vec<u64> {
+    let handles: Vec<_> = nums
+        .into_iter()
+        .map(|n| thread::spawn(move || n * n))
+        .collect();
+    handles.into_iter().map(|h| h.join().unwrap()).collect()
+}
+
+fn main() {
+    println!("{:?}", parallel_squares(vec![1, 2, 3, 4]));   // [1, 4, 9, 16]
+    println!("{:?}", parallel_squares(vec![10, 20]));       // [100, 400]
+}

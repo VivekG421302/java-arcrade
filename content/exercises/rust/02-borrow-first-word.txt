@@ -1,0 +1,67 @@
+id: r1-borrow-first-word
+module: 1
+after: 4
+title: Borrow it, do not take it
+level: Easy
+@@ task
+References let a function use a value without taking ownership.
+
+- `first_word(s: &str) -> &str`: return the part of `s` before the first space (all of `s` when there is no space). It returns a **slice of the input**, nothing is copied.
+- `add_exclaim(s: &mut String)`: push a `!` onto the end of the caller's string through the mutable reference.
+
+`sentence` is still usable at the end because it was only borrowed.
+@@ hint
+`match s.find(' ') { Some(i) => &s[..i], None => s }`. For the second one, `s.push('!')` works directly on `&mut String`.
+@@ expect
+hello
+rust
+hi!!
+17
+@@ starter
+fn first_word(s: &str) -> &str {
+    // TODO: return the slice before the first space (or the whole thing when there is no space)
+    s
+}
+
+fn add_exclaim(s: &mut String) {
+    // TODO: push '!' onto the end of s
+}
+
+fn main() {
+    let sentence = String::from("hello brave world");
+    let first = first_word(&sentence);
+    println!("{}", first);                  // hello
+    println!("{}", first_word("rust"));     // rust
+
+    let mut msg = String::from("hi");
+    add_exclaim(&mut msg);
+    add_exclaim(&mut msg);
+    println!("{}", msg);                    // hi!!
+
+    println!("{}", sentence.len());         // 17 (we only borrowed it, so it is still ours)
+}
+@@ solution
+fn first_word(s: &str) -> &str {
+    match s.find(' ') {
+        Some(i) => &s[..i],
+        None => s,
+    }
+}
+
+fn add_exclaim(s: &mut String) {
+    s.push('!');
+}
+
+fn main() {
+    let sentence = String::from("hello brave world");
+    let first = first_word(&sentence);
+    println!("{}", first);                  // hello
+    println!("{}", first_word("rust"));     // rust
+
+    let mut msg = String::from("hi");
+    add_exclaim(&mut msg);
+    add_exclaim(&mut msg);
+    println!("{}", msg);                    // hi!!
+
+    println!("{}", sentence.len());         // 17 (we only borrowed it, so it is still ours)
+}

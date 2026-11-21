@@ -1,0 +1,84 @@
+id: r7-metrics-text
+module: 7
+after: 2
+title: Counters in Prometheus text format
+level: Medium
+@@ task
+Monitoring tools such as Prometheus read plain text. Build a tiny metrics registry.
+
+- `inc(name)`: add 1 to the counter called `name` (a new counter starts at 0)
+- `render()`: for every counter, **sorted by name**, write two lines: `# TYPE <name> counter` and `<name> <value>`
+
+`BTreeMap` keeps its keys sorted, so the order comes for free.
+@@ hint
+`*self.counters.entry(name.to_string()).or_insert(0) += 1;` and in `render` loop `for (name, value) in &self.counters { out.push_str(&format!("# TYPE {} counter\n{} {}\n", name, name, value)); }`.
+@@ expect
+# TYPE errors_total counter
+errors_total 1
+# TYPE requests_total counter
+requests_total 3
+@@ starter
+use std::collections::BTreeMap;
+
+struct Metrics {
+    counters: BTreeMap<String, u64>,
+}
+
+impl Metrics {
+    fn new() -> Metrics {
+        Metrics { counters: BTreeMap::new() }
+    }
+
+    fn inc(&mut self, name: &str) {
+        // TODO: add 1 to the counter called `name` (start from 0)
+        let _ = name;
+    }
+
+    fn render(&self) -> String {
+        // TODO: for each counter, sorted by name: "# TYPE <name> counter" then "<name> <value>"
+        let _ = &self.counters;
+        String::new()
+    }
+}
+
+fn main() {
+    let mut m = Metrics::new();
+    m.inc("requests_total");
+    m.inc("errors_total");
+    m.inc("requests_total");
+    m.inc("requests_total");
+    print!("{}", m.render());
+}
+@@ solution
+use std::collections::BTreeMap;
+
+struct Metrics {
+    counters: BTreeMap<String, u64>,
+}
+
+impl Metrics {
+    fn new() -> Metrics {
+        Metrics { counters: BTreeMap::new() }
+    }
+
+    fn inc(&mut self, name: &str) {
+        *self.counters.entry(name.to_string()).or_insert(0) += 1;
+    }
+
+    fn render(&self) -> String {
+        let mut out = String::new();
+        for (name, value) in &self.counters {
+            out.push_str(&format!("# TYPE {} counter\n{} {}\n", name, name, value));
+        }
+        out
+    }
+}
+
+fn main() {
+    let mut m = Metrics::new();
+    m.inc("requests_total");
+    m.inc("errors_total");
+    m.inc("requests_total");
+    m.inc("requests_total");
+    print!("{}", m.render());
+}

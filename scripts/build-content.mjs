@@ -240,10 +240,10 @@ const postgres = {
 }
 
 fs.writeFileSync('src/content.json', JSON.stringify({ java, rust, postgres }))
-// Hands-on exercises placed between roadmap sections (Java for now): src/exercises.json = { java: [...] }
-const exercises = { java: loadExercises('content/exercises/java') }
+// Hands-on exercises placed between roadmap sections: src/exercises.json = { java: [...], rust: [...] }
+const exercises = { java: loadExercises('content/exercises/java'), rust: loadExercises('content/exercises/rust') }
 fs.writeFileSync('src/exercises.json', JSON.stringify(exercises))
-console.log('exercises: java=' + exercises.java.length)
+console.log(`exercises: java=${exercises.java.length} rust=${exercises.rust.length}`)
 const sum = (c) => `phases=${c.phases.length} sections=${c.phases.reduce((s, p) => s + p.sections.length, 0)} questions=${c.questions.length} antiPatterns=${c.antiPatterns.length}+${c.antiMatrix.length} scenarios=${c.scenarios.length}+${c.scenarioMatrix.length} projects=${c.projects.length}`
 console.log('java: ' + sum(java))
 console.log('rust: ' + sum(rust))

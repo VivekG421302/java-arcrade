@@ -1,0 +1,53 @@
+id: r3-channel-workers
+module: 3
+after: 5
+title: Workers that send results through a channel
+level: Medium
+@@ task
+Three worker threads must each send `id * 10` (for `id` 1, 2 and 3) to the main thread through a channel. Main collects everything, sorts it (threads finish in any order) and prints the list and its sum.
+
+In the loop, give each thread its own sender clone (already made for you) and **move** it into the closure. Leave the `drop(tx)` line: the receiver's loop only ends when **every** sender is gone, including the original.
+@@ hint
+`thread::spawn(move || { tx.send(id * 10).unwrap(); });` The clone `tx` is dropped automatically when its thread ends.
+@@ expect
+[10, 20, 30]
+60
+@@ starter
+use std::sync::mpsc;
+use std::thread;
+
+fn main() {
+    let (tx, rx) = mpsc::channel::<i32>();
+
+    for id in 1..=3 {
+        let tx = tx.clone();
+        // TODO: spawn a thread that sends id * 10 through tx (move tx into the closure)
+        let _ = (id, tx, thread::current());
+    }
+    drop(tx);   // the original sender: without this, the loop below would wait forever
+
+    let mut got: Vec<i32> = rx.iter().collect();
+    got.sort();
+    println!("{:?}", got);                      // [10, 20, 30]
+    println!("{}", got.iter().sum::<i32>());    // 60
+}
+@@ solution
+use std::sync::mpsc;
+use std::thread;
+
+fn main() {
+    let (tx, rx) = mpsc::channel::<i32>();
+
+    for id in 1..=3 {
+        let tx = tx.clone();
+        thread::spawn(move || {
+            tx.send(id * 10).unwrap();
+        });
+    }
+    drop(tx);   // the original sender: without this, the loop below would wait forever
+
+    let mut got: Vec<i32> = rx.iter().collect();
+    got.sort();
+    println!("{:?}", got);                      // [10, 20, 30]
+    println!("{}", got.iter().sum::<i32>());    // 60
+}

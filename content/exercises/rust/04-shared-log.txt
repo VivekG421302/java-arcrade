@@ -1,0 +1,76 @@
+id: r1-shared-log
+module: 1
+after: 6
+title: Two accounts, one shared log (Rc and RefCell)
+level: Medium
+@@ task
+`Rc` lets several owners share one value; `RefCell` lets you change it through a shared reference (the borrow rules are checked while the program runs).
+
+Both accounts hold a clone of the same `Rc<RefCell<Vec<String>>>`. Implement `deposit` so it pushes the text `<name> +<amount>` (for example `alice +5`) onto the shared log. The `deposit` method only has `&self`, so you will need `borrow_mut()`.
+@@ hint
+`self.log.borrow_mut().push(format!("{} +{}", self.name, amount));`
+@@ expect
+3
+alice +5, bob +7, alice +1
+3
+@@ starter
+use std::cell::RefCell;
+use std::rc::Rc;
+
+struct Account {
+    name: String,
+    log: Rc<RefCell<Vec<String>>>,
+}
+
+impl Account {
+    fn new(name: &str, log: Rc<RefCell<Vec<String>>>) -> Account {
+        Account { name: name.to_string(), log }
+    }
+
+    fn deposit(&self, amount: u32) {
+        // TODO: push "<name> +<amount>" onto the shared log
+        let _ = (&self.name, amount);
+    }
+}
+
+fn main() {
+    let log = Rc::new(RefCell::new(Vec::new()));
+    let a = Account::new("alice", Rc::clone(&log));
+    let b = Account::new("bob", Rc::clone(&log));
+    a.deposit(5);
+    b.deposit(7);
+    a.deposit(1);
+    println!("{}", log.borrow().len());           // 3
+    println!("{}", log.borrow().join(", "));      // alice +5, bob +7, alice +1
+    println!("{}", Rc::strong_count(&log));       // 3 (log, a and b each own it)
+}
+@@ solution
+use std::cell::RefCell;
+use std::rc::Rc;
+
+struct Account {
+    name: String,
+    log: Rc<RefCell<Vec<String>>>,
+}
+
+impl Account {
+    fn new(name: &str, log: Rc<RefCell<Vec<String>>>) -> Account {
+        Account { name: name.to_string(), log }
+    }
+
+    fn deposit(&self, amount: u32) {
+        self.log.borrow_mut().push(format!("{} +{}", self.name, amount));
+    }
+}
+
+fn main() {
+    let log = Rc::new(RefCell::new(Vec::new()));
+    let a = Account::new("alice", Rc::clone(&log));
+    let b = Account::new("bob", Rc::clone(&log));
+    a.deposit(5);
+    b.deposit(7);
+    a.deposit(1);
+    println!("{}", log.borrow().len());           // 3
+    println!("{}", log.borrow().join(", "));      // alice +5, bob +7, alice +1
+    println!("{}", Rc::strong_count(&log));       // 3 (log, a and b each own it)
+}

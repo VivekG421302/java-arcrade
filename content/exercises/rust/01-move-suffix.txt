@@ -1,0 +1,54 @@
+id: r1-move-suffix
+module: 1
+after: 3
+title: Hand the String back (ownership in and out)
+level: Easy
+@@ task
+Passing a `String` by value **moves** it: the caller can no longer use it. A function can give ownership back by returning the value.
+
+Write:
+- `add_suffix(s, suffix)`: append `suffix` to `s` and return the same `String`
+- `longest_of(a, b)`: return whichever `String` is longer (the first one when they are equally long); the other one is dropped
+@@ hint
+`s.push_str(suffix); s` appends in place (that is why the parameter is `mut`) and returns the String. For `longest_of`, compare `b.len() > a.len()` and return `b` or `a`.
+@@ expect
+rust-lang
+abc
+hi
+@@ starter
+fn add_suffix(mut s: String, suffix: &str) -> String {
+    // TODO: append the suffix, then return s (ownership goes in and comes back out)
+    s
+}
+
+fn longest_of(a: String, b: String) -> String {
+    // TODO: return the longer one (the first when equal); the other is dropped here
+    a
+}
+
+fn main() {
+    let name = String::from("rust");
+    let name = add_suffix(name, "-lang");     // name was moved in; the new `name` is what came back
+    println!("{}", name);                      // rust-lang
+
+    println!("{}", longest_of(String::from("ab"), String::from("abc")));   // abc
+    println!("{}", longest_of(String::from("hi"), String::from("yo")));    // hi
+}
+@@ solution
+fn add_suffix(mut s: String, suffix: &str) -> String {
+    s.push_str(suffix);
+    s
+}
+
+fn longest_of(a: String, b: String) -> String {
+    if b.len() > a.len() { b } else { a }
+}
+
+fn main() {
+    let name = String::from("rust");
+    let name = add_suffix(name, "-lang");     // name was moved in; the new `name` is what came back
+    println!("{}", name);                      // rust-lang
+
+    println!("{}", longest_of(String::from("ab"), String::from("abc")));   // abc
+    println!("{}", longest_of(String::from("hi"), String::from("yo")));    // hi
+}

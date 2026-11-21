@@ -1,0 +1,63 @@
+id: r3-mutex-counter
+module: 3
+after: 3
+title: Four threads, one counter (Arc and Mutex)
+level: Medium
+@@ task
+Four threads each add 1 to a shared counter 1000 times, so the answer must be **4000**.
+
+`Arc` shares ownership between threads and `Mutex` allows only one thread at a time to change the value. Inside the loop, lock the mutex and add 1. The closure must use the `counter` clone, so it moves into the thread.
+
+The second line prints how many owners are left after every thread has finished (`1`: only `main`).
+@@ hint
+`*counter.lock().unwrap() += 1;` The guard returned by `lock()` unlocks automatically when it goes out of scope at the end of that statement.
+@@ expect
+4000
+1
+@@ starter
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+fn main() {
+    let counter = Arc::new(Mutex::new(0u32));
+    let mut handles = Vec::new();
+
+    for _ in 0..4 {
+        let counter = Arc::clone(&counter);
+        handles.push(thread::spawn(move || {
+            for _ in 0..1000 {
+                // TODO: lock `counter` and add 1
+                let _ = &counter;
+            }
+        }));
+    }
+
+    for h in handles {
+        h.join().unwrap();
+    }
+    println!("{}", *counter.lock().unwrap());     // 4000
+    println!("{}", Arc::strong_count(&counter));  // 1 (every thread's clone is gone)
+}
+@@ solution
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+fn main() {
+    let counter = Arc::new(Mutex::new(0u32));
+    let mut handles = Vec::new();
+
+    for _ in 0..4 {
+        let counter = Arc::clone(&counter);
+        handles.push(thread::spawn(move || {
+            for _ in 0..1000 {
+                *counter.lock().unwrap() += 1;
+            }
+        }));
+    }
+
+    for h in handles {
+        h.join().unwrap();
+    }
+    println!("{}", *counter.lock().unwrap());     // 4000
+    println!("{}", Arc::strong_count(&counter));  // 1 (every thread's clone is gone)
+}

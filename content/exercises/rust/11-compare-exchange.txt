@@ -1,0 +1,97 @@
+id: r3-compare-exchange
+module: 3
+after: 4
+title: Never go over the limit (compare_exchange)
+level: Hard
+@@ task
+`increment_if_below(n, max)` must add 1 to `n` only while it is below `max`, and say whether it did.
+
+Right now it **checks**, then **acts**; another thread can sneak in between (`yield_now` makes that gap easy to hit). Eight threads try 100 times each against a limit of 500, so the final value must be **exactly 500**, never more.
+
+Rewrite it as a loop around `compare_exchange`, which only succeeds when nobody has changed the value since you read it.
+@@ hint
+`loop { let cur = n.load(Ordering::SeqCst); if cur >= max { return false; } if n.compare_exchange(cur, cur + 1, Ordering::SeqCst, Ordering::SeqCst).is_ok() { return true; } }` If the exchange fails, someone else won the race: loop and read again.
+@@ expect
+true
+true
+true
+false
+false
+500
+@@ starter
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::thread;
+
+fn increment_if_below(n: &AtomicUsize, max: usize) -> bool {
+    // TODO: replace check-then-act with a compare_exchange loop
+    if n.load(Ordering::SeqCst) < max {
+        thread::yield_now();                 // the gap where another thread can sneak in
+        n.fetch_add(1, Ordering::SeqCst);
+        true
+    } else {
+        false
+    }
+}
+
+fn main() {
+    let small = AtomicUsize::new(0);
+    for _ in 0..5 {
+        println!("{}", increment_if_below(&small, 3));   // true true true false false
+    }
+
+    let shared = Arc::new(AtomicUsize::new(0));
+    let handles: Vec<_> = (0..8)
+        .map(|_| {
+            let s = Arc::clone(&shared);
+            thread::spawn(move || {
+                for _ in 0..100 {
+                    increment_if_below(&s, 500);
+                }
+            })
+        })
+        .collect();
+    for h in handles {
+        h.join().unwrap();
+    }
+    println!("{}", shared.load(Ordering::SeqCst));      // 500
+}
+@@ solution
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::thread;
+
+fn increment_if_below(n: &AtomicUsize, max: usize) -> bool {
+    loop {
+        let cur = n.load(Ordering::SeqCst);
+        if cur >= max {
+            return false;
+        }
+        if n.compare_exchange(cur, cur + 1, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+            return true;
+        }
+    }
+}
+
+fn main() {
+    let small = AtomicUsize::new(0);
+    for _ in 0..5 {
+        println!("{}", increment_if_below(&small, 3));   // true true true false false
+    }
+
+    let shared = Arc::new(AtomicUsize::new(0));
+    let handles: Vec<_> = (0..8)
+        .map(|_| {
+            let s = Arc::clone(&shared);
+            thread::spawn(move || {
+                for _ in 0..100 {
+                    increment_if_below(&s, 500);
+                }
+            })
+        })
+        .collect();
+    for h in handles {
+        h.join().unwrap();
+    }
+    println!("{}", shared.load(Ordering::SeqCst));      // 500
+}

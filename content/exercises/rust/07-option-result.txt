@@ -1,0 +1,57 @@
+id: r2-option-result
+module: 2
+after: 5
+title: Chain Option and Result without unwrap
+level: Medium
+@@ task
+Write both functions as short chains of combinators, with no `match`, no `unwrap` and no `if let`.
+
+- `parse_and_double(s)`: trim the text, parse it as `i32` (`map_err` the failure into the text `not a number: <s>`, using the original `s`), then double the number
+- `first_even(v)`: the first even number in the slice, or `None`
+@@ hint
+`s.trim().parse::<i32>().map_err(|_| format!("not a number: {}", s)).map(|n| n * 2)` and `v.iter().cloned().find(|n| n % 2 == 0)`.
+@@ expect
+Ok(42)
+Ok(16)
+Err("not a number: abc")
+Some(6)
+None
+@@ starter
+fn parse_and_double(s: &str) -> Result<i32, String> {
+    // TODO: trim, parse::<i32>, map_err to "not a number: <s>", then map to double
+    let _ = s;
+    Ok(0)
+}
+
+fn first_even(v: &[i32]) -> Option<i32> {
+    // TODO: the first even number, if there is one
+    let _ = v;
+    None
+}
+
+fn main() {
+    println!("{:?}", parse_and_double("21"));          // Ok(42)
+    println!("{:?}", parse_and_double(" 8 "));          // Ok(16)
+    println!("{:?}", parse_and_double("abc"));          // Err("not a number: abc")
+    println!("{:?}", first_even(&[1, 3, 6, 8]));        // Some(6)
+    println!("{:?}", first_even(&[1, 3]));              // None
+}
+@@ solution
+fn parse_and_double(s: &str) -> Result<i32, String> {
+    s.trim()
+        .parse::<i32>()
+        .map_err(|_| format!("not a number: {}", s))
+        .map(|n| n * 2)
+}
+
+fn first_even(v: &[i32]) -> Option<i32> {
+    v.iter().cloned().find(|n| n % 2 == 0)
+}
+
+fn main() {
+    println!("{:?}", parse_and_double("21"));          // Ok(42)
+    println!("{:?}", parse_and_double(" 8 "));          // Ok(16)
+    println!("{:?}", parse_and_double("abc"));          // Err("not a number: abc")
+    println!("{:?}", first_even(&[1, 3, 6, 8]));        // Some(6)
+    println!("{:?}", first_even(&[1, 3]));              // None
+}

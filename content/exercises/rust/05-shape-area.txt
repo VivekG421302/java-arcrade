@@ -1,0 +1,56 @@
+id: r2-shape-area
+module: 2
+after: 3
+title: Areas with an enum and match
+level: Easy
+@@ task
+An enum can hold different data in each variant, and `match` must handle every variant (the compiler checks).
+
+Write `area(shape: &Shape) -> f64`:
+- `Circle(r)`: pi * r * r
+- `Rect(w, h)`: w * h
+- `Triangle { base, height }`: half of base * height
+@@ hint
+`match shape { Shape::Circle(r) => std::f64::consts::PI * r * r, Shape::Rect(w, h) => w * h, Shape::Triangle { base, height } => 0.5 * base * height }`
+@@ expect
+12.57
+12.00
+25.00
+@@ starter
+enum Shape {
+    Circle(f64),
+    Rect(f64, f64),
+    Triangle { base: f64, height: f64 },
+}
+
+fn area(shape: &Shape) -> f64 {
+    // TODO: match on every variant
+    let _ = shape;
+    0.0
+}
+
+fn main() {
+    println!("{:.2}", area(&Shape::Circle(2.0)));                          // 12.57
+    println!("{:.2}", area(&Shape::Rect(3.0, 4.0)));                       // 12.00
+    println!("{:.2}", area(&Shape::Triangle { base: 10.0, height: 5.0 })); // 25.00
+}
+@@ solution
+enum Shape {
+    Circle(f64),
+    Rect(f64, f64),
+    Triangle { base: f64, height: f64 },
+}
+
+fn area(shape: &Shape) -> f64 {
+    match shape {
+        Shape::Circle(r) => std::f64::consts::PI * r * r,
+        Shape::Rect(w, h) => w * h,
+        Shape::Triangle { base, height } => 0.5 * base * height,
+    }
+}
+
+fn main() {
+    println!("{:.2}", area(&Shape::Circle(2.0)));                          // 12.57
+    println!("{:.2}", area(&Shape::Rect(3.0, 4.0)));                       // 12.00
+    println!("{:.2}", area(&Shape::Triangle { base: 10.0, height: 5.0 })); // 25.00
+}

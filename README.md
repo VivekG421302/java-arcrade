@@ -56,6 +56,12 @@ Open it from a question ("Practice in IDE") or with the terminal icon in the top
 - Built for laptop-sized screens; on small screens the IDE is not laid out.
 - To remove the feature: delete `components/Workspace.tsx`, `CodeEditor.tsx`, `hooks/useIde.tsx`, `lib/runner.ts` and unwrap `<Workspace>` in `App.tsx`.
 
+### Hands-on exercises between sections
+Java and Rust modules have small coding exercises placed between sections. Each card shows the task and expected output; **Open in the IDE** loads a starter whose `main` already prints every test case, and a run that prints every expected line marks the exercise done (kept per user and course in `exdone:<user>:<course>`).
+
+- **Add one:** drop a file in `content/exercises/java/` or `content/exercises/rust/`: `id`, `module` (position in the course), `after` (section number it follows), `title`, `level`, then `@@ task`, `@@ hint`, `@@ expect` (one expected output line per line), `@@ starter`, `@@ solution`. Use a unique `id` (Java `m<module>-...`, Rust `r<module>-...`). `npm run content` builds `src/exercises.json`.
+- **Verify:** `node --experimental-strip-types scripts/verify-exercises.mjs [java|rust]` compiles and runs every solution (must solve it) and starter (must compile and must not count as solved). Judge0 runs Java 17 and Rust 1.40, so keep to those language levels and the standard library only.
+
 ### Keyboard shortcuts
 Hover or focus any button (or long-press on touch) to see its tooltip with the shortcut. On macOS use Option instead of Alt and Command instead of Ctrl.
 
@@ -73,6 +79,7 @@ Hover or focus any button (or long-press on touch) to see its tooltip with the s
 | Smaller / bigger editor text | Alt+, / Alt+. |
 | Wrap long lines | Alt+W |
 | Switch course (Java / Rust / PostgreSQL) | Alt+O |
+| Go to Home | Alt+Q |
 | Focus the editor / leave it | Alt+C / Esc |
 | Toggle Java solution / open LeetCode (for the problem in the IDE) | Alt+S / Alt+L |
 | Open the app menu | Alt+M |

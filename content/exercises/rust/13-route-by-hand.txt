@@ -1,0 +1,76 @@
+id: r5-route-by-hand
+module: 5
+after: 2
+title: A router in plain Rust
+level: Medium
+@@ task
+Before a framework like Axum does it for you, a server must read the request line and pick a handler. Do both by hand.
+
+`parse_request(line)`: from `GET /users/42 HTTP/1.1` return `Some(("GET", "/users/42"))`, or `None` when there are fewer than two parts.
+
+`route(method, path)` returns the response line:
+- `GET /health` gives `200 ok`
+- `GET /users/<id>` gives `200 user <id>`
+- a known path with a method other than GET gives `405 method not allowed`
+- any other path gives `404 not found`
+@@ hint
+`let mut parts = line.split_whitespace(); let m = parts.next()?; let p = parts.next()?;` For the id: `&path["/users/".len()..]`. Check "is the path known?" first, then the method.
+@@ expect
+Some(("GET", "/users/42"))
+None
+200 ok
+200 user 42
+405 method not allowed
+404 not found
+@@ starter
+fn parse_request(line: &str) -> Option<(&str, &str)> {
+    // TODO: split on whitespace; Some((method, path)) or None when there are fewer than two parts
+    let _ = line;
+    None
+}
+
+fn route(method: &str, path: &str) -> String {
+    // TODO: 200 ok / 200 user <id> / 405 method not allowed / 404 not found
+    let _ = (method, path);
+    String::new()
+}
+
+fn main() {
+    println!("{:?}", parse_request("GET /users/42 HTTP/1.1"));   // Some(("GET", "/users/42"))
+    println!("{:?}", parse_request("oops"));                     // None
+    println!("{}", route("GET", "/health"));                     // 200 ok
+    println!("{}", route("GET", "/users/42"));                   // 200 user 42
+    println!("{}", route("POST", "/health"));                    // 405 method not allowed
+    println!("{}", route("GET", "/nope"));                       // 404 not found
+}
+@@ solution
+fn parse_request(line: &str) -> Option<(&str, &str)> {
+    let mut parts = line.split_whitespace();
+    let method = parts.next()?;
+    let path = parts.next()?;
+    Some((method, path))
+}
+
+fn route(method: &str, path: &str) -> String {
+    let known = path == "/health" || path.starts_with("/users/");
+    if !known {
+        return "404 not found".to_string();
+    }
+    if method != "GET" {
+        return "405 method not allowed".to_string();
+    }
+    if path == "/health" {
+        "200 ok".to_string()
+    } else {
+        format!("200 user {}", &path["/users/".len()..])
+    }
+}
+
+fn main() {
+    println!("{:?}", parse_request("GET /users/42 HTTP/1.1"));   // Some(("GET", "/users/42"))
+    println!("{:?}", parse_request("oops"));                     // None
+    println!("{}", route("GET", "/health"));                     // 200 ok
+    println!("{}", route("GET", "/users/42"));                   // 200 user 42
+    println!("{}", route("POST", "/health"));                    // 405 method not allowed
+    println!("{}", route("GET", "/nope"));                       // 404 not found
+}

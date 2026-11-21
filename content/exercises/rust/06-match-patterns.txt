@@ -1,0 +1,84 @@
+id: r2-match-patterns
+module: 2
+after: 4
+title: Ranges, guards and tuples in match
+level: Medium
+@@ task
+Write two functions using only `match` (no `if`):
+
+`classify(n)`: `negative` below zero, `zero`, `small` for 1 to 9, `medium` for 10 to 99, otherwise `large`. Use a **guard** for the negative case and **range patterns** (`1..=9`) for the others.
+
+`quadrant(p)`: take a `(x, y)` tuple and give `origin` for `(0, 0)`, `x-axis` when only `y` is 0, `y-axis` when only `x` is 0, `first` when both are positive, otherwise `elsewhere`. Order matters: the first arm that fits wins.
+@@ hint
+`n if n < 0 => "negative"`, `0 => "zero"`, `1..=9 => "small"`. For tuples: `(0, 0) => ...`, `(_, 0) => ...`, `(0, _) => ...`, `(x, y) if x > 0 && y > 0 => ...`, `_ => ...`.
+@@ expect
+negative
+zero
+small
+medium
+large
+origin
+x-axis
+y-axis
+first
+elsewhere
+@@ starter
+fn classify(n: i32) -> &'static str {
+    // TODO: match with a guard and range patterns
+    let _ = n;
+    ""
+}
+
+fn quadrant(p: (i32, i32)) -> &'static str {
+    // TODO: match on the tuple; the first matching arm wins
+    let _ = p;
+    ""
+}
+
+fn main() {
+    println!("{}", classify(-5));       // negative
+    println!("{}", classify(0));        // zero
+    println!("{}", classify(7));        // small
+    println!("{}", classify(42));       // medium
+    println!("{}", classify(1000));     // large
+
+    println!("{}", quadrant((0, 0)));   // origin
+    println!("{}", quadrant((5, 0)));   // x-axis
+    println!("{}", quadrant((0, -3)));  // y-axis
+    println!("{}", quadrant((2, 3)));   // first
+    println!("{}", quadrant((-1, 4)));  // elsewhere
+}
+@@ solution
+fn classify(n: i32) -> &'static str {
+    match n {
+        n if n < 0 => "negative",
+        0 => "zero",
+        1..=9 => "small",
+        10..=99 => "medium",
+        _ => "large",
+    }
+}
+
+fn quadrant(p: (i32, i32)) -> &'static str {
+    match p {
+        (0, 0) => "origin",
+        (_, 0) => "x-axis",
+        (0, _) => "y-axis",
+        (x, y) if x > 0 && y > 0 => "first",
+        _ => "elsewhere",
+    }
+}
+
+fn main() {
+    println!("{}", classify(-5));       // negative
+    println!("{}", classify(0));        // zero
+    println!("{}", classify(7));        // small
+    println!("{}", classify(42));       // medium
+    println!("{}", classify(1000));     // large
+
+    println!("{}", quadrant((0, 0)));   // origin
+    println!("{}", quadrant((5, 0)));   // x-axis
+    println!("{}", quadrant((0, -3)));  // y-axis
+    println!("{}", quadrant((2, 3)));   // first
+    println!("{}", quadrant((-1, 4)));  // elsewhere
+}

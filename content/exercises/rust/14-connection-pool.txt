@@ -1,0 +1,112 @@
+id: r6-connection-pool
+module: 6
+after: 2
+title: A tiny connection pool
+level: Medium
+@@ task
+A pool keeps a few expensive connections open and lends them out. Build the smallest one, safe to share between threads (that is why the idle list sits in a `Mutex`).
+
+- `new(size)`: create `size` connections with ids `1` to `size`, all idle
+- `get()`: take one idle connection, or `None` when the pool is empty
+- `put(conn)`: give a connection back
+@@ hint
+`new`: `(1..=size).map(|id| Conn { id }).collect()` then wrap in `Mutex::new`. `get`: `self.idle.lock().unwrap().pop()`. `put`: `self.idle.lock().unwrap().push(conn)`.
+@@ expect
+2
+true
+true
+true
+0
+1
+true
+@@ starter
+use std::sync::Mutex;
+
+#[allow(dead_code)]
+struct Conn {
+    id: u32,
+}
+
+struct Pool {
+    idle: Mutex<Vec<Conn>>,
+}
+
+impl Pool {
+    fn new(size: u32) -> Pool {
+        // TODO: create `size` connections with ids 1..=size
+        let _ = size;
+        Pool { idle: Mutex::new(Vec::new()) }
+    }
+
+    fn get(&self) -> Option<Conn> {
+        // TODO: take an idle connection; None when the pool is empty
+        None
+    }
+
+    fn put(&self, conn: Conn) {
+        // TODO: give the connection back
+        let _ = conn;
+    }
+
+    fn idle(&self) -> usize {
+        self.idle.lock().unwrap().len()
+    }
+}
+
+fn main() {
+    let pool = Pool::new(2);
+    println!("{}", pool.idle());               // 2
+    let a = pool.get();
+    let b = pool.get();
+    println!("{}", a.is_some());               // true
+    println!("{}", b.is_some());               // true
+    println!("{}", pool.get().is_none());      // true (nothing left)
+    println!("{}", pool.idle());               // 0
+    pool.put(a.unwrap());
+    println!("{}", pool.idle());               // 1
+    println!("{}", pool.get().is_some());      // true
+}
+@@ solution
+use std::sync::Mutex;
+
+#[allow(dead_code)]
+struct Conn {
+    id: u32,
+}
+
+struct Pool {
+    idle: Mutex<Vec<Conn>>,
+}
+
+impl Pool {
+    fn new(size: u32) -> Pool {
+        let conns: Vec<Conn> = (1..=size).map(|id| Conn { id }).collect();
+        Pool { idle: Mutex::new(conns) }
+    }
+
+    fn get(&self) -> Option<Conn> {
+        self.idle.lock().unwrap().pop()
+    }
+
+    fn put(&self, conn: Conn) {
+        self.idle.lock().unwrap().push(conn);
+    }
+
+    fn idle(&self) -> usize {
+        self.idle.lock().unwrap().len()
+    }
+}
+
+fn main() {
+    let pool = Pool::new(2);
+    println!("{}", pool.idle());               // 2
+    let a = pool.get();
+    let b = pool.get();
+    println!("{}", a.is_some());               // true
+    println!("{}", b.is_some());               // true
+    println!("{}", pool.get().is_none());      // true (nothing left)
+    println!("{}", pool.idle());               // 0
+    pool.put(a.unwrap());
+    println!("{}", pool.idle());               // 1
+    println!("{}", pool.get().is_some());      // true
+}

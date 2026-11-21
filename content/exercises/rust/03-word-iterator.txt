@@ -1,0 +1,75 @@
+id: r1-word-iterator
+module: 1
+after: 5
+title: A word splitter that holds a reference
+level: Medium
+@@ task
+`Words<'a>` keeps a reference to some text. Its `next_word` must hand back slices of that **same text**, which is why the returned `&'a str` carries the struct's lifetime `'a`.
+
+Implement `next_word`: skip leading spaces, return the next word, and move `rest` past it. Return `None` when only spaces (or nothing) are left.
+
+Because the words borrow from `text` and not from the `Words` value, you can keep them in a `Vec` while still calling `next_word`.
+@@ hint
+`let trimmed = self.rest.trim_start();` then `let end = trimmed.find(' ').unwrap_or(trimmed.len());` and `let (word, rest) = trimmed.split_at(end);`. Store `rest` back in `self.rest`.
+@@ expect
+["the", "quick", "brown", "fox"]
+4
+@@ starter
+struct Words<'a> {
+    rest: &'a str,
+}
+
+impl<'a> Words<'a> {
+    fn new(text: &'a str) -> Words<'a> {
+        Words { rest: text }
+    }
+
+    fn next_word(&mut self) -> Option<&'a str> {
+        // TODO: skip leading spaces, return the next word, move `rest` past it; None when nothing is left
+        None
+    }
+}
+
+fn main() {
+    let text = String::from("  the quick  brown fox ");
+    let mut words = Words::new(&text);
+    let mut out = Vec::new();
+    while let Some(w) = words.next_word() {
+        out.push(w);
+    }
+    println!("{:?}", out);      // ["the", "quick", "brown", "fox"]
+    println!("{}", out.len());  // 4
+}
+@@ solution
+struct Words<'a> {
+    rest: &'a str,
+}
+
+impl<'a> Words<'a> {
+    fn new(text: &'a str) -> Words<'a> {
+        Words { rest: text }
+    }
+
+    fn next_word(&mut self) -> Option<&'a str> {
+        let trimmed = self.rest.trim_start();
+        if trimmed.is_empty() {
+            self.rest = trimmed;
+            return None;
+        }
+        let end = trimmed.find(' ').unwrap_or(trimmed.len());
+        let (word, rest) = trimmed.split_at(end);
+        self.rest = rest;
+        Some(word)
+    }
+}
+
+fn main() {
+    let text = String::from("  the quick  brown fox ");
+    let mut words = Words::new(&text);
+    let mut out = Vec::new();
+    while let Some(w) = words.next_word() {
+        out.push(w);
+    }
+    println!("{:?}", out);      // ["the", "quick", "brown", "fox"]
+    println!("{}", out.len());  // 4
+}

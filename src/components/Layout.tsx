@@ -278,7 +278,7 @@ export default function Layout() {
   useEffect(() => { if (!hash) scroller.current?.scrollTo(0, 0) }, [pathname, hash])
   useEffect(() => { setToc(false); if (overlay) setPop(false) }, [pathname, hash, search])   // picking something closes the overlay menu
   useEffect(() => { setPop(false) }, [overlay])
-  useEffect(() => {                                                                           // Alt+G: go Home
+  useEffect(() => {                                                                           // Alt+Q: go Home
     const h = (e: KeyboardEvent) => { if (matches(e, 'home')) { e.preventDefault(); nav('/') } }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)

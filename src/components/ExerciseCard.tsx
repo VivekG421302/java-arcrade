@@ -1,4 +1,5 @@
 import { CircleCheck, Code2, Play } from 'lucide-react'
+import { useCourse } from '../hooks/useCourse'
 import { useIde } from '../hooks/useIde'
 import { useExercises } from '../hooks/useExercises'
 import type { Exercise } from '../lib/exercises'
@@ -13,6 +14,7 @@ const LEVEL: Record<string, string> = {
 /** A hands-on problem between two sections: read the task here, write the code in the IDE, and a run that prints every expected value marks it done. */
 export default function ExerciseCard({ ex }: { ex: Exercise }) {
   const { openExercise, open, exId } = useIde()
+  const { meta } = useCourse()
   const { isDone } = useExercises()
   const done = isDone(ex.id)
   const active = open && exId === ex.id
@@ -42,7 +44,7 @@ export default function ExerciseCard({ ex }: { ex: Exercise }) {
       )}
       <details className="mt-1 font-sans">
         <summary className="cursor-pointer select-none py-1 text-sm font-medium text-slate-600 dark:text-slate-300">Show a solution (try first!)</summary>
-        <CodeBlock code={ex.solution} lang="java" />
+        <CodeBlock code={ex.solution} lang={meta.lang} />
       </details>
     </aside>
   )
