@@ -1,0 +1,60 @@
+id: p2-constraints
+module: 2
+after: 5
+title: Let the database say no
+level: Medium
+@@ task
+Right now `account` accepts anything. Add constraints so the database itself refuses bad rows:
+
+- `id` is the **primary key** (no duplicates)
+- `owner` is **NOT NULL**
+- `balance` must **never be negative** (a CHECK constraint)
+
+`attempt('...')` is a small helper that runs one statement and prints `ok`, or the error's SQLSTATE code if the database refused it. You want `ok`, then `23505` (unique violation), `23514` (check violation) and `23502` (not-null violation).
+@@ hint
+`id int PRIMARY KEY, owner text NOT NULL, balance numeric NOT NULL DEFAULT 0 CHECK (balance >= 0)`
+@@ expect
+ok
+23505
+23514
+23502
+@@ starter
+-- Helper: runs one statement and returns 'ok', or the SQLSTATE code of the error.
+CREATE FUNCTION attempt(stmt text) RETURNS text LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE stmt;
+  RETURN 'ok';
+EXCEPTION WHEN OTHERS THEN
+  RETURN SQLSTATE;
+END $$;
+
+-- TODO: add a primary key on id, make owner NOT NULL, and forbid a negative balance
+CREATE TABLE account (
+  id      int,
+  owner   text,
+  balance numeric NOT NULL DEFAULT 0
+);
+
+SELECT attempt($$INSERT INTO account VALUES (1, 'asha', 100)$$);    -- ok
+SELECT attempt($$INSERT INTO account VALUES (1, 'ravi', 50)$$);     -- 23505 (duplicate id)
+SELECT attempt($$INSERT INTO account VALUES (2, 'meena', -5)$$);    -- 23514 (negative balance)
+SELECT attempt($$INSERT INTO account VALUES (3, NULL, 10)$$);       -- 23502 (no owner)
+@@ solution
+CREATE FUNCTION attempt(stmt text) RETURNS text LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE stmt;
+  RETURN 'ok';
+EXCEPTION WHEN OTHERS THEN
+  RETURN SQLSTATE;
+END $$;
+
+CREATE TABLE account (
+  id      int PRIMARY KEY,
+  owner   text NOT NULL,
+  balance numeric NOT NULL DEFAULT 0 CHECK (balance >= 0)
+);
+
+SELECT attempt($$INSERT INTO account VALUES (1, 'asha', 100)$$);    -- ok
+SELECT attempt($$INSERT INTO account VALUES (1, 'ravi', 50)$$);     -- 23505 (duplicate id)
+SELECT attempt($$INSERT INTO account VALUES (2, 'meena', -5)$$);    -- 23514 (negative balance)
+SELECT attempt($$INSERT INTO account VALUES (3, NULL, 10)$$);       -- 23502 (no owner)

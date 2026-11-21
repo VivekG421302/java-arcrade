@@ -31,7 +31,7 @@ export type CourseMeta = {
   tagline: string
   unit: 'Module' | 'Phase'     // what one gated step of the roadmap is called in the UI
   lang: 'java' | 'rust' | 'sql' // syntax highlighting + runner language
-  ide: boolean                 // has a runnable in-app IDE (SQL has none yet)
+  ide: boolean                 // has a runnable in-app IDE (Java and Rust run on Judge0, SQL runs in the browser with PGlite)
   off: number                  // Supabase phase_id offset, so every course shares one table (Java 201+, Rust 301+, PostgreSQL 401+)
   sfx: string                  // localStorage suffix for this course's progress
   file: string                 // file name shown in the IDE
@@ -43,7 +43,7 @@ export const COURSE_IDS: CourseId[] = ['java', 'rust', 'postgres']
 export const COURSE_META: Record<CourseId, CourseMeta> = {
   java: { id: 'java', name: 'Java', title: 'Java Developer Mastery Roadmap', tagline: 'Eleven modules, from the story of Java and plain-English backend ideas to Spring, databases and production.', unit: 'Module', lang: 'java', ide: true, off: 200, sfx: ':mod', file: 'Main.java', build: 'javac Main.java && java Main' },
   rust: { id: 'rust', name: 'Rust', title: 'Rust Systems & Backend Mastery Roadmap', tagline: 'Seven modules from the memory model and ownership to async runtimes, web services, databases and production Rust.', unit: 'Module', lang: 'rust', ide: true, off: 300, sfx: ':rustmod', file: 'main.rs', build: 'rustc main.rs && ./main' },
-  postgres: { id: 'postgres', name: 'PostgreSQL', title: 'PostgreSQL & pgAdmin 4 Zero-to-Production Roadmap', tagline: 'Modules from the process architecture and pgAdmin 4 to data modelling, constraints and partitioning, each chapter told as a pain, a fix and what the fix cost.', unit: 'Module', lang: 'sql', ide: false, off: 400, sfx: ':pgmod', file: 'query.sql', build: 'psql -f query.sql' },
+  postgres: { id: 'postgres', name: 'PostgreSQL', title: 'PostgreSQL & pgAdmin 4 Zero-to-Production Roadmap', tagline: 'Modules from the process architecture and pgAdmin 4 to data modelling, constraints and partitioning, each chapter told as a pain, a fix and what the fix cost.', unit: 'Module', lang: 'sql', ide: true, off: 400, sfx: ':pgmod', file: 'query.sql', build: 'psql -f query.sql' },
 }
 export const PASS_THRESHOLD = 0.8
 export const leetUrl = (title: string) => `https://leetcode.com/problemset/?search=${encodeURIComponent(title.replace(/\s*\(.*\)/, ''))}`

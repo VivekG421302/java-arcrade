@@ -32,7 +32,7 @@ type Props = {
   onFocusChange?: (focused: boolean) => void
   fontSize?: number
   wrap?: boolean
-  lang?: 'java' | 'rust'
+  lang?: 'java' | 'rust' | 'sql'
   onSuggest?: (r: Result | null) => void   // the current suggestions (the mobile bar shows them)
   popup?: boolean                          // show the suggestion popup at the caret (desktop)
 }
@@ -75,6 +75,25 @@ function codeMask(v: string): Uint8Array {
     if (c === "'") {   // 'x' or '\n' is a char literal; a lone ' (Rust lifetime) is not
       const hit = /^'(?:\\[^'\n]*|[^'\\\n])'/.exec(v.slice(i, i + 10))
       if (hit) { m.fill(0, i, i + hit[0].length); i += hit[0].length; continue }
+    }
+    i++
+  }
+  return m
+}
+
+/** Same as codeMask for SQL: `--` and block comments, 'strings' and "identifiers" ('' and "" are escaped quotes). */
+function sqlMask(v: string): Uint8Array {
+  const n = v.length
+  const m = new Uint8Array(n).fill(1)
+  let i = 0
+  while (i < n) {
+    const c = v[i]
+    if (c === '-' && v[i + 1] === '-') { const j = v.indexOf('\n', i); const end = j < 0 ? n : j; m.fill(0, i, end); i = end; continue }
+    if (c === '/' && v[i + 1] === '*') { const j = v.indexOf('*/', i + 2); const end = j < 0 ? n : j + 2; m.fill(0, i, end); i = end; continue }
+    if (c === "'" || c === '"') {
+      let j = i + 1
+      while (j < n) { if (v[j] === c) { if (v[j + 1] === c) { j += 2; continue } break } j++ }
+      const end = Math.min(n, j + 1); m.fill(0, i, end); i = end; continue
     }
     i++
   }
@@ -129,7 +148,7 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
   const inner = useRef<HTMLDivElement>(null)
   const overlay = useRef<HTMLDivElement>(null)
   const rows = useMemo(() => splitLines(highlight(value, lang)), [value, lang])
-  const mask = useMemo(() => codeMask(value), [value])
+  const mask = useMemo(() => (lang === 'sql' ? sqlMask(value) : codeMask(value)), [value, lang])
   const errSet = useMemo(() => new Set(errorLines), [errorLines])
   const lh = Math.round(fontSize * 1.85)
   const gutter = Math.ceil(String(rows.length).length * fontSize * 0.62) + 28
@@ -150,7 +169,7 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
 
   // ---- suggestions for the caret position
   useEffect(() => { try { loadUsage(JSON.parse(localStorage.getItem(USAGE_KEY) || '{}')) } catch { /* ignore */ } }, [])
-  const sug = useMemo(() => (caret && caret.s === caret.e && !extra.length && caret.s <= value.length ? suggest(value, caret.s, lang) : null), [value, caret, extra.length, lang])
+  const sug = useMemo(() => (caret && caret.s === caret.e && !extra.length && caret.s <= value.length && lang !== 'sql' ? suggest(value, caret.s, lang) : null), [value, caret, extra.length, lang])
   useEffect(() => { onSuggest?.(sug) }, [sug]) // eslint-disable-line react-hooks/exhaustive-deps
   const sigKey = `${value.length}:${caret?.s ?? -1}`
   const popItems = useMemo<Sug[]>(() => {
@@ -418,9 +437,10 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
     const lines = v.slice(bs, be).split('\n')
     const body = lines.filter((l) => l.trim())
     if (!body.length) return
-    const un = body.every((l) => /^\s*\/\//.test(l))
+    const sql = lang === 'sql'   // SQL comments start with --
+    const un = body.every((l) => (sql ? /^\s*--/ : /^\s*\/\//).test(l))
     const ind = Math.min(...body.map((l) => (l.match(/^\s*/) as RegExpMatchArray)[0].length))
-    const out = lines.map((l) => (un ? l.replace(/^(\s*)\/\/ ?/, '$1') : l.trim() ? `${l.slice(0, ind)}// ${l.slice(ind)}` : l))
+    const out = lines.map((l) => (un ? l.replace(sql ? /^(\s*)-- ?/ : /^(\s*)\/\/ ?/, '$1') : l.trim() ? `${l.slice(0, ind)}${sql ? '--' : '//'} ${l.slice(ind)}` : l))
     const d0 = out[0].length - lines[0].length
     const total = out.join('\n').length - (be - bs)
     const ns = Math.max(bs, s + d0)
@@ -591,7 +611,7 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
           ref={ta} value={value} onChange={(e) => { onChange(e.target.value); setCaret({ s: e.target.selectionStart, e: e.target.selectionEnd }) }} onKeyDown={onKeyDown}
           onSelect={sync} onMouseDown={onMouseDown} onMouseUp={onMouseUp} onPaste={onPaste} onCopy={(e) => onCopyCut(e, false)} onCut={(e) => onCopyCut(e, true)}
           onFocus={() => onFocusChange?.(true)} onBlur={() => onFocusChange?.(false)}
-          id="ide-editor" spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" wrap={wrap ? 'soft' : 'off'} aria-label={`${lang === 'rust' ? 'Rust' : 'Java'} code editor`}
+          id="ide-editor" spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" wrap={wrap ? 'soft' : 'off'} aria-label={`${lang === 'rust' ? 'Rust' : lang === 'sql' ? 'SQL' : 'Java'} code editor`}
           className={`absolute bottom-0 right-0 top-0 resize-none overflow-hidden bg-transparent py-4 pr-8 font-mono text-transparent caret-slate-900 dark:caret-white outline-none selection:bg-sky-500/30 ${wrapCls}`}
           style={{ left: gutter, fontSize, lineHeight: `${lh}px`, tabSize: 4 }}
         />

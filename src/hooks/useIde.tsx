@@ -47,7 +47,7 @@ const num = (k: string, d: number) => { const v = Number(get(k)); return v > 0 ?
 export function IdeProvider({ children }: { children: ReactNode }) {
   const { data, meta, course } = useCourse()
   const [openSaved, setOpen] = usePersisted('ide:open', false)
-  const open = openSaved && meta.ide   // courses without a runnable IDE (SQL) never show it, but the saved choice is kept for the others
+  const open = openSaved && meta.ide   // a course without a runnable IDE never shows it, but the saved choice is kept for the others
   const [qn, setQn] = usePersisted<number | null>('ide:qn', null)
   const [exId, setExId] = usePersisted<string | null>('ide:ex', null)
   const [hidden, setHidden] = usePersisted('ide:hidden', false)

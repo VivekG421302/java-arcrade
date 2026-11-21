@@ -1,0 +1,43 @@
+id: p2-search-path
+module: 2
+after: 2
+title: Same table name, three schemas
+level: Easy
+@@ task
+`sales`, `hr` and `public` each have a table called `staff`, with different people in it. The query `SELECT name FROM staff` has no schema in front of the name, so PostgreSQL looks through the schemas in the **search_path** and uses the first one that has a table called `staff`.
+
+Change the `SET search_path` line so that, **without writing a schema name in the queries**, `current_schema()` is `hr` and `SELECT name FROM staff` returns the hr row. Keep `public` in the path as a fallback.
+@@ hint
+`SET search_path TO hr, public;` The first schema in the list is searched first, and it is also what `current_schema()` reports (it must exist).
+@@ expect
+hr
+Asha
+@@ starter
+CREATE SCHEMA sales;
+CREATE SCHEMA hr;
+CREATE TABLE sales.staff (name text);
+CREATE TABLE hr.staff    (name text);
+CREATE TABLE public.staff (name text);
+INSERT INTO sales.staff  VALUES ('Ravi');
+INSERT INTO hr.staff     VALUES ('Asha');
+INSERT INTO public.staff VALUES ('Nobody');
+
+-- TODO: change the search_path so the two queries below read the hr schema
+SET search_path TO public;
+
+SELECT current_schema();    -- hr
+SELECT name FROM staff;     -- Asha
+@@ solution
+CREATE SCHEMA sales;
+CREATE SCHEMA hr;
+CREATE TABLE sales.staff (name text);
+CREATE TABLE hr.staff    (name text);
+CREATE TABLE public.staff (name text);
+INSERT INTO sales.staff  VALUES ('Ravi');
+INSERT INTO hr.staff     VALUES ('Asha');
+INSERT INTO public.staff VALUES ('Nobody');
+
+SET search_path TO hr, public;
+
+SELECT current_schema();    -- hr
+SELECT name FROM staff;     -- Asha

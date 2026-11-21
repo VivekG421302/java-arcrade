@@ -1,0 +1,34 @@
+id: p2-range-overlap
+module: 2
+after: 4
+title: Which bookings overlap?
+level: Medium
+@@ task
+`stay` is a `daterange`: it includes its first day and **excludes** its last (`[2024-05-01,2024-05-04)` means the nights of 1, 2 and 3 May).
+
+1. List the **ids of the bookings that overlap** the nights of 4 and 5 May, which is `daterange('2024-05-04', '2024-05-06')`, in id order. Use the `&&` (overlaps) operator.
+2. Print the **number of nights** of booking 3: `upper(stay) - lower(stay)`.
+@@ hint
+`SELECT id FROM booking WHERE stay && daterange('2024-05-04', '2024-05-06') ORDER BY id;` Booking 1 ends on the 4th (excluded), so it does not overlap. For the nights, subtracting two dates gives a whole number of days.
+@@ expect
+2
+3
+8
+@@ starter
+CREATE TABLE booking (id int PRIMARY KEY, room text, stay daterange);
+INSERT INTO booking VALUES
+  (1, 'A', '[2024-05-01,2024-05-04)'),
+  (2, 'A', '[2024-05-04,2024-05-08)'),
+  (3, 'B', '[2024-05-02,2024-05-10)');
+
+-- TODO 1: ids of bookings that overlap the nights of 4 and 5 May   -> 2, 3
+-- TODO 2: the number of nights of booking 3                        -> 8
+@@ solution
+CREATE TABLE booking (id int PRIMARY KEY, room text, stay daterange);
+INSERT INTO booking VALUES
+  (1, 'A', '[2024-05-01,2024-05-04)'),
+  (2, 'A', '[2024-05-04,2024-05-08)'),
+  (3, 'B', '[2024-05-02,2024-05-10)');
+
+SELECT id FROM booking WHERE stay && daterange('2024-05-04', '2024-05-06') ORDER BY id;
+SELECT upper(stay) - lower(stay) AS nights FROM booking WHERE id = 3;

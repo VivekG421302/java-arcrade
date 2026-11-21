@@ -1,0 +1,54 @@
+id: p2-identity
+module: 2
+after: 6
+title: Let PostgreSQL number the rows
+level: Easy
+@@ task
+Right now `ticket.id` is a plain `int` primary key, so every insert has to invent its own id. Make it an **identity column that nobody can set by hand**: `GENERATED ALWAYS AS IDENTITY`.
+
+Then inserting without an id works (`ok`), inserting an explicit id is refused with SQLSTATE `428C9`, and the two good tickets are numbered 1 and 2.
+@@ hint
+`id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY` (identity columns are the modern replacement for `serial`).
+@@ expect
+ok
+428C9
+ok
+1 | printer is on fire
+2 | second ticket
+@@ starter
+CREATE FUNCTION attempt(stmt text) RETURNS text LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE stmt;
+  RETURN 'ok';
+EXCEPTION WHEN OTHERS THEN
+  RETURN SQLSTATE;
+END $$;
+
+-- TODO: make id an identity column that cannot be set by hand
+CREATE TABLE ticket (
+  id    int PRIMARY KEY,
+  title text NOT NULL
+);
+
+SELECT attempt($$INSERT INTO ticket (title) VALUES ('printer is on fire')$$);          -- ok
+SELECT attempt($$INSERT INTO ticket (id, title) VALUES (99, 'sneaky manual id')$$);    -- 428C9
+SELECT attempt($$INSERT INTO ticket (title) VALUES ('second ticket')$$);               -- ok
+SELECT id, title FROM ticket ORDER BY id;                                              -- 1 | printer is on fire, 2 | second ticket
+@@ solution
+CREATE FUNCTION attempt(stmt text) RETURNS text LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE stmt;
+  RETURN 'ok';
+EXCEPTION WHEN OTHERS THEN
+  RETURN SQLSTATE;
+END $$;
+
+CREATE TABLE ticket (
+  id    int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  title text NOT NULL
+);
+
+SELECT attempt($$INSERT INTO ticket (title) VALUES ('printer is on fire')$$);          -- ok
+SELECT attempt($$INSERT INTO ticket (id, title) VALUES (99, 'sneaky manual id')$$);    -- 428C9
+SELECT attempt($$INSERT INTO ticket (title) VALUES ('second ticket')$$);               -- ok
+SELECT id, title FROM ticket ORDER BY id;                                              -- 1 | printer is on fire, 2 | second ticket

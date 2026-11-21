@@ -56,11 +56,20 @@ Open it from a question ("Practice in IDE") or with the terminal icon in the top
 - Built for laptop-sized screens; on small screens the IDE is not laid out.
 - To remove the feature: delete `components/Workspace.tsx`, `CodeEditor.tsx`, `hooks/useIde.tsx`, `lib/runner.ts` and unwrap `<Workspace>` in `App.tsx`.
 
-### Hands-on exercises between sections
-Java and Rust modules have small coding exercises placed between sections. Each card shows the task and expected output; **Open in the IDE** loads a starter whose `main` already prints every test case, and a run that prints every expected line marks the exercise done (kept per user and course in `exdone:<user>:<course>`).
+### PostgreSQL in the IDE (PGlite)
+The PostgreSQL course has a real SQL IDE with no server: [PGlite](https://pglite.dev) (PostgreSQL compiled to WebAssembly) runs inside a Web Worker in your browser.
 
-- **Add one:** drop a file in `content/exercises/java/` or `content/exercises/rust/`: `id`, `module` (position in the course), `after` (section number it follows), `title`, `level`, then `@@ task`, `@@ hint`, `@@ expect` (one expected output line per line), `@@ starter`, `@@ solution`. Use a unique `id` (Java `m<module>-...`, Rust `r<module>-...`). `npm run content` builds `src/exercises.json`.
-- **Verify:** `node --experimental-strip-types scripts/verify-exercises.mjs [java|rust]` compiles and runs every solution (must solve it) and starter (must compile and must not count as solved). Judge0 runs Java 17 and Rust 1.40, so keep to those language levels and the standard library only.
+- **How a run works.** Run behaves like `psql -f query.sql`: every statement runs in order, results print as psql tables (`(3 rows)`, `INSERT 0 2`, `RAISE NOTICE` lines), and an error prints `psql:query.sql:LINE: ERROR: ...` with the caret under the problem, then the script carries on. Each run starts from a **fresh database** (all schemas and roles dropped, session settings cleared), so a script always means the same thing.
+- **First use** downloads about 15 MB (`pglite.wasm` + `pglite.data`, only fetched when you open the SQL IDE) and takes a few seconds; after that a run takes milliseconds. Nothing leaves your browser and it works offline once cached.
+- **Runaway queries.** WebAssembly PostgreSQL cannot honour `statement_timeout`, so a script that runs for more than 15 seconds is stopped by terminating the worker; the database restarts on the next run.
+- **Limits.** One connection (no concurrent sessions, no `pg_stat_activity` of other backends), no psql meta-commands such as `\dt` (query `pg_tables` / `information_schema` instead), no contrib extensions yet, and data is not kept between runs.
+- **Code.** `src/lib/sql/engine.ts` (splitter, psql formatting, reset: no browser imports, also used by the Node verifier), `src/lib/sql/worker.ts` (owns PGlite), `src/lib/sqlRunner.ts` (starts and restarts the worker). `vite.config.ts` excludes PGlite from pre-bundling and builds workers as ES modules.
+
+### Hands-on exercises between sections
+Java, Rust and PostgreSQL modules have small coding exercises placed between sections. Each card shows the task and expected output; **Open in the IDE** loads a starter whose `main` already prints every test case, and a run that prints every expected line marks the exercise done (kept per user and course in `exdone:<user>:<course>`).
+
+- **Add one:** drop a file in `content/exercises/java/`, `rust/` or `postgres/`: `id`, `module` (position in the course), `after` (section number it follows), `title`, `level`, then `@@ task`, `@@ hint`, `@@ expect` (one expected output line per line), `@@ starter`, `@@ solution`. Use a unique `id` (Java `m<module>-...`, Rust `r<module>-...`, PostgreSQL `p<module>-...`). `npm run content` builds `src/exercises.json`.
+- **Verify:** `node --experimental-strip-types scripts/verify-exercises.mjs [java|rust|sql]` runs every solution (must solve it) and starter (must run cleanly and must not count as solved). Judge0 runs Java 17 and Rust 1.40, so keep to those language levels and the standard library only. SQL runs on a real PGlite (PostgreSQL 18).
 
 ### Keyboard shortcuts
 Hover or focus any button (or long-press on touch) to see its tooltip with the shortcut. On macOS use Option instead of Alt and Command instead of Ctrl.
@@ -126,5 +135,5 @@ Fenced blocks tagged `diagram` (flow) or `sequence` (message steps) in `content/
 - **Roadmap**: `content/postgres/roadmap.md`, written as `# PART 1` then `## Module N`, with one `### Chapter N.N` per chapter. Every chapter keeps the same seven sections (`####`): 1 The Pain, 2 Imagine, 3 The Fix & How It Works (opens with a diagram), 4 pgAdmin 4 & SQL Practical Workflow, 5 Comparison Table, 6 What The Fix Cost, 7 Interview & Legacy Trivia. Each module starts with an Overview section. Batch 1 = Modules 1-2 (10 chapters). To add the next batch, append its modules to this file in the same shape and add their tests to `POSTGRES_TESTS` in `src/lib/tests.ts`; `npm run content` picks them up.
 - **Progress**: PostgreSQL modules use phase ids 401+ in `phase_progress` / `test_attempts` (no schema change) and the `:pgmod` localStorage suffix.
 - **Tests**: 5 per module (4 MCQ + 1 SQL fill-in), same 80% gate and attempt lock as the other courses.
-- **Not there yet**: question bank, anti-patterns, scenarios and projects (the sidebar and home page hide empty parts), and the in-app IDE (hidden for this course; Judge0 cannot run PostgreSQL).
+- **Not there yet**: question bank, anti-patterns, scenarios and projects (the sidebar and home page hide empty parts), and the module tests' code questions.
 - **Verification**: the chapter SQL was run against a real PostgreSQL 16 server. Samples that use PG17+ features need a newer server.

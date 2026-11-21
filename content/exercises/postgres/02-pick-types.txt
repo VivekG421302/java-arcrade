@@ -1,0 +1,37 @@
+id: p2-pick-types
+module: 2
+after: 3
+title: Pick the right column types
+level: Easy
+@@ task
+Two columns have the wrong type. Fix both by changing the type in the `CREATE TABLE`.
+
+1. `price.amount` holds money. Floating point cannot store 0.10 or 0.20 exactly, so the total is off by a tiny amount. Use an exact type with 2 decimals. The first query prints `t` when the total is exactly 0.3.
+2. `event.happened_at` records a real moment, written with a time-zone offset (`+05:30`). A plain `timestamp` throws the offset away. Use the type that keeps the moment, so reading it back in UTC gives `2024-03-10 04:00:00+00`.
+@@ hint
+`numeric(10,2)` stores decimals exactly. `timestamptz` (timestamp with time zone) converts the input to UTC internally and shows it in the session's time zone.
+@@ expect
+t
+2024-03-10 04:00:00+00
+@@ starter
+SET TIME ZONE 'UTC';
+
+-- TODO: money must never be floating point: change this column type
+CREATE TABLE price (item text, amount double precision);
+INSERT INTO price VALUES ('pen', 0.10), ('ink', 0.20);
+SELECT sum(amount) = 0.3 AS exact FROM price;      -- t
+
+-- TODO: an event happened at one real moment: change this column type
+CREATE TABLE event (title text, happened_at timestamp);
+INSERT INTO event VALUES ('launch', '2024-03-10 09:30:00+05:30');
+SELECT happened_at FROM event;                      -- 2024-03-10 04:00:00+00
+@@ solution
+SET TIME ZONE 'UTC';
+
+CREATE TABLE price (item text, amount numeric(10,2));
+INSERT INTO price VALUES ('pen', 0.10), ('ink', 0.20);
+SELECT sum(amount) = 0.3 AS exact FROM price;      -- t
+
+CREATE TABLE event (title text, happened_at timestamptz);
+INSERT INTO event VALUES ('launch', '2024-03-10 09:30:00+05:30');
+SELECT happened_at FROM event;                      -- 2024-03-10 04:00:00+00

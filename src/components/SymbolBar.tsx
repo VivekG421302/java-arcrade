@@ -33,17 +33,27 @@ const RUST_WORDS: Key[] = [
 // Mid-line with nothing to complete (e.g. right after `foo(1)`): operators and operands are what comes next, not `public static`.
 const JAVA_NEXT: Key[] = [k('=='), k('!='), k('&&'), k('||'), k('<'), k('>'), k('<='), k('>='), k('+'), k('-'), k('*'), k('/'), k('%'), k('?'), k(':'), k('new '), k('null'), k('instanceof ')]
 const RUST_NEXT: Key[] = [k('=='), k('!='), k('&&'), k('||'), k('<'), k('>'), k('+'), k('-'), k('*'), k('/'), k('%'), k('as '), k('..'), k('=>'), k('?'), k('None')]
-const EXTRA: Key[] = [k('//'), k('%d'), k('%s'), k('\\n', 0, '\\n'), k(')'), k('()', 1, '( )')]
+const SQL_SYMBOLS: Key[] = [
+  k('()', 1, '( )'), k("''", 1, "' '"), k('\"\"', 1, '" "'), k(';'), k(','), k('.'), k('*'), k('='), k('<>'), k('<='), k('>='), k('<'), k('>'),
+  k('::'), k('->'), k('->>'), k('||'), k('%'), k('_'), k('+'), k('-'), k('/'), k('@>'), k('&&'), k('$$'),
+]
+const SQL_WORDS: Key[] = [
+  k('SELECT '), k('FROM '), k('WHERE '), k('JOIN '), k(' ON '), k('GROUP BY '), k('ORDER BY '), k('LIMIT '), k('INSERT INTO '), k('VALUES ()', 1, 'VALUES'),
+  k('UPDATE '), k('SET '), k('DELETE FROM '), k('CREATE TABLE () ;', 3, 'CREATE TABLE'), k('PRIMARY KEY'), k('NOT NULL'), k('REFERENCES '), k('DEFAULT '),
+  k('AND '), k('OR '), k('NOT '), k('NULL'), k('AS '), k('DISTINCT '), k('count(*)'),
+]
+const SQL_NEXT: Key[] = [k('='), k('<>'), k('<'), k('>'), k(','), k(';'), k('AND '), k('OR '), k('FROM '), k('WHERE '), k('ORDER BY '), k('AS '), k('NULL')]
+const EXTRA: Key[] = [k('//'), k('--'), k('%d'), k('%s'), k('\\n', 0, '\\n'), k(')'), k('()', 1, '( )')]
 
 /**
  * Keyboard helper shown above the native keyboard on touch screens. Taps never steal focus from the editor.
  * Row 1: smart suggestions for the caret position (type-aware methods, "new HashMap<>()", loops for your arrays...).
  * Row 2: symbols ordered for this spot (a ";" only where a statement can end), cursor keys, undo / redo.
  */
-export default function SymbolBar({ editor, inset, onHide, lang = 'java', sug }: { editor: EditorApi | null; inset: number; onHide: () => void; lang?: 'java' | 'rust'; sug?: Result | null }) {
-  const SYMBOLS = lang === 'rust' ? RUST_SYMBOLS : JAVA_SYMBOLS
-  const WORDS = lang === 'rust' ? RUST_WORDS : JAVA_WORDS
-  const NEXT = lang === 'rust' ? RUST_NEXT : JAVA_NEXT
+export default function SymbolBar({ editor, inset, onHide, lang = 'java', sug }: { editor: EditorApi | null; inset: number; onHide: () => void; lang?: 'java' | 'rust' | 'sql'; sug?: Result | null }) {
+  const SYMBOLS = lang === 'rust' ? RUST_SYMBOLS : lang === 'sql' ? SQL_SYMBOLS : JAVA_SYMBOLS
+  const WORDS = lang === 'rust' ? RUST_WORDS : lang === 'sql' ? SQL_WORDS : JAVA_WORDS
+  const NEXT = lang === 'rust' ? RUST_NEXT : lang === 'sql' ? SQL_NEXT : JAVA_NEXT
   const keep = { onMouseDown: (e: React.MouseEvent) => e.preventDefault() }   // keep the editor focused (and its keyboard open)
   const cell = 'grid h-10 min-w-[2.5rem] shrink-0 place-items-center rounded-lg bg-slate-100 px-2.5 font-mono text-[15px] text-slate-800 active:bg-sky-200 dark:bg-white/10 dark:text-slate-100 dark:active:bg-sky-500/40'
 
@@ -80,7 +90,7 @@ export default function SymbolBar({ editor, inset, onHide, lang = 'java', sug }:
         <button type="button" aria-label="Cursor down" {...keep} onClick={() => editor?.vmove(1)} className={cell}>↓</button>
         <button type="button" aria-label="Undo" {...keep} onClick={() => editor?.undo()} className={cell}><Undo2 size={17} aria-hidden /></button>
         <button type="button" aria-label="Redo" {...keep} onClick={() => editor?.redo()} className={cell}><Redo2 size={17} aria-hidden /></button>
-        <button type="button" aria-label="Comment line" {...keep} onClick={() => editor?.comment()} className={cell}>//</button>
+        <button type="button" aria-label="Comment line" {...keep} onClick={() => editor?.comment()} className={cell}>{lang === 'sql' ? '--' : '//'}</button>
         {first.slice(4).map((x) => sym(x))}
         {middle.map((x) => sym(x))}
         {last.map((x) => sym(x))}

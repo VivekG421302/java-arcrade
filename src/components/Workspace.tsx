@@ -38,6 +38,12 @@ public class Main {
     println!("Hello, Rust!");
 }
 `,
+  sql: `-- A fresh PostgreSQL database is created every time you press Run.
+CREATE TABLE city (id int PRIMARY KEY, name text, population int);
+INSERT INTO city VALUES (1, 'Mumbai', 12442373), (2, 'Thane', 1841488), (3, 'Kalyan', 1247327);
+
+SELECT name, population FROM city ORDER BY population DESC;
+`,
 }
 
 type Res = { state: 'idle' } | { state: 'running' } | { state: 'error'; message: string } | ({ state: 'done' } & RunResult)
@@ -116,7 +122,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
   const exDone = useExercises()
   const [taskOpen, setTaskOpen] = usePersisted('ide:taskOpen', true)
   const q = !ex && qn ? content.questions.find((x) => x.n === qn) : undefined
-  const lang = meta.lang === 'rust' ? 'rust' : 'java'                    // the IDE only runs these two
+  const lang = meta.lang === 'rust' ? 'rust' : meta.lang === 'sql' ? 'sql' : 'java'   // the languages the IDE can run
   const starter = ex?.starter ?? q?.starter ?? SCRATCH[lang]
   const key = ex ? `code:ex:${ex.id}` : `code:${course === 'rust' ? 'rust:' : ''}${qn ?? 'scratch'}`          // Java keys keep their old names
   const read = () => { try { return localStorage.getItem(key) ?? starter } catch { return starter } }
@@ -134,6 +140,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
   const swap = useRef<number>()
   const touchy = useMedia(`${NARROW}, (pointer: coarse)`)
   const inset = useKeyboardInset(touchy && focused)
+  useEffect(() => { if (lang === 'sql') import('../lib/sqlRunner').then((m) => m.warmSql()) }, [lang])   // start PostgreSQL loading while you read the task
   useEffect(() => { setCode(read()); setRes({ state: 'idle' }); setErrLines([]); setVerdict(null) }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => window.clearTimeout(swap.current), [])
 
@@ -222,7 +229,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
         <button type="button" onClick={ide.toggleHidden} aria-label={hidden ? 'Show the app view' : 'Hide the app view'} {...tip(hidden ? 'Bring back the app' : 'Hide the app', 'hideApp')} data-tip-start="" className={ib}>
           {hidden ? <PanelLeftOpen size={18} aria-hidden /> : <PanelLeftClose size={18} aria-hidden />}
         </button>
-        <button type="button" onClick={() => go(-1)} disabled={ex ? exAt <= 0 : qn !== null && qn <= 1} aria-label={ex ? 'Previous exercise' : 'Previous problem'} {...tip(ex ? 'Previous exercise' : 'Previous problem', 'prev')} className={ib}><ChevronLeft size={18} aria-hidden /></button>
+        <button type="button" onClick={() => go(-1)} disabled={ex ? exAt <= 0 : total === 0 || (qn !== null && qn <= 1)} aria-label={ex ? 'Previous exercise' : 'Previous problem'} {...tip(ex ? 'Previous exercise' : 'Previous problem', 'prev')} className={ib}><ChevronLeft size={18} aria-hidden /></button>
         <p className="min-w-0 flex-1 truncate text-center font-sans text-sm text-slate-700 dark:text-slate-300">
           {ex ? <><span className="font-mono text-slate-600 dark:text-slate-400">Exercise {exAt + 1}/{exList.length}</span> {ex.title}{exDone.isDone(ex.id) && <CircleCheck size={15} aria-label="Done" className="ml-1.5 inline -translate-y-px text-emerald-500" />}</>
             : q ? <><span className="font-mono text-slate-600 dark:text-slate-400">{q.n}/{total}</span> {q.title}{isDone(q.n) && <CircleCheck size={15} aria-label="Done" className="ml-1.5 inline -translate-y-px text-emerald-500" />}</> : 'Scratch pad'}
@@ -230,7 +237,7 @@ function IdePanel({ narrow }: { narrow: boolean }) {
         </p>
         {ex && <button type="button" onClick={() => exDone.setDone(ex.id, !exDone.isDone(ex.id))} aria-pressed={exDone.isDone(ex.id)} aria-label={exDone.isDone(ex.id) ? 'Marked as done, click to undo' : 'Mark as done'} {...tip(exDone.isDone(ex.id) ? 'Done (click to undo)' : 'Mark as done')} className={`${ib} ${exDone.isDone(ex.id) ? 'text-emerald-600 dark:text-emerald-400' : ''}`}><CircleCheck size={18} aria-hidden /></button>}
         {q && <button type="button" onClick={() => setSolved(q.n, !isDone(q.n))} aria-pressed={isDone(q.n)} aria-label={isDone(q.n) ? 'Marked as done, click to undo' : 'Mark as done'} {...tip(isDone(q.n) ? 'Done (click to undo)' : 'Mark as done')} className={`${ib} ${isDone(q.n) ? 'text-emerald-600 dark:text-emerald-400' : ''}`}><CircleCheck size={18} aria-hidden /></button>}
-        <button type="button" onClick={() => go(1)} disabled={ex ? exAt >= exList.length - 1 : qn !== null && qn >= total} aria-label={ex ? 'Next exercise' : 'Next problem'} {...tip(ex ? 'Next exercise' : 'Next problem', 'next')} className={ib}><ChevronRight size={18} aria-hidden /></button>
+        <button type="button" onClick={() => go(1)} disabled={ex ? exAt >= exList.length - 1 : total === 0 || (qn !== null && qn >= total)} aria-label={ex ? 'Next exercise' : 'Next problem'} {...tip(ex ? 'Next exercise' : 'Next problem', 'next')} className={ib}><ChevronRight size={18} aria-hidden /></button>
         {!narrow && <DockPicker dock={dock} termOpen={termOpen} onPick={moveDock} />}
         <button type="button" onClick={() => setTermOpen(!termOpen)} aria-pressed={termOpen} aria-label="Toggle terminal" {...tip('Toggle terminal', 'terminal')} className={`${ib} ${termOpen ? 'text-sky-600 dark:text-sky-400' : ''}`}><SquareTerminal size={18} aria-hidden /></button>
         {!narrow && <KeysMenu />}
@@ -408,8 +415,8 @@ function ViewOptions({ autoTerm, onAutoTerm, fontSize, wrap, onFont, onFontReset
 function Linked({ text, onJump }: { text: string; onJump: (line: number) => void }) {
   return (
     <>
-      {text.split(/((?:Main\.java|main\.rs):\d+)/g).map((part, i) => {
-        const m = part.match(/^(?:Main\.java|main\.rs):(\d+)$/)
+      {text.split(/((?:Main\.java|main\.rs|query\.sql):\d+)/g).map((part, i) => {
+        const m = part.match(/^(?:Main\.java|main\.rs|query\.sql):(\d+)$/)
         return m
           ? <button key={i} type="button" aria-label={`Go to line ${m[1]}`} onClick={() => onJump(Number(m[1]))} className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-red-900 dark:hover:text-red-300">{part}</button>
           : part
@@ -427,8 +434,8 @@ function Terminal({ meta, res, verdict, onClear, onJump }: { meta: CourseMeta; r
         {res.state !== 'idle' && <button type="button" onClick={onClear} aria-label="Clear terminal" className="rounded px-2 py-1 hover:bg-slate-900/5 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white">Clear</button>}
       </div>
       <pre tabIndex={0} className="m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words px-4 pb-4 font-mono leading-6 text-slate-800 outline-none dark:text-[#d4d4d4]" aria-live="polite">
-        {res.state === 'idle' && <span className={dim}>Press Run ({keyLabel('run')}) to compile and run {meta.file}</span>}
-        {res.state === 'running' && <><span className="text-emerald-700 dark:text-emerald-400">$ </span>{meta.build}{'\n'}<span className={dim}>Compiling and running…</span></>}
+        {res.state === 'idle' && <span className={dim}>Press Run ({keyLabel('run')}) to {meta.lang === 'sql' ? 'run' : 'compile and run'} {meta.file}</span>}
+        {res.state === 'running' && <><span className="text-emerald-700 dark:text-emerald-400">$ </span>{meta.build}{'\n'}<span className={dim}>{meta.lang === 'sql' ? 'Running… (the first run downloads PostgreSQL, about 15 MB)' : 'Compiling and running…'}</span></>}
         {res.state === 'error' && <span className="text-red-700 dark:text-red-400">{res.message}</span>}
         {res.state === 'done' && (
           <>

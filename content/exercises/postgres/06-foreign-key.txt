@@ -1,0 +1,62 @@
+id: p2-foreign-key
+module: 2
+after: 5
+title: A foreign key that cleans up after itself
+level: Medium
+@@ task
+`purchase.customer_id` is just a number: nothing stops a purchase pointing at a customer that does not exist, and deleting a customer leaves orphan purchases behind.
+
+Make `customer_id` a **foreign key** to `customer(id)` that is **NOT NULL** and deletes the customer's purchases with them (`ON DELETE CASCADE`).
+
+Then the script should print `23503` (foreign-key violation) for the purchase of customer 99, `ok` for deleting customer 1, and `1` purchase left (customer 2's).
+@@ hint
+`customer_id int NOT NULL REFERENCES customer (id) ON DELETE CASCADE`
+@@ expect
+23503
+ok
+1
+@@ starter
+CREATE FUNCTION attempt(stmt text) RETURNS text LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE stmt;
+  RETURN 'ok';
+EXCEPTION WHEN OTHERS THEN
+  RETURN SQLSTATE;
+END $$;
+
+CREATE TABLE customer (id int PRIMARY KEY, name text NOT NULL);
+
+-- TODO: make customer_id a NOT NULL foreign key to customer(id) that cascades deletes
+CREATE TABLE purchase (
+  id          int PRIMARY KEY,
+  customer_id int
+);
+
+INSERT INTO customer VALUES (1, 'asha'), (2, 'ravi');
+INSERT INTO purchase VALUES (10, 1), (11, 1), (12, 2);
+
+SELECT attempt($$INSERT INTO purchase VALUES (13, 99)$$);     -- 23503 (customer 99 does not exist)
+SELECT attempt($$DELETE FROM customer WHERE id = 1$$);        -- ok
+SELECT count(*) AS purchases_left FROM purchase;               -- 1
+@@ solution
+CREATE FUNCTION attempt(stmt text) RETURNS text LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE stmt;
+  RETURN 'ok';
+EXCEPTION WHEN OTHERS THEN
+  RETURN SQLSTATE;
+END $$;
+
+CREATE TABLE customer (id int PRIMARY KEY, name text NOT NULL);
+
+CREATE TABLE purchase (
+  id          int PRIMARY KEY,
+  customer_id int NOT NULL REFERENCES customer (id) ON DELETE CASCADE
+);
+
+INSERT INTO customer VALUES (1, 'asha'), (2, 'ravi');
+INSERT INTO purchase VALUES (10, 1), (11, 1), (12, 2);
+
+SELECT attempt($$INSERT INTO purchase VALUES (13, 99)$$);     -- 23503 (customer 99 does not exist)
+SELECT attempt($$DELETE FROM customer WHERE id = 1$$);        -- ok
+SELECT count(*) AS purchases_left FROM purchase;               -- 1
