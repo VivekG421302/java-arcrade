@@ -139,7 +139,7 @@ function textPoint(code: Element, col: number, start = false): [Node, number] {
 
 /**
  * IDE-style editor: a transparent textarea over Prism-highlighted rows (one row per line, so wrapping keeps numbers aligned).
- * Suggestions: a popup at the caret on desktop (Tab accepts, Ctrl+Space forces), chips above the keyboard on touch screens.
+ * Suggestions: a popup at the caret on desktop, opened by typing a character or Ctrl+Space (never by just moving the caret; Tab accepts), chips above the keyboard on touch screens.
  * Keys: Ctrl+/ toggle comment, Alt+Up/Down move line, Shift+Alt+Up/Down duplicate line, Ctrl+Shift+K delete line, Ctrl+Alt+Up/Down (or Alt+click) add a cursor.
  */
 const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onChange, errorLines = [], jump, onFocusChange, fontSize = 13, wrap = false, lang = 'java', onSuggest, popup = false }, ref) {
@@ -163,6 +163,7 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
   const [navd, setNavd] = useState(false)                // true once the arrow keys were used (then Enter accepts too)
   const [dismissed, setDismissed] = useState('')         // popup closed with Esc at this value/caret
   const [forced, setForced] = useState('')               // popup forced open with Ctrl+Space at this value/caret
+  const [typed, setTyped] = useState('')                 // value/caret right after the last typed character: the popup may open by itself only there
   const [pop, setPop] = useState<{ left: number; top?: number; bottom?: number; maxH: number } | null>(null)
   const popRef = useRef<HTMLDivElement>(null)
   extraRef.current = extra
@@ -175,14 +176,16 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
   const popItems = useMemo<Sug[]>(() => {
     if (!popup || !sug || !sug.items.length || dismissed === sigKey) return []
     if (forced === sigKey) return sug.items
+    if (typed !== sigKey) return []   // clicking, arrow keys, undo or a jump never open it: only typing a character (or Ctrl+Space) does
     const first = sug.items[0]
     // opens by itself like an IDE: after '.', after 'Type name =', after 'Type ' (names), and from the first typed letter
     if (sug.ctx === 'member' || sug.ctx === 'init' || sug.ctx === 'name') return sug.items
     if (sug.ctx === 'word' && first.replace >= 1 && !(sug.items.length === 1 && first.insert.trim() === first.label && first.label.length === first.replace)) return sug.items
     return []
-  }, [popup, sug, dismissed, forced, sigKey])
+  }, [popup, sug, dismissed, forced, typed, sigKey])
   const popOpen = popItems.length > 0
   useEffect(() => { setSel(0); setNavd(false) }, [sigKey])
+  useEffect(() => { if (typed && typed !== sigKey) setTyped('') }, [typed, sigKey])   // the caret moved away from where you typed: coming back must not reopen the popup
   useEffect(() => { (popRef.current?.children[sel] as HTMLElement | undefined)?.scrollIntoView?.({ block: 'nearest' }) }, [sel, popOpen])
   const busy = useRef(false)                           // true while this component is itself editing the textarea
   const lastMulti = useRef<string | null>(null)        // the text produced by the last multi-cursor edit
@@ -608,7 +611,12 @@ const CodeEditor = forwardRef<EditorApi, Props>(function CodeEditor({ value, onC
         </div>
         <div ref={overlay} aria-hidden className="pointer-events-none absolute inset-0 z-[5]" />
         <textarea
-          ref={ta} value={value} onChange={(e) => { onChange(e.target.value); setCaret({ s: e.target.selectionStart, e: e.target.selectionEnd }) }} onKeyDown={onKeyDown}
+          ref={ta} value={value} onChange={(e) => {
+            const t = e.target
+            onChange(t.value); setCaret({ s: t.selectionStart, e: t.selectionEnd })
+            const kind = (e.nativeEvent as InputEvent).inputType   // typing inserts text; deleting, pasting, undo and drops do not trigger suggestions
+            setTyped(kind === 'insertText' || kind === 'insertCompositionText' ? `${t.value.length}:${t.selectionStart}` : '')
+          }} onKeyDown={onKeyDown}
           onSelect={sync} onMouseDown={onMouseDown} onMouseUp={onMouseUp} onPaste={onPaste} onCopy={(e) => onCopyCut(e, false)} onCut={(e) => onCopyCut(e, true)}
           onFocus={() => onFocusChange?.(true)} onBlur={() => onFocusChange?.(false)}
           id="ide-editor" spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" wrap={wrap ? 'soft' : 'off'} aria-label={`${lang === 'rust' ? 'Rust' : lang === 'sql' ? 'SQL' : 'Java'} code editor`}
