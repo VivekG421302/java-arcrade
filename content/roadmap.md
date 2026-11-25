@@ -584,7 +584,7 @@ try (SXSSFWorkbook wb = new SXSSFWorkbook(100)) { // keeps 100 rows in memory
 
 ### JVM Architecture
 
-Your .java file is compiled to bytecode. The JVM loads it, verifies it, and runs it. It first interprets, then the JIT compiler turns frequently used (hot) code into fast machine code.
+Your `.java` file is compiled to **bytecode**. The **JVM** loads it, verifies it, and runs it. It first interprets, then the JIT compiler turns frequently used (hot) code into fast machine code.
 
 > **Imagine:** Bytecode is a recipe that any chef (JVM on any OS) can cook. The chef notices which dishes are ordered all day and prepares them in advance. That is JIT.
 
@@ -599,6 +599,201 @@ Your .java file is compiled to bytecode. The JVM loads it, verifies it, and runs
 3. The interpreter starts running immediately.
 4. Methods called often are marked hot.
 5. The JIT compiles hot methods into native code, so long-running apps speed up.
+
+#### JDK, JRE and JVM: three names, three jobs
+
+| Name | What it is | What is inside |
+| --- | --- | --- |
+| **JVM** | The engine that runs bytecode | Class loader, interpreter, JIT, garbage collector |
+| **JRE** | JVM plus the standard library, enough to *run* programs | Separate download until Java 8. From **Java 9** the JDK can build a trimmed runtime with `jlink`, and from **Java 11** Oracle no longer ships a separate JRE |
+| **JDK** | Everything to *build* programs | JRE plus `javac`, `jar`, `javap`, `jshell`, `jcmd`, `jlink` |
+
+Install a **JDK** on a developer machine and a server. The words "JRE" and "JVM" still appear in error messages and docs, so know what they mean.
+
+#### From source to running program
+
+```java
+// Hello.java
+public class Hello {
+    public static void main(String[] args) {
+        int a = 2, b = 3;
+        System.out.println(a + b);
+    }
+}
+```
+
+```bash
+javac Hello.java        # produces Hello.class (bytecode)
+java Hello              # starts a JVM, loads Hello, calls main -> prints 5
+java Hello.java         # Java 11+: compile in memory and run in one step (single-file source launch)
+javap -c Hello          # show the bytecode the compiler wrote
+```
+
+`javap -c Hello` prints the instructions of `main`. Each line is one tiny stack-machine instruction:
+
+```text
+0: iconst_2              push the constant 2 on the operand stack
+1: istore_1              pop it into local variable 1 (a)
+2: iconst_3              push 3
+3: istore_2              pop it into local variable 2 (b)
+4: getstatic   System.out
+7: iload_1               push a
+8: iload_2               push b
+9: iadd                  pop two ints, push their sum
+10: invokevirtual println(int)
+13: return
+```
+
+The JVM is a **stack machine**: instructions push and pop values on an *operand stack* instead of using CPU registers. That is what keeps bytecode the same on every CPU.
+
+| Tool | Since | Use |
+| --- | --- | --- |
+| `jshell` | Java 9 | Try Java lines interactively (a REPL) |
+| `java File.java` | Java 11 | Run one source file without a separate `javac` step |
+| `java` on a file that uses other files | Java 22 | Launch a program made of several source files |
+| `javac --release N` | Java 9 | Compile *as Java N*, checking the real Java N API (better than `-source/-target`) |
+
+#### The class file has a version
+
+Every `.class` file starts with the bytes `CA FE BA BE` and then a **major version**. A JVM refuses a class that is newer than itself.
+
+| Compiled by | Major version |
+| --- | --- |
+| Java 8 | 52 |
+| Java 11 | 55 |
+| Java 17 | 61 |
+| Java 21 | 65 |
+| Java 25 | 69 |
+
+Rule: the major version is `release + 44`. If you compile with Java 17 and run on Java 11 you get:
+
+```text
+java.lang.UnsupportedClassVersionError: Hello has been compiled by a more recent version
+of the Java Runtime (class file version 61.0), this version of the Java Runtime only
+recognizes class file versions up to 55.0
+```
+
+Real-code fix: compile with `javac --release 11` (Maven: `<maven.compiler.release>11</maven.compiler.release>`) or run on a newer JVM. This is the most common "works on my machine" Java error.
+
+#### Runtime data areas: where things live
+
+| Area | Shared by threads? | Holds | Fails with |
+| --- | --- | --- | --- |
+| **Heap** | Yes | Every object and array | `OutOfMemoryError: Java heap space` |
+| **Metaspace** (**Java 8+**, replaced PermGen) | Yes | Class definitions, method bytecode, constants. Lives in native memory | `OutOfMemoryError: Metaspace` |
+| **Thread stack** | One per thread | A *frame* per method call: local variables, operand stack | `StackOverflowError` (too deep) |
+| **PC register** | One per thread | Address of the instruction being run | none |
+| **Native stack** | One per thread | Frames of native (JNI) methods | `OutOfMemoryError: unable to create native thread` when the OS runs out |
+| **Code cache** | Yes | Machine code produced by the JIT | JIT stops compiling when full (`CodeCache is full` warning) |
+
+Sizing flags you will meet in real startup scripts:
+
+```bash
+java -Xms512m -Xmx2g -Xss512k -XX:MaxMetaspaceSize=256m -jar app.jar
+# -Xms  starting heap size       -Xmx  maximum heap size
+# -Xss  stack size per thread    -XX:MaxMetaspaceSize  cap for class metadata
+```
+
+`PermGen` (the older class area, `-XX:MaxPermSize`) was removed in **Java 8**. If you see `-XX:MaxPermSize` in an old script, Java 8+ ignores it with a warning.
+
+A frame is created per call and thrown away on return. Unlimited recursion fills the stack:
+
+```java
+public class Depth {
+    static int depth = 0;
+    static void down() { depth++; down(); }       // never returns
+
+    public static void main(String[] args) {
+        try { down(); }
+        catch (StackOverflowError e) {            // an Error, but you can catch it to learn the depth
+            System.out.println("stack overflow, depth > 1000: " + (depth > 1000)); // true
+        }
+    }
+}
+```
+
+Fix in real code: turn deep recursion into a loop, or raise `-Xss` only if the depth is genuinely needed.
+
+#### The execution engine: interpreter, then JIT
+
+- **Interpreter**: starts at once, runs bytecode slowly, and counts how often each method and loop runs.
+- **C1 compiler**: compiles methods that become warm into simple machine code quickly.
+- **C2 compiler**: compiles the hottest methods with heavy optimisation. **Tiered compilation** (C1 then C2) is the default since **Java 8**.
+- **Optimisations** C2 can make: inlining small methods, removing unused objects with *escape analysis*, unrolling loops.
+- **Deoptimisation**: if an assumption turns out wrong (for example a new subclass is loaded), the JVM throws the machine code away and goes back to the interpreter.
+
+Why it matters in real code:
+
+- The first calls of any method are the **slowest** (warm-up). A web endpoint is slow for the first few requests after a deploy.
+- A micro-benchmark written with `System.nanoTime()` in a loop measures the interpreter, not your code. Use **JMH** for honest numbers.
+- `-XX:+PrintCompilation` prints what the JIT compiles, `-Xint` turns the JIT off (everything interpreted, very slow), and `-XX:TieredStopAtLevel=1` keeps C1 only (fast startup, used for short tools and some containers).
+
+Startup improvements over the years:
+
+| Feature | Since | What it does |
+| --- | --- | --- |
+| Class Data Sharing (CDS) | Java 5 (JDK classes only) | Maps a pre-parsed archive of JDK classes, so startup is faster |
+| Application CDS | Java 10 | Adds *your* classes to the archive |
+| Default CDS archive | Java 12 | JDK classes are archived without any setup |
+| Dynamic CDS archive | Java 13 | Create the archive when an app exits (`-XX:ArchiveClassesAtExit`) |
+| AOT compiler `jaotc` | Java 9 (experimental), removed in Java 17 | Do not use it |
+| AOT class loading and linking cache | Java 24 | Saves loaded and linked classes from a training run for faster startup (Project Leyden) |
+
+GraalVM Native Image is a different route: compile ahead of time into one native executable (very fast start, but no JIT and no dynamic class loading without extra configuration).
+
+#### JVM lifetime and shutdown
+
+1. The `java` launcher creates the JVM, loads the main class, and calls `main` on the **main thread**.
+2. The JVM keeps running while any **non-daemon thread** is alive. When the last one ends, shutdown begins.
+3. Shutdown also begins on `System.exit(n)`, on Ctrl+C or `kill` (SIGTERM), but **not** on `kill -9`.
+4. Registered **shutdown hooks** run, then the JVM exits.
+
+```java
+public class Bye {
+    public static void main(String[] args) {
+        Runtime.getRuntime().addShutdownHook(
+            new Thread(() -> System.out.println("hook: closing resources")));
+        System.out.println("main ends");
+    }
+}
+// main ends
+// hook: closing resources
+```
+
+Spring Boot, Tomcat and HikariCP use hooks to close pools and finish requests politely. A hook must be short and must not rely on other hooks' order.
+
+#### Inspecting a running JVM (maintenance toolbox)
+
+| Command | Use |
+| --- | --- |
+| `jps` | List running Java processes and their pid |
+| `jcmd <pid> VM.flags` | Show the flags the JVM really uses (heap size, GC) |
+| `jcmd <pid> Thread.print` or `jstack <pid>` | Thread dump: find deadlocks, stuck threads |
+| `jmap -histo <pid>` or `jcmd <pid> GC.class_histogram` | Count objects per class: find the leak |
+| `jcmd <pid> GC.heap_dump file.hprof` | Heap dump for Eclipse MAT |
+| `jstat -gcutil <pid> 1000` | GC activity every second |
+
+Later modules and the production scenarios use these exact commands.
+
+#### Common mistakes
+
+- Setting `-Xmx` equal to the machine or container memory. The JVM also needs metaspace, thread stacks and native memory, so the container is killed (`OOMKilled`). Leave headroom.
+- Judging performance from the first run.
+- Believing "Java is interpreted". It is interpreted first and compiled when hot.
+- Compiling with a newer JDK than the server runs. Use `--release`.
+
+#### Which Java version? (quick reference)
+
+| Feature | Applies from |
+| --- | --- |
+| Tiered compilation (C1 + C2) as default | Java 8 |
+| Metaspace replaces PermGen | Java 8 |
+| `jshell`, `jlink`, `javac --release` | Java 9 |
+| Application CDS | Java 10 |
+| Single-file source launch (`java File.java`) | Java 11 |
+| `jaotc` removed | Java 17 |
+| Multi-file source launch | Java 22 |
+| AOT class loading and linking cache | Java 24 |
 
 ### Java Memory Model
 
