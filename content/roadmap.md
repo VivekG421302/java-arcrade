@@ -584,9 +584,9 @@ try (SXSSFWorkbook wb = new SXSSFWorkbook(100)) { // keeps 100 rows in memory
 
 ### JVM Architecture
 
-Your `.java` file is compiled to **bytecode**. The **JVM** loads it, verifies it, and runs it. It first interprets, then the JIT compiler turns frequently used (hot) code into fast machine code.
+Your `.java` file is turned into `bytecode` by `javac`. The `JVM` loads that bytecode, checks it is safe, and runs it. It starts by interpreting, then the `JIT` compiler turns the busiest code into fast machine code.
 
-> **Imagine:** Bytecode is a recipe that any chef (JVM on any OS) can cook. The chef notices which dishes are ordered all day and prepares them in advance. That is JIT.
+> **Imagine:** Bytecode is a recipe written in a universal picture language that any chef (the JVM on any computer) can cook. The chef notices which dishes are ordered all day and prepares them in advance. That is the JIT.
 
 #### Lifecycle diagram: JVM Execution Pipeline
 
@@ -594,23 +594,37 @@ Your `.java` file is compiled to **bytecode**. The **JVM** loads it, verifies it
 {"n":"A:Hello.java:0:0|B:javac:1:0|C:.class bytecode:2:0|D:Class loader:2:1|E:Interpreter:1:1|F:JIT compiler:0:1|G:!Machine code:0:2","e":"A>B|B>C:compile|C>D:load, verify|D>E:run|E>F:hot method|F>G:optimise"}
 ```
 
-1. javac compiles source into platform-neutral bytecode.
-2. The class loader loads, verifies and initialises the class.
-3. The interpreter starts running immediately.
-4. Methods called often are marked hot.
+1. `javac` compiles source into platform-neutral bytecode.
+2. The `class loader` loads, verifies and initialises the class.
+3. The `interpreter` starts running immediately.
+4. Methods called often are marked `hot`.
 5. The JIT compiles hot methods into native code, so long-running apps speed up.
 
-#### JDK, JRE and JVM: three names, three jobs
+The rest of this page zooms into each box of that picture, one at a time.
 
-| Name | What it is | What is inside |
+#### 1. JDK, JRE and JVM: three names, three jobs
+
+> **Imagine:** A restaurant. The `JVM` is the chef who cooks. The `JRE` is the whole working kitchen: the chef plus the pots, pans and ingredients (the standard library). The `JDK` is the kitchen plus the training school and tools to *create new recipes* (the compiler and friends).
+
+```diagram
+{"n":"K:JDK: build and run:0:0|R:JRE: run only:1:0|V:!JVM: the engine:2:0|T:javac, jar, javap, jshell, jcmd:0:1|L:Standard library:1:1|G:Class loader, JIT, garbage collector:2:1","e":"K>R:contains|R>V:contains|K>T:adds tools|R>L:includes|V>G:includes"}
+```
+
+| Name | Job | Who needs it |
 | --- | --- | --- |
-| **JVM** | The engine that runs bytecode | Class loader, interpreter, JIT, garbage collector |
-| **JRE** | JVM plus the standard library, enough to *run* programs | Separate download until Java 8. From **Java 9** the JDK can build a trimmed runtime with `jlink`, and from **Java 11** Oracle no longer ships a separate JRE |
-| **JDK** | Everything to *build* programs | JRE plus `javac`, `jar`, `javap`, `jshell`, `jcmd`, `jlink` |
+| `JVM` | Runs bytecode | Everyone, but you never download it alone |
+| `JRE` | JVM plus the standard library, enough to *run* programs | A server that only runs apps. Since `Java 9` you can build a trimmed runtime with `jlink`, and since `Java 11` Oracle no longer ships a separate JRE |
+| `JDK` | Everything to *build* programs | Every developer, and usually the server too |
 
-Install a **JDK** on a developer machine and a server. The words "JRE" and "JVM" still appear in error messages and docs, so know what they mean.
+Install a `JDK`. The words "JRE" and "JVM" still appear in error messages and docs, so know what they mean.
 
-#### From source to running program
+#### 2. javac and bytecode: write once, run anywhere
+
+> **Imagine:** You write a recipe in English. A translator (`javac`) turns it into one universal picture-recipe. Chefs in Mumbai, Berlin and Tokyo all understand the pictures, so the same recipe works in every kitchen. You never rewrite it per country.
+
+```diagram
+{"n":"S:Hello.java:0:1|C:javac:1:1|B:Hello.class:2:1|W:JVM on Windows:3:0|L:JVM on Linux:3:1|M:JVM on Mac:3:2","e":"S>C|C>B:one bytecode file|B>W:runs|B>L:runs|B>M:runs"}
+```
 
 ```java
 // Hello.java
@@ -625,39 +639,72 @@ public class Hello {
 ```bash
 javac Hello.java        # produces Hello.class (bytecode)
 java Hello              # starts a JVM, loads Hello, calls main -> prints 5
-java Hello.java         # Java 11+: compile in memory and run in one step (single-file source launch)
+java Hello.java         # Java 11+: compile in memory and run in one step
 javap -c Hello          # show the bytecode the compiler wrote
 ```
 
-`javap -c Hello` prints the instructions of `main`. Each line is one tiny stack-machine instruction:
+| Command | What it does | Since |
+| --- | --- | --- |
+| `javac` | Source to bytecode | Java 1.0 |
+| `java` | Starts a JVM and runs a class | Java 1.0 |
+| `javap` | Shows what is inside a `.class` file | Java 1.0 |
+| `jshell` | Try Java lines one at a time | **Java 9** |
+| `java File.java` | Run one source file with no separate compile step | **Java 11** |
+| `java` on a program of several source files | Launch without building first | **Java 22** |
+| `javac --release N` | Compile *as Java N* and check against the real Java N library | **Java 9** |
+
+#### 3. jshell: the scratch pad
+
+> **Imagine:** Writing a full letter needs paper, an envelope and a stamp. `jshell` is a notepad where you jot `2 + 3`, press Enter and the answer appears at once. Perfect for trying an idea in ten seconds.
+
+```sequence
+{"p":"Y:You|J:jshell|E:JVM engine","m":"Y>J:type 2 + 3|J>E:compile this snippet|E>J:~result 5|J>Y:~shows 5 as $1|Y>J:type int x = 10|J>Y:~x remembered"}
+```
 
 ```text
-0: iconst_2              push the constant 2 on the operand stack
-1: istore_1              pop it into local variable 1 (a)
-2: iconst_3              push 3
-3: istore_2              pop it into local variable 2 (b)
-4: getstatic   System.out
-7: iload_1               push a
-8: iload_2               push b
-9: iadd                  pop two ints, push their sum
-10: invokevirtual println(int)
+jshell> 2 + 3
+$1 ==> 5
+jshell> String s = "java"
+s ==> "java"
+jshell> s.toUpperCase()
+$3 ==> "JAVA"
+jshell> /exit
+```
+
+Use `jshell` to test a `String` method, a regex, or a date calculation without creating a project. Variables live until you exit. `/help` lists the commands, `/vars` shows your variables.
+
+#### 4. Bytecode is a stack machine
+
+> **Imagine:** A kitchen counter with a **stack of plates**. To add 2 + 3 you put a plate marked 2 on the stack, put a plate marked 3 on top, then say "add": the cook takes the top two plates and puts one plate marked 5 back. The JVM works on a stack of values like this, not on named CPU registers. That is why bytecode is the same on every CPU.
+
+```diagram
+{"n":"P1:push 2:0:0|P2:push 3:1:0|AD:iadd: take two, add:2:0|RS:!Stack holds 5:3:0","e":"P1>P2|P2>AD|AD>RS"}
+```
+
+`javap -c Hello` shows exactly that, with each line one tiny instruction:
+
+```text
+0: iconst_2        push the constant 2
+1: istore_1        pop it into local variable 1 (a)
+2: iconst_3        push 3
+3: istore_2        pop it into local variable 2 (b)
+4: getstatic       System.out
+7: iload_1         push a
+8: iload_2         push b
+9: iadd            pop two ints, push their sum
+10: invokevirtual  println(int)
 13: return
 ```
 
-The JVM is a **stack machine**: instructions push and pop values on an *operand stack* instead of using CPU registers. That is what keeps bytecode the same on every CPU.
+#### 5. The class file has a version
 
-| Tool | Since | Use |
-| --- | --- | --- |
-| `jshell` | Java 9 | Try Java lines interactively (a REPL) |
-| `java File.java` | Java 11 | Run one source file without a separate `javac` step |
-| `java` on a file that uses other files | Java 22 | Launch a program made of several source files |
-| `javac --release N` | Java 9 | Compile *as Java N*, checking the real Java N API (better than `-source/-target`) |
+> **Imagine:** A new-format disc will not play in an old DVD player. Every `.class` file is stamped with the format of the compiler that made it. A JVM older than the stamp refuses to play it.
 
-#### The class file has a version
+```diagram
+{"n":"C:Compile with Java 17:0:0|F:Class file stamp 61:1:0|R:Run on Java 11 JVM reads up to 55:2:0|X:!UnsupportedClassVersionError:2:1|OK:!Run on Java 17 or newer works:1:1","e":"C>F:writes|F>R:try old JVM|R>X:61 is newer than 55|F>OK:newer JVM|C>OK:fix: javac --release 11"}
+```
 
-Every `.class` file starts with the bytes `CA FE BA BE` and then a **major version**. A JVM refuses a class that is newer than itself.
-
-| Compiled by | Major version |
+| Compiled by | Class file version |
 | --- | --- |
 | Java 8 | 52 |
 | Java 11 | 55 |
@@ -665,7 +712,7 @@ Every `.class` file starts with the bytes `CA FE BA BE` and then a **major versi
 | Java 21 | 65 |
 | Java 25 | 69 |
 
-Rule: the major version is `release + 44`. If you compile with Java 17 and run on Java 11 you get:
+The rule is `version = release + 44`. The error you will see in real projects:
 
 ```text
 java.lang.UnsupportedClassVersionError: Hello has been compiled by a more recent version
@@ -673,30 +720,46 @@ of the Java Runtime (class file version 61.0), this version of the Java Runtime 
 recognizes class file versions up to 55.0
 ```
 
-Real-code fix: compile with `javac --release 11` (Maven: `<maven.compiler.release>11</maven.compiler.release>`) or run on a newer JVM. This is the most common "works on my machine" Java error.
+Fix: compile with `javac --release 11` (Maven: `<maven.compiler.release>11</maven.compiler.release>`) or run on a newer JVM. This is the most common "works on my machine" Java error.
 
-#### Runtime data areas: where things live
+#### 6. Runtime memory: the company that runs your program
 
-| Area | Shared by threads? | Holds | Fails with |
-| --- | --- | --- | --- |
-| **Heap** | Yes | Every object and array | `OutOfMemoryError: Java heap space` |
-| **Metaspace** (**Java 8+**, replaced PermGen) | Yes | Class definitions, method bytecode, constants. Lives in native memory | `OutOfMemoryError: Metaspace` |
-| **Thread stack** | One per thread | A *frame* per method call: local variables, operand stack | `StackOverflowError` (too deep) |
-| **PC register** | One per thread | Address of the instruction being run | none |
-| **Native stack** | One per thread | Frames of native (JNI) methods | `OutOfMemoryError: unable to create native thread` when the OS runs out |
-| **Code cache** | Yes | Machine code produced by the JIT | JIT stops compiling when full (`CodeCache is full` warning) |
+> **Imagine:** A company with many employees (`threads`). There is one big shared **warehouse** (`heap`) where every object is stored and any employee can fetch it. Each employee also has a **private desk** (`stack`) with sticky notes for the job in hand, and a **bookmark** (`PC register`) showing which line of the job comes next. A **library of blueprints** (`Metaspace`) holds how each class is built. A **shelf of ready-made meals** (`code cache`) holds the machine code the JIT prepared.
 
-Sizing flags you will meet in real startup scripts:
-
-```bash
-java -Xms512m -Xmx2g -Xss512k -XX:MaxMetaspaceSize=256m -jar app.jar
-# -Xms  starting heap size       -Xmx  maximum heap size
-# -Xss  stack size per thread    -XX:MaxMetaspaceSize  cap for class metadata
+```diagram
+{"n":"T:Thread:0:1|S:Stack: private desk:1:0|P:PC register: bookmark:1:1|NS:Native stack:1:2|H:Heap: shared warehouse:2:0|M:Metaspace: blueprints:2:1|CC:Code cache: ready meals:2:2","e":"T>S:owns|T>P:owns|T>NS:owns|S>H:references point to objects|M>H:describes the objects|CC>M:compiled from"}
 ```
 
-`PermGen` (the older class area, `-XX:MaxPermSize`) was removed in **Java 8**. If you see `-XX:MaxPermSize` in an old script, Java 8+ ignores it with a warning.
+| Area | Shared? | Holds | Runs out with |
+| --- | --- | --- | --- |
+| `Heap` | All threads | Every object and array | `OutOfMemoryError: Java heap space` |
+| `Metaspace` (**Java 8+**, replaced `PermGen`) | All threads | Class definitions and method bytecode, in native memory | `OutOfMemoryError: Metaspace` |
+| `Stack` | One per thread | One *frame* per method call: local variables | `StackOverflowError` |
+| `PC register` | One per thread | Address of the instruction running now | never |
+| `Native stack` | One per thread | Frames of native (JNI) methods | `OutOfMemoryError: unable to create native thread` |
+| `Code cache` | All threads | Machine code from the JIT | JIT stops compiling (warning `CodeCache is full`) |
 
-A frame is created per call and thrown away on return. Unlimited recursion fills the stack:
+#### 7. Stack vs heap: where does a variable live?
+
+> **Imagine:** Your desk (`stack`) holds small notes. A note like `age = 25` holds the number itself. But for something big, like a customer file, the note only holds the **cabinet number** (a `reference`). The real file sits in the warehouse (`heap`). Copying the note copies the number, not the file.
+
+```diagram
+{"n":"N1:int age = 25: value on the stack:0:0|N2:Person p: only a reference:0:1|O:Person object on the heap:1:1|N3:!Many references can point to one object:2:1","e":"N2>O:points to|O>N3"}
+```
+
+```java
+int age = 25;                    // the value 25 sits in the stack frame
+Person p = new Person("Asha");   // p (stack) holds an address, the Person object lives on the heap
+Person q = p;                    // q is a second note with the same cabinet number: still ONE object
+```
+
+#### 8. The stack, frame by frame, and StackOverflowError
+
+> **Imagine:** A pile of sticky notes. Each time a method calls another, a new note goes on the pile; when the method returns, its note is removed. If a method keeps calling itself forever, the pile grows until it topples over. That toppling is `StackOverflowError`.
+
+```diagram
+{"n":"A:main frame:0:0|B:down frame:1:0|C:down frame again:2:0|D:down frame again and again:3:0|X:!StackOverflowError:3:1","e":"A>B:calls|B>C:calls itself|C>D:calls itself|D>X:stack is full"}
+```
 
 ```java
 public class Depth {
@@ -705,48 +768,67 @@ public class Depth {
 
     public static void main(String[] args) {
         try { down(); }
-        catch (StackOverflowError e) {            // an Error, but you can catch it to learn the depth
+        catch (StackOverflowError e) {            // an Error, but catching it shows the depth
             System.out.println("stack overflow, depth > 1000: " + (depth > 1000)); // true
         }
     }
 }
 ```
 
-Fix in real code: turn deep recursion into a loop, or raise `-Xss` only if the depth is genuinely needed.
+Fix in real code: turn deep recursion into a loop, or raise `-Xss` only if the depth is really needed. Sizing flags you will meet in start-up scripts:
 
-#### The execution engine: interpreter, then JIT
+```bash
+java -Xms512m -Xmx2g -Xss512k -XX:MaxMetaspaceSize=256m -jar app.jar
+# -Xms start heap   -Xmx max heap   -Xss stack per thread   -XX:MaxMetaspaceSize cap for class data
+```
 
-- **Interpreter**: starts at once, runs bytecode slowly, and counts how often each method and loop runs.
-- **C1 compiler**: compiles methods that become warm into simple machine code quickly.
-- **C2 compiler**: compiles the hottest methods with heavy optimisation. **Tiered compilation** (C1 then C2) is the default since **Java 8**.
-- **Optimisations** C2 can make: inlining small methods, removing unused objects with *escape analysis*, unrolling loops.
-- **Deoptimisation**: if an assumption turns out wrong (for example a new subclass is loaded), the JVM throws the machine code away and goes back to the interpreter.
+`PermGen` (and `-XX:MaxPermSize`) was removed in **Java 8**; newer JVMs ignore that flag with a warning.
+
+#### 9. The JIT: learning which dishes sell the most
+
+> **Imagine:** A new cafe. At first the cook reads the recipe card for every order (`interpreter`, slow but starts instantly). A smart manager keeps a tally. A dish ordered 200 times gets a quick pre-prep (`C1`). A dish ordered thousands of times gets a perfected, super-fast production line (`C2`). If the recipe changes, the line is dismantled and the cook goes back to the card (`deoptimisation`).
+
+```diagram
+{"n":"I:Interpreter: slow, starts at once:0:0|W:Warm: counter rises:1:0|C1:C1: quick machine code:2:0|C2:C2: heavily optimised:3:0|DO:Deoptimise: back to interpreter:2:1","e":"I>W:method keeps being called|W>C1:threshold reached|C1>C2:very hot|C2>DO:assumption broken|DO>I:start again"}
+```
+
+| Stage | Speed | What it does |
+| --- | --- | --- |
+| `Interpreter` | Slowest | Runs bytecode line by line, counts calls and loops |
+| `C1` | Fast | Compiles warm methods quickly with simple optimisations |
+| `C2` | Fastest | Heavy optimisation: `inlining` small methods, `escape analysis`, loop unrolling |
+| `Tiered compilation` | | Using C1 then C2 together, the default since **Java 8** |
 
 Why it matters in real code:
 
-- The first calls of any method are the **slowest** (warm-up). A web endpoint is slow for the first few requests after a deploy.
-- A micro-benchmark written with `System.nanoTime()` in a loop measures the interpreter, not your code. Use **JMH** for honest numbers.
-- `-XX:+PrintCompilation` prints what the JIT compiles, `-Xint` turns the JIT off (everything interpreted, very slow), and `-XX:TieredStopAtLevel=1` keeps C1 only (fast startup, used for short tools and some containers).
+- The first calls of any method are the slowest (`warm-up`), so an endpoint is slow for the first few requests after a deploy.
+- A loop timed with `System.nanoTime()` measures the interpreter. Use `JMH` for honest benchmarks.
+- `-XX:+PrintCompilation` prints what the JIT compiles, `-Xint` switches the JIT off, `-XX:TieredStopAtLevel=1` keeps only C1 (quick start for short tools).
 
-Startup improvements over the years:
+#### 10. Faster start-up over the years
+
+> **Imagine:** A lunch box packed the night before. You do not cook at 12:00; you open the box. `Class Data Sharing` packs the common classes ahead of time so the JVM starts faster.
 
 | Feature | Since | What it does |
 | --- | --- | --- |
-| Class Data Sharing (CDS) | Java 5 (JDK classes only) | Maps a pre-parsed archive of JDK classes, so startup is faster |
-| Application CDS | Java 10 | Adds *your* classes to the archive |
-| Default CDS archive | Java 12 | JDK classes are archived without any setup |
-| Dynamic CDS archive | Java 13 | Create the archive when an app exits (`-XX:ArchiveClassesAtExit`) |
-| AOT compiler `jaotc` | Java 9 (experimental), removed in Java 17 | Do not use it |
-| AOT class loading and linking cache | Java 24 | Saves loaded and linked classes from a training run for faster startup (Project Leyden) |
+| `CDS` (Class Data Sharing) | Java 5 (JDK classes) | Maps a pre-parsed archive of JDK classes |
+| `AppCDS` | **Java 10** | Adds *your* classes to the archive |
+| Default CDS archive | **Java 12** | JDK classes archived with no setup |
+| Dynamic archive | **Java 13** | Archive created when an app exits (`-XX:ArchiveClassesAtExit`) |
+| `jaotc` | Java 9 experimental, **removed in Java 17** | Do not use |
+| AOT class loading and linking cache | **Java 24** | Saves loaded classes from a trial run (Project Leyden) |
 
-GraalVM Native Image is a different route: compile ahead of time into one native executable (very fast start, but no JIT and no dynamic class loading without extra configuration).
+`GraalVM Native Image` is a different route: compile ahead of time into one native program. It starts in milliseconds but has no JIT and limited dynamic features.
 
-#### JVM lifetime and shutdown
+#### 11. The life of a JVM: opening and closing the shop
 
-1. The `java` launcher creates the JVM, loads the main class, and calls `main` on the **main thread**.
-2. The JVM keeps running while any **non-daemon thread** is alive. When the last one ends, shutdown begins.
-3. Shutdown also begins on `System.exit(n)`, on Ctrl+C or `kill` (SIGTERM), but **not** on `kill -9`.
-4. Registered **shutdown hooks** run, then the JVM exits.
+> **Imagine:** A shop opens, serves customers while any staff member is on duty, and closes when the last staff member leaves. Before locking up, the manager runs a closing checklist (`shutdown hooks`): turn off the lights, count the cash.
+
+```diagram
+{"n":"S:java starts the JVM:0:0|L:Load main class:1:0|M:Call main on the main thread:2:0|W:Any non-daemon thread alive?:2:1|SD:Shutdown begins:1:1|H:Run shutdown hooks:0:1|X:!JVM exits:0:2","e":"S>L|L>M|M>W:main returns|W>W:yes: keep running|W>SD:no, or System.exit, or Ctrl+C|SD>H|H>X"}
+```
+
+`kill -9` skips the hooks (it cannot be caught). Everything else, including Ctrl+C and `kill` (SIGTERM), runs them.
 
 ```java
 public class Bye {
@@ -760,36 +842,42 @@ public class Bye {
 // hook: closing resources
 ```
 
-Spring Boot, Tomcat and HikariCP use hooks to close pools and finish requests politely. A hook must be short and must not rely on other hooks' order.
+Spring Boot, Tomcat and HikariCP use hooks to close pools and finish requests politely. A hook must be short, and you must not rely on the order of several hooks.
 
-#### Inspecting a running JVM (maintenance toolbox)
+#### 12. The doctor's toolbox for a running JVM
+
+> **Imagine:** A patient (your app) feels unwell. The doctor uses a thermometer, a stethoscope and an X-ray. Each Java tool is one of those instruments.
+
+```diagram
+{"n":"SY:Symptom in production:0:0|J1:jps: which process?:1:0|J2:jstack: what are threads doing?:2:0|J3:jmap: what fills the heap?:2:1|J4:jstat: is GC busy?:2:2|FIX:!Diagnosis and fix:3:1","e":"SY>J1:find the pid|J1>J2:CPU high or stuck|J1>J3:memory growing|J1>J4:long pauses|J2>FIX|J3>FIX|J4>FIX"}
+```
 
 | Command | Use |
 | --- | --- |
 | `jps` | List running Java processes and their pid |
-| `jcmd <pid> VM.flags` | Show the flags the JVM really uses (heap size, GC) |
-| `jcmd <pid> Thread.print` or `jstack <pid>` | Thread dump: find deadlocks, stuck threads |
-| `jmap -histo <pid>` or `jcmd <pid> GC.class_histogram` | Count objects per class: find the leak |
+| `jcmd <pid> VM.flags` | Show the flags the JVM really uses |
+| `jstack <pid>` or `jcmd <pid> Thread.print` | Thread dump: find deadlocks and stuck threads |
+| `jmap -histo <pid>` | Count objects per class: find the leak |
 | `jcmd <pid> GC.heap_dump file.hprof` | Heap dump for Eclipse MAT |
 | `jstat -gcutil <pid> 1000` | GC activity every second |
 
-Later modules and the production scenarios use these exact commands.
-
 #### Common mistakes
 
-- Setting `-Xmx` equal to the machine or container memory. The JVM also needs metaspace, thread stacks and native memory, so the container is killed (`OOMKilled`). Leave headroom.
-- Judging performance from the first run.
-- Believing "Java is interpreted". It is interpreted first and compiled when hot.
-- Compiling with a newer JDK than the server runs. Use `--release`.
+| Mistake | Why it hurts | Fix |
+| --- | --- | --- |
+| `-Xmx` equal to the container memory | The JVM also needs metaspace, stacks and native memory, so the container is `OOMKilled` | Leave headroom |
+| Judging speed from the first run | You measured warm-up | Warm up first, use `JMH` |
+| "Java is interpreted" | It is interpreted first, compiled when hot | Remember the tiers |
+| Compiling with a newer JDK than the server | `UnsupportedClassVersionError` | Use `--release` |
 
 #### Which Java version? (quick reference)
 
 | Feature | Applies from |
 | --- | --- |
 | Tiered compilation (C1 + C2) as default | Java 8 |
-| Metaspace replaces PermGen | Java 8 |
+| `Metaspace` replaces `PermGen` | Java 8 |
 | `jshell`, `jlink`, `javac --release` | Java 9 |
-| Application CDS | Java 10 |
+| `AppCDS` | Java 10 |
 | Single-file source launch (`java File.java`) | Java 11 |
 | `jaotc` removed | Java 17 |
 | Multi-file source launch | Java 22 |
