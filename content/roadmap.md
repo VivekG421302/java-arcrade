@@ -2389,9 +2389,197 @@ names.stream()
 
 ### java.time API
 
-Immutable, thread-safe date and time types replace Date and Calendar: LocalDate, Instant, ZonedDateTime.
+Java's `java.time` package (since **Java 8**) replaces the broken `Date` and `Calendar` classes. All objects in `java.time` are **immutable**: every operation returns a new object, the original never changes.
 
-> **Imagine:** “Meet at 9 AM” is meaningless until you say Mumbai or New York. ZonedDateTime carries the city; LocalDateTime does not.
+> **Imagine:** A printed calendar on the wall. Looking at it, writing a date on a Post-it, crossing off a day — none of these change the calendar itself. `LocalDate` is that calendar: you read it, you create new Post-its from it, but the original page stays the same.
+
+#### Lifecycle diagram: java.time Core Objects
+
+```diagram
+{"n":"LD:LocalDate: date only:0:0|LT:LocalTime: time only:0:1|LDT:LocalDateTime: date and time:0:2|ZDT:ZonedDateTime: with timezone:0:3|CU:ChronoUnit: measure gaps:1:0|PR:Period: date gap in years months days:1:1|DR:Duration: time gap in hours minutes seconds:1:2|FT:DateTimeFormatter: format and parse:1:3","e":"LD>LDT:combined with|LT>LDT|LDT>ZDT:add timezone|LD>PR:between dates|LT>DR:between times|LD>FT:format/parse|LT>FT|LDT>FT"}
+```
+
+#### 1. LocalDate: a date with no clock
+
+> **Imagine:** A date box on a paper form — it has a year, month and day but no time. When you cross off a date or add a week, you fill in a new box; the original stays.
+
+```java
+LocalDate today = LocalDate.of(2026, 11, 25);       // 2026-11-25
+LocalDate parsed = LocalDate.parse("2026-11-25");   // from ISO string yyyy-MM-dd
+System.out.println(today);                           // 2026-11-25
+System.out.println(today.getYear());                 // 2026
+System.out.println(today.getMonthValue());           // 11
+System.out.println(today.getDayOfMonth());           // 25
+System.out.println(today.getDayOfWeek());            // WEDNESDAY
+System.out.println(today.isLeapYear());              // false
+```
+
+| Method | Returns | Example |
+| --- | --- | --- |
+| `LocalDate.now()` | Today's date | `2026-11-25` |
+| `LocalDate.of(y, m, d)` | A specific date | `2026-11-25` |
+| `LocalDate.parse("yyyy-MM-dd")` | Parsed from ISO string | `2026-11-25` |
+| `plusDays(n)`, `minusDays(n)` | New date | `2026-12-05` |
+| `plusMonths(n)`, `minusMonths(n)` | New date | `2026-10-25` |
+| `withDayOfMonth(1)` | First day of same month | `2026-11-01` |
+| `isBefore(other)`, `isAfter(other)` | boolean | `true` |
+| `getDayOfWeek()` | `DayOfWeek` enum | `WEDNESDAY` |
+
+**`parse` only accepts ISO 8601 format (`yyyy-MM-dd`) by default.** For other formats use `DateTimeFormatter` (below).
+
+#### 2. LocalTime and LocalDateTime
+
+> **Imagine:** `LocalTime` is the clock face — no date. `LocalDateTime` is the full timestamp printed on a receipt — date and time together, no timezone.
+
+```java
+LocalTime t = LocalTime.of(14, 30, 45);     // 14:30:45
+System.out.println(t.getHour());             // 14
+System.out.println(t.getMinute());           // 30
+
+LocalDateTime dt = LocalDateTime.of(today, t); // combine date and time
+System.out.println(dt);                         // 2026-11-25T14:30:45
+System.out.println(dt.toLocalDate());           // 2026-11-25
+```
+
+#### 3. ChronoUnit: measuring the gap in one step
+
+> **Imagine:** A ruler with different scale markings. `DAYS` is centimetres, `MONTHS` is decimetres, `HOURS` is millimetres. You pick the scale you need, and `between` measures the gap.
+
+```diagram
+{"n":"D1:from date:0:0|D2:to date:0:2|CU:ChronoUnit.DAYS:1:1|RES:!long result:2:1","e":"D1>CU:start|D2>CU:end|CU>RES:between"}
+```
+
+```java
+// exercise pattern
+long days = ChronoUnit.DAYS.between(
+    LocalDate.parse("2024-01-01"),
+    LocalDate.parse("2025-01-01"));
+System.out.println(days);                   // 366 (2024 is a leap year)
+
+long days2 = ChronoUnit.DAYS.between(
+    LocalDate.parse("2026-11-20"),
+    LocalDate.parse("2026-12-25"));
+System.out.println(days2);                  // 35
+
+long months = ChronoUnit.MONTHS.between(
+    LocalDate.of(2024, 1, 1),
+    LocalDate.of(2026, 11, 25));
+System.out.println(months);                 // 34
+
+long hours = ChronoUnit.HOURS.between(
+    LocalTime.of(9, 0), LocalTime.of(17, 30));
+System.out.println(hours);                  // 8
+```
+
+| `ChronoUnit` | Use it for |
+| --- | --- |
+| `DAYS` | Days between two `LocalDate`s |
+| `MONTHS`, `YEARS` | Calendar months or years |
+| `HOURS`, `MINUTES`, `SECONDS` | Between two `LocalTime` or `LocalDateTime` |
+
+The `between` method is **signed**: a negative result means `from` is after `to`.
+
+#### 4. getDayOfWeek: the weekday exercise
+
+> **Imagine:** Looking at the calendar and reading the column heading under a date. `getDayOfWeek()` gives you the column: `MONDAY`, `TUESDAY`, ..., `SUNDAY`.
+
+```java
+// exercise pattern
+System.out.println(LocalDate.parse("2026-11-20").getDayOfWeek()); // FRIDAY
+System.out.println(LocalDate.parse("2000-02-29").getDayOfWeek()); // TUESDAY
+System.out.println(LocalDate.parse("2026-11-20").getDayOfWeek().toString()); // FRIDAY
+```
+
+`getDayOfWeek()` returns a `DayOfWeek` enum. `.toString()` gives its name in capitals. `getValue()` gives 1 (Monday) to 7 (Sunday).
+
+#### 5. Period and Duration: human versus machine gaps
+
+> **Imagine:** Period is how you describe a gap to a human: "two years, ten months and three days". Duration is how a machine tracks it: "1,728,000 seconds". Same gap, different rulers.
+
+```java
+Period p = Period.between(
+    LocalDate.of(2024, 1, 1),
+    LocalDate.of(2026, 11, 25));
+System.out.println(p.getYears() + "y " + p.getMonths() + "m " + p.getDays() + "d"); // 2y 10m 24d
+
+Duration d = Duration.between(LocalTime.of(9, 0), LocalTime.of(17, 30));
+System.out.println(d.toHours() + "h " + d.toMinutesPart() + "m"); // 8h 30m
+```
+
+| Use | Type |
+| --- | --- |
+| Date-only gap in human units | `Period` |
+| Time or timestamp gap in machine units | `Duration` |
+| Any gap in one unit | `ChronoUnit.X.between(...)` |
+
+#### 6. DateTimeFormatter: custom format and parse
+
+> **Imagine:** A custom date stamp. `ofPattern("dd/MM/yyyy")` is the shape of the stamp. You stamp a date to get "25/11/2026", or you read a stamped date back into a `LocalDate`.
+
+```java
+DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+System.out.println(today.format(fmt));              // 25/11/2026
+System.out.println(LocalDate.parse("25/11/2026", fmt)); // 2026-11-25
+```
+
+| Pattern letter | Meaning | Example |
+| --- | --- | --- |
+| `yyyy` | 4-digit year | 2026 |
+| `MM` | Month with leading zero | 11 |
+| `dd` | Day with leading zero | 25 |
+| `HH` | Hour 0-23 | 14 |
+| `mm` | Minute | 30 |
+| `ss` | Second | 45 |
+| `EEE` | Short day name | Wed |
+| `EEEE` | Full day name | Wednesday |
+
+`DateTimeFormatter` is thread-safe. The old `SimpleDateFormat` is **not** (it is from `java.util.Date`; never use it in new code).
+
+#### 7. ZonedDateTime: when timezone matters
+
+> **Imagine:** A meeting invite that says "14:00 IST". Without the "IST" part, your colleague in London thinks it means 14:00 their time. `ZonedDateTime` is the full invite with timezone included.
+
+```java
+ZonedDateTime kolkata = ZonedDateTime.of(dt, ZoneId.of("Asia/Kolkata"));
+System.out.println(kolkata.getOffset()); // +05:30
+
+ZoneId.getAvailableZoneIds();            // all known zone IDs
+ZoneId.systemDefault();                  // the JVM's local timezone
+```
+
+Use `ZonedDateTime` only when you must display or store a time in a specific timezone (user-facing events, cron schedules). For storing a universal moment, use `Instant`.
+
+#### 8. Immutability: all java.time objects never change
+
+```java
+LocalDate today = LocalDate.of(2026, 11, 25);
+LocalDate later = today.plusDays(5);
+System.out.println(today.equals(later)); // false
+System.out.println(today);               // 2026-11-25  (unchanged)
+```
+
+Every `plus`, `minus` or `with` returns a new object. Forgetting to assign the result is the most common mistake.
+
+#### Common mistakes
+
+| Mistake | What happens | Fix |
+| --- | --- | --- |
+| `today.plusDays(5)` without assigning | `today` is unchanged | `today = today.plusDays(5)` |
+| `LocalDate.parse("25/11/2026")` with no formatter | `DateTimeParseException` | Pass a `DateTimeFormatter` |
+| `new Date()` or `Calendar` in new code | Thread-unsafe, bad API | `LocalDate`, `LocalDateTime`, `Instant` |
+| `between(a, b)` with `a` after `b` | Negative result | Check the sign |
+| `ChronoUnit.MONTHS.between(date, dateTime)` | `DateTimeException`: type mismatch | Both must be the same type |
+| Storing user display times as `LocalDateTime` without timezone | Wrong time for users in other zones | `ZonedDateTime` or `Instant` + `ZoneId` at display time |
+
+#### Which Java version? (quick reference)
+
+| Feature | Applies from |
+| --- | --- |
+| All `java.time` classes (replacing `Date`, `Calendar`, `SimpleDateFormat`) | Java 8 |
+| `LocalDate`, `LocalTime`, `LocalDateTime`, `ZonedDateTime`, `Instant` | Java 8 |
+| `ChronoUnit`, `Period`, `Duration`, `DateTimeFormatter` | Java 8 |
+| `DayOfWeek`, `Month` enums | Java 8 |
+| `java.time` classes become `Serializable` for all implementations | Java 8 |
 
 ### Serialization
 
