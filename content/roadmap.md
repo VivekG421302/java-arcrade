@@ -797,35 +797,425 @@ Later modules and the production scenarios use these exact commands.
 
 ### Java Memory Model
 
-Rules for when a change made by one thread becomes visible to another. Without them, threads may see stale values because of CPU caches and reordering.
+The Java Memory Model (JMM, in the language since **Java 5**, JSR 133) is a set of rules for **when a change made by one thread becomes visible to another**. Without these rules, threads may see stale values because of CPU caches and instruction reordering.
 
-> **Imagine:** Two cooks each keep a private notepad. volatile or synchronized is like shouting the update across the whole kitchen so everyone rewrites their notes.
+> **Imagine:** Two cooks each keep a private notepad. `volatile` or `synchronized` is like shouting the update across the whole kitchen so everyone rewrites their notes.
+
+#### Three separate problems
+
+| Problem | Meaning | Tool that solves it |
+| --- | --- | --- |
+| **Visibility** | One thread writes, another keeps reading the old value | `volatile`, `synchronized`, `Lock`, atomics |
+| **Atomicity** | A multi-step action (read, add, write) gets interleaved with another thread's steps | `synchronized`, `Lock`, `Atomic*` classes |
+| **Ordering** | The compiler or CPU runs your statements in a different order than you wrote them (the result for a *single* thread stays the same) | `volatile`, `synchronized`, `final` fields |
+
+`volatile` fixes visibility and ordering, **not** atomicity. `synchronized` fixes all three. Mixing these up is the most common concurrency mistake.
+
+#### Why a thread can see stale data
+
+Each CPU core has its own cache and registers. The JIT compiler may also keep a field in a register for the whole loop. So this loop may **never stop**:
+
+```java
+static boolean running = true;           // plain field
+
+// worker thread
+while (running) { /* work */ }           // the JIT may read 'running' once and loop forever
+
+// main thread
+running = false;                         // the worker may never see this
+```
+
+The fix is one word:
+
+```java
+static volatile boolean running = true;  // every read goes to main memory, every write is published
+```
+
+#### happens-before: the one rule to remember
+
+If action A **happens-before** action B, then everything A did is visible to B. The JMM lists exactly when that is guaranteed:
+
+| Rule | Guarantee |
+| --- | --- |
+| Program order | Inside one thread, each step happens-before the next step |
+| Monitor lock | An `unlock` of a `synchronized` block happens-before every later `lock` of the *same* object |
+| `volatile` | A write to a volatile field happens-before every later read of that field |
+| `Thread.start()` | Everything before `t.start()` is visible inside `t` |
+| `Thread.join()` | Everything `t` did is visible after `t.join()` returns |
+| Executors, `Future.get()`, `BlockingQueue`, `CountDownLatch`... | Work submitted before happens-before the task runs; the task's result happens-before `get()` returns |
+| `final` fields | Once the constructor ends, other threads see the final fields correctly (even without synchronisation) |
+
+```java
+static int data;
+static boolean ready;
+
+Thread w = new Thread(() -> { data = 42; ready = true; });
+w.start();
+w.join();                                // join gives happens-before
+System.out.println(data + " " + ready);  // 42 true, guaranteed
+```
+
+#### synchronized in detail (all Java versions)
+
+`synchronized` gives **mutual exclusion** (one thread at a time per lock object) *and* the visibility rule above.
+
+```java
+class Counter {
+    private int value;
+    synchronized void increment() { value++; }      // lock = this
+    synchronized int get() { return value; }        // readers must use the same lock to see the latest value
+    static synchronized void util() { }             // lock = Counter.class
+    void part() {
+        synchronized (this) { value++; }            // block form: lock only the part that needs it
+    }
+}
+```
+
+- Every object can be a lock. The lock is **reentrant**: a thread that holds it can enter another `synchronized` block on the same object.
+- A `synchronized` method on an instance uses `this`; a `static synchronized` method uses the `Class` object.
+- Keep the block **short**, and never call unknown code (callbacks, I/O) while holding a lock.
+- Do not lock on a `String` literal, a boxed `Integer`, or a public object; other code may use the same lock by accident. Use a `private final Object lock = new Object();`.
+
+#### volatile in detail
+
+```java
+private volatile boolean shutdown;          // safe: one writer sets a flag, others read it
+private volatile int counter;               // NOT safe for counter++ (read, add, write = three steps)
+```
+
+`counter++` on a volatile field can lose updates because two threads may read the same value. The total can come out below the expected number; whether you see it on a given run depends on timing and CPU. Use `AtomicInteger.incrementAndGet()` or `synchronized`.
+
+Good uses of `volatile`: a stop flag, a status that is replaced as a whole, safe publication of an immutable object, double-checked locking (below).
+
+Also from **Java 9**: `VarHandle` gives finer control (`getAcquire`, `setRelease`, `compareAndSet`) for library authors. Application code rarely needs it.
+
+#### Atomicity of long and double
+
+The JMM allows a plain `long` or `double` write to be done as two 32-bit halves, so another thread could see a "torn" value. In practice 64-bit JVMs do not tear, but the language does not promise it. A `volatile long` or `volatile double` is always atomic for plain read and write.
+
+#### Safe publication of objects
+
+Making an object visible to other threads is called *publishing*. Unsafe: storing a reference in a plain static field while the object is still being constructed. Safe ways:
+
+1. Initialise it in a `static` initialiser (class loading is thread-safe).
+2. Store it in a `volatile` field or an `AtomicReference`.
+3. Store it in a field accessed under a lock.
+4. Make the fields `final` (an immutable object is safe to share).
+5. Hand it over through a thread-safe collection or an `ExecutorService`.
+
+Never let `this` escape from a constructor (starting a thread or registering a listener inside it): another thread could see a half-built object.
+
+```java
+final class Imm {                           // immutable: safe to share with no locks
+    final int a;
+    final String b;
+    Imm(int a, String b) { this.a = a; this.b = b; }
+}
+```
+
+#### Double-checked locking and the holder idiom
+
+Lazy singleton the old way needs `volatile`; without it another thread can see a non-null reference to an object whose fields are not yet set (see Part 3, anti-pattern 2):
+
+```java
+class Singleton {
+    private static volatile Singleton instance;           // volatile is essential
+    private Singleton() {}
+    static Singleton get() {
+        if (instance == null) {                           // 1st check: no lock (fast path)
+            synchronized (Singleton.class) {
+                if (instance == null)                     // 2nd check: inside the lock
+                    instance = new Singleton();
+            }
+        }
+        return instance;
+    }
+}
+```
+
+The simplest correct version needs no lock and no volatile, because class initialisation is thread-safe:
+
+```java
+class Holder {
+    private Holder() {}
+    private static class H { static final Holder I = new Holder(); }  // loaded on first use of H
+    static Holder get() { return H.I; }
+}
+```
+
+(An `enum` with one constant is another safe singleton.)
+
+#### What the JMM does not give you
+
+- **No atomicity for compound actions**: check-then-act (`if (!map.containsKey(k)) map.put(k, v)`) and read-modify-write (`count++`) need a lock or an atomic operation, even on a `ConcurrentHashMap` unless you use `putIfAbsent` / `merge`.
+- **No fairness and no ordering of threads.** Which thread gets the lock next is not defined.
+- Thread-safety of one operation does not make a *sequence* of operations safe.
+
+#### Common mistakes
+
+- Using a plain `boolean` stop flag.
+- Synchronising writers but not readers.
+- `volatile` on a counter.
+- Locking on a different object in different places, so two threads never exclude each other.
+- Calling `wait()`, `notify()` outside a `synchronized` block (throws `IllegalMonitorStateException`).
+
+Module 10 builds on this page: locks beyond `synchronized`, atomics, CAS, and tools to find races.
+
+#### Which Java version? (quick reference)
+
+| Feature | Applies from |
+| --- | --- |
+| The JMM as written today, `volatile` and `final` semantics fixed (JSR 133) | Java 5 |
+| `java.util.concurrent`, `Lock`, `Atomic*` | Java 5 |
+| `VarHandle` (acquire/release access) | Java 9 |
+| Virtual threads (no change to the JMM rules, they follow the same happens-before) | Java 21 |
 
 ### Object Internals & Primitives
 
-Every object has a hidden header plus its fields. Primitives (int) hold values; wrappers (Integer) are objects. Integer caches -128 to 127, so == can lie for bigger numbers.
+Every object has a hidden **header** plus its fields. **Primitives** (`int`) hold the value directly; **wrappers** (`Integer`) are objects. `Integer` caches -128 to 127, so `==` can lie for bigger numbers.
 
-> **Imagine:** int is a number on a card. Integer is a box containing the card. == asks “is this the same box?”, equals() asks “is the card the same?”.
+> **Imagine:** `int` is a number on a card. `Integer` is a box containing the card. `==` asks "is this the same box?", `equals()` asks "is the card the same?".
 
-#### Detailed explanation
+#### What an object looks like in memory
 
-Boxing wraps a primitive in an object. The JVM caches boxes for -128 to 127, so == behaves differently for small and large values. This is a classic bug source.
+An object on the heap is **header + fields + padding** (sizes are rounded up to a multiple of 8 bytes).
+
+| Part | Size on a 64-bit JVM | Holds |
+| --- | --- | --- |
+| Mark word | 8 bytes | Identity hash code, GC age, lock state |
+| Class pointer | 4 bytes (compressed, the default for heaps under about 32 GB) | Link to the class in Metaspace |
+| Fields | per type | Your data |
+
+So an empty object costs about 16 bytes, and `new Integer(5)` about 16 bytes versus 4 for an `int`. A million `Integer` objects in a `List` cost far more than an `int[]`. **Java 24** adds experimental *compact object headers* (8 bytes in total) and **Java 25** makes them a supported product option (`-XX:+UseCompactObjectHeaders`).
+
+A reference variable points to an object (arrays and `String`s are objects too) or to `null` (nothing). A *reference* is like an address; copying it does not copy the object.
+
+#### Primitive types: the full table
+
+| Type | Size | Range | Default | Notes |
+| --- | --- | --- | --- | --- |
+| **byte** | 1 byte | -128 to 127 | 0 | Raw data, file and network buffers |
+| **short** | 2 bytes | -32,768 to 32,767 | 0 | Rare |
+| **char** | 2 bytes | 0 to 65,535 (UTF-16 code unit) | `'\u0000'` | Unsigned; `'A'` is 65 |
+| **int** | 4 bytes | -2,147,483,648 to 2,147,483,647 | 0 | The default integer type |
+| **long** | 8 bytes | about ±9.2 × 10^18 | 0L | Needs an `L` suffix for big literals |
+| **float** | 4 bytes | about 7 decimal digits | 0.0f | `f` suffix |
+| **double** | 8 bytes | about 15 decimal digits | 0.0 | The default decimal type |
+| **boolean** | JVM-dependent (usually 1 byte) | `true` / `false` | false | Not a number: `if (1)` does not compile |
+
+Defaults apply to **fields** and array elements only. A **local variable** has no default: using it before assigning is a compile error.
+
+Literals: `1_000_000` (underscores, since **Java 7**), `0b1010` (binary, **Java 7**) = 10, `0x1F` (hex) = 31, `017` (octal, careful!) = 15, `3000000000L`, `1.5f`.
+
+#### Arithmetic traps (every line below was run)
+
+```java
+System.out.println(Integer.MAX_VALUE + 1);          // -2147483648  int overflow wraps silently
+System.out.println(1_000_000_000 * 3);              // -1294967296  overflow: int * int is still int
+System.out.println(1_000_000_000L * 3);             // 3000000000   one long makes the whole expression long
+System.out.println(7 / 2 + " " + 7 % 2);            // 3 1          integer division drops the fraction
+System.out.println(-7 / 2 + " " + -7 % 2);          // -3 -1        % keeps the sign of the left side
+System.out.println(Math.floorMod(-7, 3));           // 2            real modulo for index wrap-around
+System.out.println(7 / 2.0);                        // 3.5
+System.out.println(5 / 2 * 2.0 + " " + 5 / 2.0 * 2);// 4.0 5.0      order matters
+System.out.println((int) 3.99 + " " + (int) -3.99); // 3 -3         casting truncates toward zero
+System.out.println(Math.round(3.5) + " " + Math.round(-3.5)); // 4 -3
+System.out.println((byte) 200);                     // -56          narrowing keeps only the low 8 bits
+System.out.println(1.0 / 0);                        // Infinity     no exception for double
+```
+
+- **Widening** (int to long to double) is automatic. **Narrowing** needs a cast and can lose data.
+- A compound assignment such as `sh += 5` includes a hidden cast, so `short sh = 10; sh += 5;` compiles, but `sh = sh + 5;` does not.
+- Integer division by zero throws `ArithmeticException`; double division gives `Infinity` or `NaN`.
+- `Math.addExact`, `subtractExact`, `multiplyExact`, `toIntExact` (**Java 8**) throw `ArithmeticException: integer overflow` instead of wrapping. Use them for money counts and IDs.
+- `char` is a number: `'A' + 1` is the `int` 66, but `(char) ('A' + 1)` is `'B'`. `'a' + 'b'` is 195, not "ab".
+- `"a" + 1 + 2` is `"a12"`, while `1 + 2 + "a"` is `"3a"` (left to right).
+- `x = x++ + ++x;` with `x = 5` gives 12. Do not write this; know that `i++` returns the old value.
+
+Bit operators: `&` `|` `^` `~` `<<` `>>` (keeps sign) `>>>` (fills with zero). With 5 and 3: `5&3`=1, `5|3`=7, `5^3`=6, `~5`=-6, `5<<2`=20, `-16>>2`=-4, `-16>>>28`=15.
+
+#### Floating point and money
+
+```java
+System.out.println(0.1 + 0.2);                      // 0.30000000000000004
+System.out.println(0.1 + 0.2 == 0.3);               // false
+System.out.println(Double.NaN == Double.NaN);       // false  use Double.isNaN(x)
+System.out.println(new BigDecimal("0.1").add(new BigDecimal("0.2")));   // 0.3
+System.out.println(new BigDecimal(0.1));            // 0.1000000000000000055511151231257827021181583404541015625
+```
+
+`double` stores binary fractions, so many decimals are only approximate. **Never use `double` for money.** Use `BigDecimal` built from a **String** (not from a `double`), or keep whole units such as paise in a `long`. Compare `BigDecimal` with `compareTo`, not `equals` (`2.0` and `2.00` are not `equals`).
+
+#### Wrapper classes and autoboxing
+
+Each primitive has a wrapper: `Integer`, `Long`, `Double`, `Boolean`, `Character`, `Byte`, `Short`, `Float`. They are needed for generics (`List<Integer>`, never `List<int>`), `null`, and utility methods.
+
+Boxing (since **Java 5**) wraps automatically; unboxing unwraps. The JVM **caches** boxes for `Integer`, `Long`, `Short` and `Byte` from -128 to 127 (`Character` from 0 to 127, `Boolean` always), so `==` behaves differently for small and large values. This is a classic bug source.
 
 ```java
 Integer a = 127, b = 127;
-System.out.println(a == b);      // true  (same cached box)
+System.out.println(a == b);       // true   (same cached box)
 Integer c = 128, d = 128;
-System.out.println(c == d);      // false (two different boxes)
-System.out.println(c.equals(d)); // true  (compare values)
+System.out.println(c == d);       // false  (two different boxes)
+System.out.println(c.equals(d));  // true   (compare values)
+
+Integer i = 127; Long l = 127L;
+System.out.println(i.equals(l));  // false  different wrapper types are never equal
+System.out.println(l.longValue() == i); // true   primitives compare by value
+
+Integer nothing = null;
+int z = nothing;                  // NullPointerException: automatic unboxing of null
 ```
 
-| Type | Size | Default |
-| --- | --- | --- |
-| **byte** | 1 byte | 0 |
-| **int** | 4 bytes | 0 |
-| **long** | 8 bytes | 0L |
-| **double** | 8 bytes | 0.0 |
-| **boolean** | JVM-dependent | false |
+Real-code rules:
+
+- Compare wrappers with `equals()` (or unbox first). Never `==`.
+- A `Map<String, Integer>` returns `null` for a missing key; `int n = map.get("x")` throws `NullPointerException`. Use `getOrDefault`.
+- Boxing inside a loop creates garbage (`Long sum = 0L; sum += i;`). Use primitives in hot paths.
+- `new Integer(5)` is deprecated since **Java 9** and was marked for removal in **Java 16**. Use `Integer.valueOf(5)` or autoboxing.
+- Useful statics: `Integer.parseInt("42")`, `Integer.valueOf("7")`, `Integer.compare(3, 5)` (-1), `Integer.toBinaryString(10)` ("1010"), `Integer.toHexString(255)` ("ff"), `Integer.MAX_VALUE`.
+
+#### Strings: objects that never change
+
+`String` is **immutable**: every "change" makes a new object. Literals live in the **string pool** and are shared.
+
+```java
+String s1 = "hi", s2 = "hi", s3 = new String("hi");
+System.out.println(s1 == s2);          // true   same pooled literal
+System.out.println(s1 == s3);          // false  new String makes another object
+System.out.println(s1.equals(s3));     // true   always compare text with equals
+System.out.println(s1 == s3.intern()); // true   intern() returns the pooled one
+```
+
+- Joining strings in a loop with `+` creates a new string each time. Use `StringBuilder` (single thread) in loops. (`StringBuffer` is the old synchronised version.)
+- **Java 9**: *compact strings* store Latin-1 text in one byte per character, so most strings take half the memory.
+- Handy since **Java 11**: `isBlank()`, `strip()`, `repeat(n)`, `lines()`. `" hi ".strip()` gives `"hi"`, `"ab".repeat(3)` gives `"ababab"`.
+- **Java 15**: text blocks (`"""`) for multi-line text such as SQL or JSON; `formatted()`.
+
+```java
+String tb = """
+    Hello
+      Block""";                          // 'Hello' then '  Block' on the next line
+```
+
+- `null` is not "empty". `"".equals(s)` and `Objects.equals(a, b)` are null-safe.
+
+#### var (Java 10)
+
+`var list = new ArrayList<String>();` lets the compiler infer the type of a **local** variable. It is still statically typed. It cannot be used for fields, parameters or a variable without an initialiser.
+
+#### References: Java passes everything by value
+
+A method receives a **copy of the reference**. It can change the object it points at, but it cannot make the caller's variable point somewhere else.
+
+```java
+static void change(int n, int[] arr, StringBuilder sb, String s) {
+    n = 99;            // changes only the local copy
+    arr[0] = 99;       // changes the shared array
+    sb.append("!");    // changes the shared object
+    s = s + "!";       // makes a NEW String, caller's s untouched
+}
+// caller: n=1, arr={1}, sb="x", s="x"  ->  after the call: 1  99  x!  x
+```
+
+`final` on a reference stops re-assignment, not changes to the object: `final int[] fa = {1}; fa[0] = 2;` is legal.
+
+#### equals(), hashCode() and toString(): the object contract
+
+Every class extends `Object`, which supplies `equals`, `hashCode`, `toString`, `getClass`, and others. The defaults compare **identity** (are these the same object?), and `toString()` prints something like `Demo$Plain@1b6d3586`.
+
+**Contract for `equals`** (all must hold, for non-null objects):
+
+1. *Reflexive*: `x.equals(x)` is true.
+2. *Symmetric*: `x.equals(y)` is the same as `y.equals(x)`.
+3. *Transitive*: if `x` equals `y` and `y` equals `z`, then `x` equals `z`.
+4. *Consistent*: repeated calls give the same answer if nothing changed.
+5. `x.equals(null)` is **false**, and it never throws.
+
+**Contract for `hashCode`:** if `a.equals(b)` is true, then `a.hashCode() == b.hashCode()` **must** be true. (Different objects may share a hash code; that is only slower.) So: **override both together or neither.**
+
+```java
+class Point {
+    final int x, y;
+    Point(int x, int y) { this.x = x; this.y = y; }
+
+    @Override public boolean equals(Object o) {
+        if (this == o) return true;                    // 1. same object, done
+        if (!(o instanceof Point)) return false;       // 2. also handles null (null is not an instance of anything)
+        Point p = (Point) o;                           // 3. cast (safe after the check)
+        return x == p.x && y == p.y;                   // 4. compare the same fields hashCode uses
+    }
+    @Override public int hashCode() { return Objects.hash(x, y); }   // same fields as equals
+    @Override public String toString() { return "Point(" + x + "," + y + ")"; }
+}
+```
+
+Shorter form since **Java 16** (pattern matching for `instanceof`, preview in 14 and 15):
+
+```java
+@Override public boolean equals(Object o) {
+    if (this == o) return true;
+    return o instanceof Point p && x == p.x && y == p.y;   // 'p' is already cast inside the &&
+}
+```
+
+Why it matters: `HashSet` and `HashMap` use `hashCode()` to pick a bucket and `equals()` to compare inside it (Collections page).
+
+```java
+Set<Point> set = new HashSet<>();
+set.add(new Point(1, 2));
+set.add(new Point(1, 2));
+System.out.println(set.size());   // 1 with equals+hashCode, 2 with the defaults
+```
+
+Helpers: `Objects.equals(a, b)` (null-safe), `Objects.hash(a, b, c)` (combine fields; `Objects.hash(1, 2)` is 994 but `Objects.hash(2, 1)` is 1024, so order matters), `Arrays.hashCode(int[])`, `Objects.requireNonNull(x, "message")`. `String.hashCode()` is defined by its text (`"abc".hashCode()` is 96354).
+
+Pitfalls:
+
+- Overriding `equals` but not `hashCode`: objects vanish from hash sets and maps. Both must use the same fields.
+- Writing `equals(Point p)` instead of `equals(Object o)` makes an *overload*, not an override. Always add `@Override`.
+- Using a **mutable** field in `hashCode` and then changing it while the object is in a `HashSet`/`HashMap` key: the entry is lost (Collections page).
+- `getClass() != o.getClass()` versus `instanceof`: `instanceof` allows subclasses to be equal (easy to break symmetry); `getClass()` is strict. Choose one and keep classes `final` when possible.
+- `toString()` should never throw and should not print secrets such as passwords.
+- `clone()` and `finalize()`: avoid. `finalize()` was deprecated in **Java 9** and deprecated for removal in **Java 18**. Use try-with-resources or `Cleaner` (Java 9).
+
+#### Records: equals, hashCode and toString for free (Java 16)
+
+```java
+record Money(String cur, long cents) {}
+new Money("INR", 500).equals(new Money("INR", 500));   // true
+System.out.println(new Money("INR", 500));              // Money[cur=INR, cents=500]
+```
+
+A record is a short immutable data class: the compiler writes the constructor, accessors (`cur()`, `cents()`), `equals`, `hashCode` and `toString`. Preview in **Java 14 and 15**, final in **Java 16**. Prefer a record for plain data carriers and map keys.
+
+#### Immutability checklist
+
+Make a class immutable (safe to share between threads, safe as a map key): `final` class, `private final` fields, no setters, copy mutable inputs in the constructor and copies out in getters (`List.copyOf(list)`, **Java 10**), no `this` escape. `List.of`, `Set.of`, `Map.of` (**Java 9**) make unmodifiable collections.
+
+#### Common mistakes
+
+- `==` on `String` or `Integer`.
+- `double` for money.
+- `int` overflow in totals, timestamps (use `long`) and `a * b` before widening.
+- Unboxing a `null`.
+- Forgetting `hashCode` when overriding `equals`.
+
+#### Which Java version? (quick reference)
+
+| Feature | Applies from |
+| --- | --- |
+| Autoboxing, `Integer` cache | Java 5 |
+| Underscores and binary literals | Java 7 |
+| `Math.addExact` family, `Objects` helpers | Java 7 and 8 |
+| `List.of`, `Set.of`, `Map.of`, compact strings, `Cleaner` | Java 9 |
+| `var`, `List.copyOf` | Java 10 |
+| `strip`, `isBlank`, `repeat`, `lines` | Java 11 |
+| Text blocks, `String.formatted` | Java 15 |
+| Records, pattern matching for `instanceof` | Java 16 |
+| `new Integer(5)` marked for removal | Java 16 |
+| `finalize()` deprecated for removal | Java 18 |
+| Compact object headers (product option) | Java 25 |
 
 ### Generics & Type Erasure
 
