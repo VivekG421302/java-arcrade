@@ -885,23 +885,37 @@ Spring Boot, Tomcat and HikariCP use hooks to close pools and finish requests po
 
 ### Java Memory Model
 
-The Java Memory Model (JMM, in the language since **Java 5**, JSR 133) is a set of rules for **when a change made by one thread becomes visible to another**. Without these rules, threads may see stale values because of CPU caches and instruction reordering.
+The `Java Memory Model` (JMM, part of the language since **Java 5**, JSR 133) is a set of rules for **when a change made by one thread becomes visible to another**. Without these rules, threads may see old values because of CPU caches and instruction reordering.
 
 > **Imagine:** Two cooks each keep a private notepad. `volatile` or `synchronized` is like shouting the update across the whole kitchen so everyone rewrites their notes.
 
-#### Three separate problems
+#### 1. The picture: why threads disagree
 
-| Problem | Meaning | Tool that solves it |
+> **Imagine:** A restaurant kitchen. The big **order board** on the wall is `main memory`. Each cook copies the orders they care about onto a **private notepad** (the CPU `cache`) and works from it, because walking to the wall is slow. If Cook A crosses an order off the wall board but Cook B keeps reading his own notepad, Cook B still believes the order is open.
+
+```diagram
+{"n":"A:Thread A: private notepad:0:0|MM:Main memory: the wall board:1:0|B:Thread B: private notepad:2:0|W:A writes running = false:0:1|R:B keeps reading its copy: true:2:1","e":"A>MM:flush: only sometimes|MM>B:refresh: only sometimes|W>A:goes to A's notepad first|B>R:stale value"}
+```
+
+The JMM says exactly when the notepads are synchronised. Everything on this page is about those moments.
+
+#### 2. Three different problems (do not mix them up)
+
+> **Imagine:** Visibility is a **notice board nobody re-reads**. Atomicity is **two clerks editing the same cheque at once**. Ordering is a **chef who swaps two steps of the recipe because the result looks the same to him**.
+
+```diagram
+{"n":"V:Visibility: stale value:0:0|AT:Atomicity: steps interleave:0:1|O:Ordering: steps swapped:0:2|SV:volatile, synchronized, locks:1:0|SA:synchronized, Lock, Atomic classes:1:1|SO:volatile, synchronized, final:1:2","e":"V>SV:fixed by|AT>SA:fixed by|O>SO:fixed by"}
+```
+
+| Problem | What goes wrong | Fixed by |
 | --- | --- | --- |
-| **Visibility** | One thread writes, another keeps reading the old value | `volatile`, `synchronized`, `Lock`, atomics |
-| **Atomicity** | A multi-step action (read, add, write) gets interleaved with another thread's steps | `synchronized`, `Lock`, `Atomic*` classes |
-| **Ordering** | The compiler or CPU runs your statements in a different order than you wrote them (the result for a *single* thread stays the same) | `volatile`, `synchronized`, `final` fields |
+| `Visibility` | One thread writes, another keeps reading the old value | `volatile`, `synchronized`, `Lock`, atomics |
+| `Atomicity` | A multi-step action (read, add, write) gets interleaved with another thread's steps | `synchronized`, `Lock`, `Atomic*` classes |
+| `Ordering` | Compiler or CPU runs statements in a different order than written (one thread cannot tell, another can) | `volatile`, `synchronized`, `final` fields |
 
-`volatile` fixes visibility and ordering, **not** atomicity. `synchronized` fixes all three. Mixing these up is the most common concurrency mistake.
+`volatile` fixes visibility and ordering, **not** atomicity. `synchronized` fixes all three. Confusing these two is the most common concurrency mistake.
 
-#### Why a thread can see stale data
-
-Each CPU core has its own cache and registers. The JIT compiler may also keep a field in a register for the whole loop. So this loop may **never stop**:
+#### 3. The stuck loop (visibility bug)
 
 ```java
 static boolean running = true;           // plain field
@@ -913,25 +927,56 @@ while (running) { /* work */ }           // the JIT may read 'running' once and 
 running = false;                         // the worker may never see this
 ```
 
+```sequence
+{"p":"M:Main thread|W:Worker thread|R:Main memory","m":"W>W:copies running = true into its cache|W>W:loops on the cached true|M>R:writes running = false|W>W:never re-reads, loop never ends"}
+```
+
 The fix is one word:
 
 ```java
 static volatile boolean running = true;  // every read goes to main memory, every write is published
 ```
 
-#### happens-before: the one rule to remember
+#### 4. volatile: the announcement over the loudspeaker
 
-If action A **happens-before** action B, then everything A did is visible to B. The JMM lists exactly when that is guaranteed:
+> **Imagine:** `volatile` is a loudspeaker in the kitchen. Whenever someone changes the value, it is announced to everyone and nobody is allowed to rely on an old notepad copy. But the loudspeaker only announces *the final value*; it does not stop two people from both thinking "I will add one" at the same moment.
 
-| Rule | Guarantee |
+```diagram
+{"n":"W:Write volatile field:0:0|F:Value published to everyone:1:0|R:Any later read sees it:2:0|N:!Does NOT make count++ atomic:1:1","e":"W>F:immediately|F>R:guaranteed|F>N:read-add-write are 3 steps"}
+```
+
+```java
+private volatile boolean shutdown;   // good: one writer sets a flag, others read it
+private volatile int counter;        // NOT safe for counter++
+```
+
+Why `counter++` is unsafe, step by step (two threads, start value 5):
+
+```sequence
+{"p":"T1:Thread 1|C:counter|T2:Thread 2","m":"T1>C:read gives 5|T2>C:read gives 5|T1>C:write 6|T2>C:write 6"}
+```
+
+Two increments happened but the counter went from 5 to only 6: one update is **lost**. Whether you see it on a given run depends on timing and CPU. Use `AtomicInteger.incrementAndGet()` or `synchronized`.
+
+Good uses of `volatile`: a stop flag, a status that is replaced as a whole, safe publication of an immutable object, double-checked locking (below). Since **Java 9**, `VarHandle` offers finer control (`getAcquire`, `setRelease`, `compareAndSet`) for library authors.
+
+#### 5. happens-before: the baton in a relay race
+
+> **Imagine:** In a relay race the second runner can only start once the baton is in his hand. Whatever the first runner did before handing over the baton is "done" for the second runner. `happens-before` is that baton: if A happens-before B, **everything A did is visible to B**.
+
+```diagram
+{"n":"A:Thread A writes data = 42:0:0|U:Releases a lock or writes a volatile:1:0|L:Thread B takes the same lock or reads the volatile:2:0|S:!Thread B sees data = 42:3:0","e":"A>U:program order|U>L:happens-before|L>S:guaranteed"}
+```
+
+| Rule | What it guarantees |
 | --- | --- |
-| Program order | Inside one thread, each step happens-before the next step |
-| Monitor lock | An `unlock` of a `synchronized` block happens-before every later `lock` of the *same* object |
-| `volatile` | A write to a volatile field happens-before every later read of that field |
+| Program order | Inside one thread, each step happens-before the next |
+| Monitor lock | An `unlock` happens-before every later `lock` of the *same* object |
+| `volatile` | A write happens-before every later read of that field |
 | `Thread.start()` | Everything before `t.start()` is visible inside `t` |
-| `Thread.join()` | Everything `t` did is visible after `t.join()` returns |
-| Executors, `Future.get()`, `BlockingQueue`, `CountDownLatch`... | Work submitted before happens-before the task runs; the task's result happens-before `get()` returns |
-| `final` fields | Once the constructor ends, other threads see the final fields correctly (even without synchronisation) |
+| `Thread.join()` | Everything `t` did is visible after `join()` returns |
+| `ExecutorService`, `Future.get()`, `BlockingQueue`, `CountDownLatch` | Work submitted before happens-before the task; the result happens-before `get()` |
+| `final` fields | After the constructor ends, other threads see them correctly |
 
 ```java
 static int data;
@@ -943,55 +988,60 @@ w.join();                                // join gives happens-before
 System.out.println(data + " " + ready);  // 42 true, guaranteed
 ```
 
-#### synchronized in detail (all Java versions)
+#### 6. synchronized: one key for the changing room
 
-`synchronized` gives **mutual exclusion** (one thread at a time per lock object) *and* the visibility rule above.
+> **Imagine:** A changing room with one key on a hook. Whoever takes the key enters; everyone else waits outside. When you leave you hang the key back, and the next person goes in. The person who enters also sees everything the previous person left in the room (visibility).
+
+```diagram
+{"n":"T1:Thread 1 takes the key:0:0|IN:Inside synchronized block:1:0|OUT:Hangs the key back:2:0|T2:Thread 2 wants the key:0:1|BL:BLOCKED: waits outside:1:1|GO:!Thread 2 enters:2:1","e":"T1>IN:lock acquired|IN>OUT:leaves the block|T2>BL:key is taken|BL>GO:key returned|OUT>GO:releases"}
+```
 
 ```java
 class Counter {
     private int value;
-    synchronized void increment() { value++; }      // lock = this
-    synchronized int get() { return value; }        // readers must use the same lock to see the latest value
-    static synchronized void util() { }             // lock = Counter.class
+    synchronized void increment() { value++; }      // key = this
+    synchronized int get() { return value; }        // readers need the same key to see the latest value
+    static synchronized void util() { }             // key = Counter.class
     void part() {
-        synchronized (this) { value++; }            // block form: lock only the part that needs it
+        synchronized (this) { value++; }            // block form: lock only what needs it
     }
 }
 ```
 
-- Every object can be a lock. The lock is **reentrant**: a thread that holds it can enter another `synchronized` block on the same object.
-- A `synchronized` method on an instance uses `this`; a `static synchronized` method uses the `Class` object.
-- Keep the block **short**, and never call unknown code (callbacks, I/O) while holding a lock.
-- Do not lock on a `String` literal, a boxed `Integer`, or a public object; other code may use the same lock by accident. Use a `private final Object lock = new Object();`.
+| Fact | Meaning |
+| --- | --- |
+| Every object can be a key | `synchronized (obj)` |
+| The key is `reentrant` | A thread holding it may enter another block on the same object |
+| Instance method | Uses `this` |
+| `static synchronized` | Uses the `Class` object |
+| Keep the block short | Never call unknown code (callbacks, I/O) while holding the key |
+| Do not lock on a `String` literal, a boxed `Integer` or a public object | Other code may use the same key by accident. Use `private final Object lock = new Object();` |
 
-#### volatile in detail
+#### 7. Torn writes: `long` and `double`
 
-```java
-private volatile boolean shutdown;          // safe: one writer sets a flag, others read it
-private volatile int counter;               // NOT safe for counter++ (read, add, write = three steps)
+> **Imagine:** Writing a long number on a whiteboard in two halves. A reader who looks in between sees half the old number glued to half the new one.
+
+The JMM allows a plain `long` or `double` to be written as two 32-bit halves. 64-bit JVMs do not tear in practice, but the language does not promise it. A `volatile long` or `volatile double` is always atomic.
+
+#### 8. Safe publication: handing over a finished cake
+
+> **Imagine:** A baker puts a cake in the shop window while it is still half-baked, because the oven (constructor) is not finished. A customer (another thread) grabs it and gets something raw. Safe publication means the cake is handed over only when it is fully done.
+
+```diagram
+{"n":"C1:Thread 1: allocate memory:0:0|C2:Thread 1: set the field to the new object:1:0|C3:Thread 1: run the constructor:2:0|R:Thread 2: sees non-null:1:1|X:!Uses a half-built object:1:2","e":"C1>C2:steps can be reordered|C2>C3:too late|C2>R:visible early|R>X:no volatile, no safety"}
 ```
 
-`counter++` on a volatile field can lose updates because two threads may read the same value. The total can come out below the expected number; whether you see it on a given run depends on timing and CPU. Use `AtomicInteger.incrementAndGet()` or `synchronized`.
+Safe ways to publish an object:
 
-Good uses of `volatile`: a stop flag, a status that is replaced as a whole, safe publication of an immutable object, double-checked locking (below).
+| Way | Example |
+| --- | --- |
+| Static initialiser | `static final Config C = new Config();` (class loading is thread-safe) |
+| `volatile` field or `AtomicReference` | `private volatile Config config;` |
+| Under a lock | Read and write the field in `synchronized` code |
+| `final` fields | An immutable object is safe to share |
+| Thread-safe hand-over | `BlockingQueue`, `ExecutorService`, `ConcurrentHashMap` |
 
-Also from **Java 9**: `VarHandle` gives finer control (`getAcquire`, `setRelease`, `compareAndSet`) for library authors. Application code rarely needs it.
-
-#### Atomicity of long and double
-
-The JMM allows a plain `long` or `double` write to be done as two 32-bit halves, so another thread could see a "torn" value. In practice 64-bit JVMs do not tear, but the language does not promise it. A `volatile long` or `volatile double` is always atomic for plain read and write.
-
-#### Safe publication of objects
-
-Making an object visible to other threads is called *publishing*. Unsafe: storing a reference in a plain static field while the object is still being constructed. Safe ways:
-
-1. Initialise it in a `static` initialiser (class loading is thread-safe).
-2. Store it in a `volatile` field or an `AtomicReference`.
-3. Store it in a field accessed under a lock.
-4. Make the fields `final` (an immutable object is safe to share).
-5. Hand it over through a thread-safe collection or an `ExecutorService`.
-
-Never let `this` escape from a constructor (starting a thread or registering a listener inside it): another thread could see a half-built object.
+Never let `this` escape from a constructor (starting a thread or registering a listener inside it): another thread may see a half-built object.
 
 ```java
 final class Imm {                           // immutable: safe to share with no locks
@@ -1001,16 +1051,20 @@ final class Imm {                           // immutable: safe to share with no 
 }
 ```
 
-#### Double-checked locking and the holder idiom
+#### 9. Lazy singleton: double-checked locking and the holder idiom
 
-Lazy singleton the old way needs `volatile`; without it another thread can see a non-null reference to an object whose fields are not yet set (see Part 3, anti-pattern 2):
+> **Imagine:** A shop that builds its one display cabinet only when the first customer asks. The cashier checks "does it exist?" outside the door (fast), then locks the door, checks again, and builds it. `volatile` is the sign "only show the cabinet once it is fully built".
+
+```diagram
+{"n":"S:get called:0:0|C1:instance is null?:1:0|R:!Return instance:3:0|LK:Lock the class:1:1|C2:Still null?:2:1|NW:Create instance, volatile write:2:2","e":"S>C1|C1>R:no, fast path|C1>LK:yes|LK>C2|C2>NW:yes|C2>R:no|NW>R"}
+```
 
 ```java
 class Singleton {
     private static volatile Singleton instance;           // volatile is essential
     private Singleton() {}
     static Singleton get() {
-        if (instance == null) {                           // 1st check: no lock (fast path)
+        if (instance == null) {                           // 1st check: no lock
             synchronized (Singleton.class) {
                 if (instance == null)                     // 2nd check: inside the lock
                     instance = new Singleton();
@@ -1021,33 +1075,37 @@ class Singleton {
 }
 ```
 
-The simplest correct version needs no lock and no volatile, because class initialisation is thread-safe:
+The simplest correct version needs no lock and no `volatile`, because class initialisation is thread-safe:
 
 ```java
 class Holder {
     private Holder() {}
-    private static class H { static final Holder I = new Holder(); }  // loaded on first use of H
+    private static class H { static final Holder I = new Holder(); }  // built on first use of H
     static Holder get() { return H.I; }
 }
 ```
 
-(An `enum` with one constant is another safe singleton.)
+An `enum` with one constant is another safe singleton. See Part 3, anti-pattern 2.
 
-#### What the JMM does not give you
+#### 10. What the JMM does not give you
 
-- **No atomicity for compound actions**: check-then-act (`if (!map.containsKey(k)) map.put(k, v)`) and read-modify-write (`count++`) need a lock or an atomic operation, even on a `ConcurrentHashMap` unless you use `putIfAbsent` / `merge`.
-- **No fairness and no ordering of threads.** Which thread gets the lock next is not defined.
-- Thread-safety of one operation does not make a *sequence* of operations safe.
+| Missing guarantee | What to do |
+| --- | --- |
+| Compound actions are not atomic (`if (!map.containsKey(k)) map.put(k, v)`, `count++`) | Use a lock, an atomic, or `putIfAbsent` / `merge` |
+| No fairness or ordering of threads | Do not depend on who gets the lock next |
+| Safe single operations do not make a *sequence* safe | Lock the whole sequence |
 
 #### Common mistakes
 
-- Using a plain `boolean` stop flag.
-- Synchronising writers but not readers.
-- `volatile` on a counter.
-- Locking on a different object in different places, so two threads never exclude each other.
-- Calling `wait()`, `notify()` outside a `synchronized` block (throws `IllegalMonitorStateException`).
+| Mistake | Fix |
+| --- | --- |
+| A plain `boolean` stop flag | Make it `volatile` |
+| Synchronising writers but not readers | Readers need the same lock |
+| `volatile` on a counter | `AtomicInteger` |
+| Locking on different objects in different places | Always the same lock object |
+| `wait()` or `notify()` outside `synchronized` | Throws `IllegalMonitorStateException` |
 
-Module 10 builds on this page: locks beyond `synchronized`, atomics, CAS, and tools to find races.
+Module 10 builds on this page: locks beyond `synchronized`, atomics, CAS and tools to find races.
 
 #### Which Java version? (quick reference)
 
@@ -1055,8 +1113,8 @@ Module 10 builds on this page: locks beyond `synchronized`, atomics, CAS, and to
 | --- | --- |
 | The JMM as written today, `volatile` and `final` semantics fixed (JSR 133) | Java 5 |
 | `java.util.concurrent`, `Lock`, `Atomic*` | Java 5 |
-| `VarHandle` (acquire/release access) | Java 9 |
-| Virtual threads (no change to the JMM rules, they follow the same happens-before) | Java 21 |
+| `VarHandle` (acquire and release access) | Java 9 |
+| Virtual threads (same happens-before rules) | Java 21 |
 
 ### Object Internals & Primitives
 
