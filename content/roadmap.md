@@ -2195,9 +2195,197 @@ The JVM frees objects nobody references. Most objects die young, so memory is sp
 
 ### Streams & Lambdas
 
-A stream is a pipeline (filter, map, collect). Lambdas are short inline functions. Streams are lazy: nothing runs until a terminal step.
+A `stream` is a conveyor belt for data. You describe what to do to each item (filter, transform, sort) and Java does the work. You never write loop boilerplate, and the pipeline only runs when you ask for a result.
 
-> **Imagine:** A factory conveyor belt. You can set up all the machines, but nothing moves until someone presses “collect”.
+> **Imagine:** A factory assembly line. Raw parts (`source`) go in one end. Stations along the belt filter out rejects, reshape good parts, and sort them. At the end, a worker packages them (`terminal operation`). The belt does not move until the packager starts pulling.
+
+#### Lifecycle diagram: Stream Pipeline
+
+```diagram
+{"n":"SO:Source: collection or array:0:0|IN:Intermediate ops: lazy:1:0|FL:filter:2:0|MP:map:2:1|SR:sorted:2:2|LM:limit:2:3|TM:Terminal op: triggers execution:3:0|RS:!Result: List, String, count...:4:0","e":"SO>IN|IN>FL|IN>MP|IN>SR|IN>LM|FL>TM|MP>TM|SR>TM|LM>TM|TM>RS"}
+```
+
+**Lazy evaluation:** intermediate operations do not run until a terminal is called. `filter` and `map` are intermediate; `collect`, `count`, `forEach`, `reduce` are terminal.
+
+#### 1. Creating a stream
+
+> **Imagine:** Turning a bucket of items into a conveyor belt. `stream()` takes your collection and starts the belt.
+
+```java
+List<String> names = List.of("ravi", "li", "anita", "om", "zoya", "kabir");
+names.stream()          // start the belt
+     .filter(...)       // intermediate
+     .collect(...);     // terminal: start the belt moving
+```
+
+| Source | How to stream |
+| --- | --- |
+| `Collection` | `list.stream()` |
+| Array | `Arrays.stream(arr)` |
+| Range of ints | `IntStream.range(0, 10)`, `IntStream.rangeClosed(1, 10)` |
+| Arbitrary values | `Stream.of("a", "b", "c")` |
+
+A stream can only be consumed **once**. Using it again throws `IllegalStateException`.
+
+#### 2. filter: keeping only the right items
+
+> **Imagine:** A quality inspector who lets through only the parts that pass the check. The `Predicate` (the test) is the inspector's checklist.
+
+```java
+List<String> long4 = names.stream()
+    .filter(n -> n.length() >= 4)      // Predicate<String>: true means keep
+    .collect(Collectors.toList());
+System.out.println(long4);             // [ravi, anita, zoya, kabir]
+```
+
+The lambda `n -> n.length() >= 4` is a `Predicate<String>`: it takes a `String` and returns `true` or `false`.
+
+#### 3. map: reshaping each item
+
+> **Imagine:** A paint booth that recolours every part as it passes through. Each item comes out changed into something else.
+
+```java
+List<Integer> lengths = names.stream()
+    .map(String::length)               // Function<String, Integer>
+    .collect(Collectors.toList());
+System.out.println(lengths);           // [4, 2, 5, 2, 4, 5]
+```
+
+`map` changes each element to something new (possibly a different type). `String::length` is a **method reference** — shorthand for `s -> s.length()`.
+
+#### 4. sorted, distinct, limit, skip
+
+> **Imagine:** More belt stations: a sorter, a duplicate ejector, a "stop after N" gate, and a "skip the first N" skip tray.
+
+```java
+List<Integer> nums = List.of(5, 3, 1, 4, 1, 2, 3);
+nums.stream().sorted().distinct().collect(Collectors.toList());  // [1, 2, 3, 4, 5]
+nums.stream().sorted().limit(3).collect(Collectors.toList());    // [1, 1, 2]
+nums.stream().sorted().skip(2).collect(Collectors.toList());     // [2, 3, 3, 4, 5]
+```
+
+`sorted()` uses natural order. `sorted(comparator)` lets you sort by any rule. `distinct()` uses `equals`.
+
+#### 5. Terminal operations: getting the result
+
+> **Imagine:** The packager at the end of the belt. Nothing before them moves until they start pulling. Each terminal collects or summarises the parts in a different way.
+
+```diagram
+{"n":"ST:stream:0:0|CL:collect:1:0|CN:count:1:1|RD:reduce:1:2|MX:max or min:1:3|FR:forEach:1:4|FM:findFirst or findAny:1:5|AN:anyMatch allMatch noneMatch:1:6","e":"ST>CL|ST>CN|ST>RD|ST>MX|ST>FR|ST>FM|ST>AN"}
+```
+
+```java
+int sum = nums.stream().reduce(0, Integer::sum);             // 19
+long count = nums.stream().count();                          // 7
+Optional<Integer> max = nums.stream().max(Comparator.naturalOrder()); // Optional[5]
+max.orElse(-1);                                              // 5
+nums.stream().mapToInt(Integer::intValue).sum();             // 19  (IntStream)
+nums.stream().mapToInt(Integer::intValue).average().orElse(0); // ~2.71
+```
+
+`max` and `min` return `Optional<T>` because the stream may be empty. Always handle it with `orElse`, `orElseThrow` or `ifPresent`.
+
+#### 6. collect: putting results into a container
+
+> **Imagine:** Different boxes at the end of the belt — one for lists, one for sets, one for maps, one for a joined string.
+
+```java
+// to a List
+names.stream().filter(n -> n.length() > 3).collect(Collectors.toList());        // [ravi, anita, zoya, kabir]
+// Java 16+: .toList()  (shorter, unmodifiable)
+
+// to a joined String (the exercise uses this)
+names.stream().filter(n -> n.length() >= 4)
+    .map(String::toUpperCase).sorted()
+    .collect(Collectors.joining(", "));                                           // ANITA, KABIR, RAVI, ZOYA
+
+Collectors.joining(", ", "[", "]");   // with prefix and suffix
+
+// to a Map grouped by key
+Map<Integer, List<String>> byLen = names.stream()
+    .collect(Collectors.groupingBy(String::length));
+// {2=[li, om], 4=[ravi, zoya], 5=[anita, kabir]}
+```
+
+#### 7. The names exercise pattern step by step
+
+```sequence
+{"p":"N:names|F:filter >=4|M:map toUpper|S:sorted|J:joining|R:!result","m":"N>F:stream|F>M:anita,ravi,zoya,kabir|M>S:ANITA,RAVI,ZOYA,KABIR|S>J:alphabetical|J>R:ANITA, KABIR, RAVI, ZOYA"}
+```
+
+```java
+static String shout(List<String> names) {
+    return names.stream()
+        .filter(n -> n.length() >= 4)         // keep 4+ letters
+        .map(String::toUpperCase)             // uppercase
+        .sorted()                             // alphabetical
+        .collect(Collectors.joining(", "));   // join with comma-space
+}
+```
+
+#### 8. flatMap: flatten nested collections
+
+> **Imagine:** You have several bags of items. `flatMap` empties each bag onto the belt one at a time, so you get one continuous stream of items, not a stream of bags.
+
+```java
+List<List<Integer>> nested = List.of(List.of(1, 2), List.of(3, 4));
+nested.stream().flatMap(Collection::stream)
+      .collect(Collectors.toList()); // [1, 2, 3, 4]
+```
+
+#### 9. Method references: shorthand for lambdas
+
+> **Imagine:** Giving the inspector a stamp (`String::toUpperCase`) instead of describing the action word-by-word (`s -> s.toUpperCase()`). Both mean the same thing.
+
+| Style | Example | Same as lambda |
+| --- | --- | --- |
+| Static method | `Integer::parseInt` | `s -> Integer.parseInt(s)` |
+| Instance method on the stream's item | `String::toUpperCase` | `s -> s.toUpperCase()` |
+| Instance method on a captured object | `System.out::println` | `x -> System.out.println(x)` |
+| Constructor | `ArrayList::new` | `() -> new ArrayList<>()` |
+
+#### 10. anyMatch, allMatch, noneMatch, findFirst
+
+```java
+names.stream().anyMatch(n -> n.startsWith("z"));  // true (zoya starts with z)
+names.stream().allMatch(n -> n.length() > 1);     // true (all longer than 1)
+names.stream().noneMatch(n -> n.isEmpty());        // true (none are empty)
+names.stream().filter(n -> n.length() > 4).findFirst().orElse("none"); // "anita"
+```
+
+These short-circuit: they stop as soon as the answer is known.
+
+#### 11. peek: debug only
+
+```java
+names.stream()
+    .filter(n -> n.length() > 4)
+    .peek(n -> System.out.print("passing: " + n + " "))  // debug only
+    .collect(Collectors.toList());
+```
+
+`peek` runs a side effect for each item without changing it. It is for debugging only; do not use it for real work because it may not run on every item in a parallel stream.
+
+#### Common mistakes
+
+| Mistake | What happens | Fix |
+| --- | --- | --- |
+| Re-using a stream | `IllegalStateException` | Create a new `stream()` each time |
+| Forgetting the terminal | Pipeline never runs | End with `collect`, `count`, `forEach`, etc. |
+| Modifying the source inside `forEach` | `ConcurrentModificationException` | Collect into a new list instead |
+| `max()` without handling `Optional` | `NoSuchElementException` on empty stream | `orElse(-1)` or `orElseThrow` |
+| `map` when you need `flatMap` | Stream of lists instead of a stream of items | `flatMap(Collection::stream)` |
+| Stateful lambda in `filter` (e.g. incrementing a counter) | Broken in parallel streams | Keep lambdas stateless |
+
+#### Which Java version? (quick reference)
+
+| Feature | Applies from |
+| --- | --- |
+| Streams, lambdas, `Collectors`, `Optional` | Java 8 |
+| `Collectors.teeing`, `Stream.takeWhile`, `Stream.dropWhile` | Java 9 |
+| `Collectors.toUnmodifiableList` | Java 10 |
+| `stream.toList()` (shorter, unmodifiable) | Java 16 |
+| Sequenced collections (`SequencedCollection`) | Java 21 |
 
 ### java.time API
 
