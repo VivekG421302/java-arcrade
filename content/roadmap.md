@@ -2117,44 +2117,186 @@ Classic streams read byte by byte and block. NIO uses buffers and channels, and 
 
 ### Concurrency: Threads & Locks
 
-Threads run tasks in parallel. Use ExecutorService for pools, locks and atomics to protect shared data, and avoid deadlocks.
+A `thread` is a path of execution inside a program. All threads in a JVM share the same heap. The tricky part is making sure they do not step on each other when they change shared data.
 
-This page covers the basics. Module 10 goes deeper: locks, thread pools, CompletableFuture, virtual threads and structured concurrency.
+> **Imagine:** A shared whiteboard in an office. Many people can read it at the same time, but if two people try to erase and rewrite the same word at once, the result is a mess. `synchronized` is the rule "one person at the whiteboard at a time".
 
-> **Imagine:** Two people meet in a narrow doorway, each saying “after you” forever. That is a deadlock. Fix: everybody agrees to use doors in the same order.
-
-#### Lifecycle diagram: Thread Lifecycle
+#### Lifecycle diagram: Thread States
 
 ```diagram
-{"n":"N:NEW:0:1|R:RUNNABLE:1:1|BL:BLOCKED:2:0|W:WAITING:2:1|TW:TIMED_WAITING:2:2|TM:!TERMINATED:1:2","e":"N>R:start()|R>BL:needs lock|BL>R:got lock|R>W:wait() / join()|W>R:notify()|R>TW:sleep(ms)|TW>R:time up|R>TM:run() ends"}
+{"n":"NW:NEW:0:0|RN:RUNNABLE:1:0|BL:BLOCKED waiting for lock:2:0|WT:WAITING join or wait:2:1|TW:TIMED_WAITING sleep:2:2|TM:!TERMINATED:3:1","e":"NW>RN:start()|RN>BL:wants a lock|BL>RN:lock released|RN>WT:join or wait|WT>RN:notified|RN>TW:sleep(ms)|TW>RN:time up or interrupt|RN>TM:run() returns"}
 ```
 
-1. **NEW** – created but not started.
-2. **RUNNABLE** – running or ready to run.
-3. **BLOCKED** – waiting for a synchronized lock held by another thread.
-4. **WAITING** – waits until another thread signals it.
-5. **TIMED_WAITING** – waits for a limited time.
-6. **TERMINATED** – finished; it cannot be restarted.
+#### 1. Creating and starting a thread
 
-#### Detailed explanation
-
-A deadlock happens when threads hold one lock each and wait for the other’s. The cure is a fixed lock order, or timeouts with tryLock. For everyday work, prefer a thread pool over raw threads.
+> **Imagine:** Hiring a worker. You write a job description (`Runnable`), hand it to the worker (`Thread`), and say "start" (`start()`). The worker runs the job in parallel with everything else. `join()` means "wait for the worker to finish before continuing".
 
 ```java
-Object A = new Object(), B = new Object();
-// Thread 1
-synchronized (A) { synchronized (B) { /* work */ } }
-// Thread 2 - opposite order, can deadlock
-synchronized (B) { synchronized (A) { /* work */ } }
-// Fix: both threads lock A first, then B.
+// Lambda: the simplest way
+Thread t = new Thread(() -> System.out.println("running: " + Thread.currentThread().getName()));
+t.start();      // starts a new thread; JVM decides when it actually runs
+t.join();       // wait for t to finish before continuing
+System.out.println("main continues");
+
+// Naming a thread (useful in logs)
+Thread named = new Thread(() -> System.out.println("hi"), "worker-1");
+named.start();
+named.join();
+```
+
+| Method | What it does |
+| --- | --- |
+| `start()` | Ask the JVM to begin running this thread |
+| `join()` | Current thread waits until the other finishes |
+| `join(ms)` | Wait at most `ms` milliseconds |
+| `Thread.sleep(ms)` | Pause the current thread (throws `InterruptedException`) |
+| `Thread.currentThread()` | The thread running this line |
+| `Thread.yield()` | Hint to the scheduler: let another thread run now |
+| `t.getName()`, `t.setName(s)` | Thread name (shows in logs and thread dumps) |
+| `t.setDaemon(true)` | Daemon thread: JVM exits without waiting for it |
+| `t.getState()` | `NEW`, `RUNNABLE`, `BLOCKED`, `WAITING`, `TIMED_WAITING`, `TERMINATED` |
+| `t.interrupt()` | Set the interrupt flag; causes `InterruptedException` if sleeping |
+
+Always call `start()`, not `run()`. Calling `run()` executes the code on the current thread, no new thread is created.
+
+#### 2. The race condition: the exercise bug
+
+> **Imagine:** Two cashiers both check that the till has £100, then both try to pay out £80. Each sees £100, writes £20 back, but together they paid out £160 from a till that only had £100. The step in between (yield, or any context switch) lets the second cashier read a stale value.
+
+```sequence
+{"p":"T1:Thread 1|C:counter field|T2:Thread 2","m":"T1>C:read value = 5|T2>C:read value = 5|T1>C:write 6|T2>C:write 6 (lost update!)"}
 ```
 
 ```java
-ExecutorService pool = Executors.newFixedThreadPool(4);
-Future<Integer> f = pool.submit(() -> 21 * 2);
-System.out.println(f.get()); // 42
-pool.shutdown();
+static class Counter {
+    private int value;
+    void increment() {
+        int current = value;    // step 1: read
+        Thread.yield();         // another thread can run right here
+        value = current + 1;   // step 2: write (may use a stale current)
+    }
+    int get() { return value; }
+}
 ```
+
+4 threads × 1000 increments → counter ends up **less than 4000**. This is a **race condition**.
+
+#### 3. synchronized: one key for the till
+
+> **Imagine:** One key on a hook next to the till. Any cashier who wants to touch the money must take the key first. Others wait. When done, the key goes back. The whole read-yield-write is now one locked step: no second cashier can interrupt.
+
+```java
+static class Counter {
+    private int value;
+    synchronized void increment() {         // only one thread at a time
+        int current = value;
+        Thread.yield();
+        value = current + 1;
+    }
+    synchronized int get() { return value; } // readers also need the lock
+}
+```
+
+4 threads × 1000 → counter is exactly **4000**. The keyword `synchronized` on the method locks on `this`. Readers must use the same lock too — otherwise a reader could see a half-written value.
+
+#### 4. AtomicInteger: a single-step counter
+
+> **Imagine:** A turnstile at a stadium. It can only let one person through per click, and the click and the count happen in one indivisible motion. `AtomicInteger.incrementAndGet()` is that turnstile: read, add and write in one hardware instruction, no lock needed.
+
+```java
+AtomicInteger atomic = new AtomicInteger(0);
+atomic.incrementAndGet();    // read-add-write in one step
+atomic.addAndGet(5);
+System.out.println(atomic.get()); // the current value
+```
+
+| Method | What it does |
+| --- | --- |
+| `incrementAndGet()` | Add 1, return new value |
+| `getAndIncrement()` | Return old value, then add 1 |
+| `addAndGet(n)` | Add n, return new value |
+| `compareAndSet(expected, update)` | Atomic swap: only sets if current == expected |
+| `get()` | Read the current value |
+
+`AtomicInteger`, `AtomicLong` and `AtomicReference` cover the common cases. For complex state, use `synchronized`.
+
+#### 5. ReentrantLock: synchronized with more options
+
+> **Imagine:** A key with a timer and a "do not wait if the key is taken" option. `ReentrantLock` is `synchronized` with extra controls: you can try to take the key without blocking (`tryLock`), set a timeout, or be fair (queue in order).
+
+```java
+ReentrantLock lock = new ReentrantLock();
+lock.lock();
+try {
+    // critical section
+} finally {
+    lock.unlock();   // must always unlock, even if an exception fires
+}
+```
+
+Always unlock in `finally`. Unlike `synchronized`, missing the `unlock()` leaves the lock taken forever.
+
+#### 6. Thread interruption: polite shutdown
+
+> **Imagine:** Tapping a worker on the shoulder. They notice the tap (`InterruptedException` or `Thread.interrupted()`) and can choose when to stop cleanly. `kill -9` is the opposite: immediate, no cleanup.
+
+```java
+Thread t = new Thread(() -> {
+    try {
+        Thread.sleep(10_000);
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();   // restore the flag
+        System.out.println("interrupted, stopping");
+    }
+});
+t.start();
+Thread.sleep(100);
+t.interrupt();   // set the interrupt flag; sleep throws InterruptedException
+t.join();
+```
+
+When you catch `InterruptedException`, always restore the flag: `Thread.currentThread().interrupt()`. Otherwise callers that check `Thread.interrupted()` lose the signal.
+
+#### 7. The race condition exercise pattern
+
+```java
+// broken
+void increment() {
+    int current = value;   // read
+    Thread.yield();        // gap
+    value = current + 1;  // write
+}
+
+// fix 1: synchronized
+synchronized void increment() {
+    int current = value; Thread.yield(); value = current + 1;
+}
+
+// fix 2: AtomicInteger (simpler, no yield needed but exercise says keep it)
+// AtomicInteger.incrementAndGet() replaces the whole read-yield-write
+```
+
+#### Common mistakes
+
+| Mistake | What happens | Fix |
+| --- | --- | --- |
+| Call `run()` instead of `start()` | Runs on the current thread, no new thread | `start()` |
+| Synchronise writers but not readers | Reader sees stale value | Same lock on both |
+| `volatile` on a counter | Read-add-write still not atomic | `AtomicInteger` or `synchronized` |
+| Forget `lock.unlock()` in a lock without `finally` | Lock never released, program freezes | Always `finally { lock.unlock(); }` |
+| Share mutable state without any synchronisation | Race conditions, unpredictable results | `synchronized`, atomics, or immutability |
+| Catch `InterruptedException` and do nothing | Interrupt flag cleared, shutdown impossible | `Thread.currentThread().interrupt()` |
+
+The JMM page (section 2) explains *why* synchronisation fixes visibility. This page focuses on *how* to use the tools.
+
+#### Which Java version? (quick reference)
+
+| Feature | Applies from |
+| --- | --- |
+| `Thread`, `synchronized`, `wait/notify` | Java 1.0 |
+| `java.util.concurrent`, `ReentrantLock`, `AtomicInteger` | Java 5 |
+| `Thread.State` enum | Java 5 |
+| `Thread.ofVirtual().start(...)` (virtual threads) | Java 21 |
 
 ### Classloading & Reflection
 
