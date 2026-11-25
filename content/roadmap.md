@@ -1442,9 +1442,213 @@ The compiler writes the constructor, accessors (`cur()`, `cents()`), `equals`, `
 
 ### Generics & Type Erasure
 
-Generics give compile-time type safety, but the types are erased at runtime. Wildcards (? extends, ? super) control what you may read or write.
+`Generics` let you write one class or method that works safely with any type. The compiler checks types at compile time and removes the type information before the program runs (`type erasure`).
 
-> **Imagine:** A box labelled “Apples” gets its label removed at the warehouse door. A basket marked ? extends Fruit lets you take fruit out but not put anything in.
+> **Imagine:** A vending machine that is set to "chocolate bars only". You put in a coin and you are guaranteed to get a chocolate bar, never a random bag of crisps. `Generics` are that machine: you say which type it handles once, and the compiler refuses to put the wrong thing in or take the wrong thing out, with no casting and no surprises at runtime.
+
+#### Lifecycle diagram: Generic Type, Compile Time to Runtime
+
+```diagram
+{"n":"S:Box<String> in source:0:0|C:Compiler checks types:1:0|E:Type erased to Box:2:0|R:At runtime just Box:3:0|CE:ClassCastException at runtime:1:1|OK:!Type error caught at compile time:0:1","e":"S>C:checks|C>E:erases|E>R:runs|C>OK:generic catches it|S>CE:raw type, no check|CE>OK:generic prevents this"}
+```
+
+After compilation, `Box<String>` and `Box<Integer>` are both just `Box` in the `.class` file. The type parameter `T` exists only while the compiler is reading your code; this is called `type erasure`.
+
+#### 1. A generic class: the Box
+
+> **Imagine:** A labelled drawer in a workshop. You label it "screws" (`Box<Screw>`) or "bolts" (`Box<Bolt>`). You never have to check what is inside because the label guarantees it.
+
+```diagram
+{"n":"D:class Box<T>:0:0|S:Box<String>:1:0|I:Box<Integer>:1:1|GS:holds a String:2:0|GI:holds an Integer:2:1","e":"D>S:instantiated as|D>I:instantiated as|S>GS:T becomes String|I>GI:T becomes Integer"}
+```
+
+```java
+class Box<T> {
+    private T value;
+    Box(T value) { this.value = value; }
+    T get() { return value; }
+}
+
+Box<String>  sb = new Box<>("hello");
+Box<Integer> ib = new Box<>(42);
+System.out.println(sb.get().toUpperCase()); // HELLO
+System.out.println(ib.get() * 2);           // 84
+```
+
+`T` is a **type parameter**: a placeholder for the real type. Any single uppercase letter works (`T`, `E`, `K`, `V`, `R`). By convention: `T` for type, `E` for element, `K`/`V` for key/value, `R` for return type.
+
+You can have more than one:
+
+```java
+class Pair<A, B> {
+    final A first; final B second;
+    Pair(A first, B second) { this.first = first; this.second = second; }
+}
+Pair<String, Integer> p = new Pair<>("age", 25);
+System.out.println(p.first); // age
+```
+
+**Diamond operator** `<>` (since **Java 7**): when the type can be inferred from the right-hand side, you can write `new Box<>()` instead of `new Box<String>()`.
+
+#### 2. Generic methods: the type parameter lives on the method
+
+> **Imagine:** A Swiss Army knife. Each blade (`method`) is independent. You pick the blade you need; it does not matter what the knife's handle says. A `generic method` owns its own type parameter, independent of the class around it.
+
+```java
+// A standalone utility class: no type parameter on the class
+class Utils {
+    // <T> declares a type parameter for this method alone
+    static <T> void swap(T[] arr, int i, int j) {
+        T tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+}
+Integer[] arr = {3, 1, 4, 1, 5};
+Utils.swap(arr, 0, 4);
+System.out.println(Arrays.toString(arr)); // [5, 1, 4, 1, 3]
+```
+
+The `<T>` before the return type declares the method's own type parameter. The compiler infers the type from the arguments.
+
+#### 3. Bounded type parameters: "must be a Number" or "must be comparable"
+
+> **Imagine:** A "members only" vending machine. You still set it to one type, but it only accepts cards from people who are club members (`extends Number`). Everyone who is a member can use it, but strangers are turned away at compile time.
+
+```diagram
+{"n":"T:T extends Number:0:0|I:Integer is-a Number:1:0|D:Double is-a Number:1:1|S:String is NOT Number:1:2|OK1:!Integer accepted:2:0|OK2:!Double accepted:2:1|NO:!String rejected at compile time:2:2","e":"T>I:allows|T>D:allows|T>S:blocks|I>OK1|D>OK2|S>NO"}
+```
+
+```java
+class NumberBox<T extends Number> {
+    private T value;
+    NumberBox(T value) { this.value = value; }
+    double doubleValue() { return value.doubleValue(); }   // safe: Number has doubleValue()
+}
+NumberBox<Double> nb = new NumberBox<>(3.14);
+System.out.println(nb.doubleValue()); // 3.14
+// new NumberBox<String>("x"); // compile error: String does not extend Number
+```
+
+`T extends Number` means: "T may be `Number` itself or any subclass of it (`Integer`, `Double`, `Long`, `Float`, `BigDecimal`...)". Inside the class, the compiler now knows T has all of `Number`'s methods.
+
+You can require multiple interfaces: `T extends Number & Comparable<T>`. The class must come first.
+
+#### 4. Comparable<T> and the maxOf pattern (what the exercise uses)
+
+> **Imagine:** A height chart on a wall at a theme park. Any person who stands next to it (`implements Comparable`) can be measured and compared. The chart (`maxOf`) does not care if the person is from India or Germany; it just needs them to stand against it. `T extends Comparable<T>` says "T must be able to stand against the chart and report who is taller".
+
+```diagram
+{"n":"L:List<T>:0:0|C:T extends Comparable<T>:1:0|B:best = first item:1:1|LP:for each item:2:0|CM:item.compareTo(best) > 0?:2:1|UP:best = item:3:1|RET:!return best:3:0","e":"L>C:constraint|C>B:start|B>LP|LP>CM|CM>UP:yes, item is bigger|UP>LP:next item|CM>LP:no|LP>RET:list exhausted"}
+```
+
+```java
+static <T extends Comparable<T>> T maxOf(List<T> items) {
+    if (items.isEmpty()) throw new NoSuchElementException("empty list");
+    T best = items.get(0);                          // start with the first item
+    for (T item : items) {
+        if (item.compareTo(best) > 0) best = item;  // compareTo > 0 means item is bigger
+    }
+    return best;
+}
+System.out.println(maxOf(List.of(3, 9, 4)));                    // 9
+System.out.println(maxOf(List.of("pear", "apple", "zebra")));   // zebra
+```
+
+`compareTo` returns a negative number (this < other), zero (equal), or a positive number (this > other). `> 0` means "this item beats the best so far". `String`, `Integer`, `Double` and all other wrapper types already implement `Comparable`, so this one method works for all of them.
+
+`NoSuchElementException` is in `java.util`. Throw it when the list is empty: there is no element to return.
+
+| `compareTo` result | Meaning |
+| --- | --- |
+| `< 0` | this comes before other |
+| `0` | equal |
+| `> 0` | this comes after other |
+
+#### 5. The wildcard `?`: accept "any type" safely
+
+> **Imagine:** A recycling bin labelled "any recyclable" (`List<? extends Recyclable>`). You can read what is inside (it is definitely recyclable), but you cannot put something in (you do not know the exact type). An "open envelope" (`List<?>`) accepts letters of any kind to read, but you cannot add one because the envelope might be "English-only".
+
+```diagram
+{"n":"UB:List<? extends Number>:0:0|LB:List<? super Integer>:0:1|UN:Read items as Number:1:0|LN:Add Integer or subtype:1:1","e":"UB>UN:safe to read|LB>LN:safe to add"}
+```
+
+| Wildcard | Reads as | Can you add? | Use case |
+| --- | --- | --- | --- |
+| `List<?>` | `Object` | No | Print or count a list of any type |
+| `List<? extends Number>` | `Number` | No | Sum or average a list of numbers |
+| `List<? super Integer>` | `Object` | Yes (`Integer` and subtypes) | Fill a list that accepts integers |
+
+```java
+static double sumList(List<? extends Number> list) {
+    double sum = 0;
+    for (Number n : list) sum += n.doubleValue();
+    return sum;
+}
+System.out.println(sumList(List.of(1, 2, 3)));     // 6.0
+System.out.println(sumList(List.of(1.5, 2.5)));    // 4.0
+```
+
+The rule of thumb is called **PECS**: **P**roducer `extends`, **C**onsumer `super`. A list that *produces* (you read from it) uses `extends`. A list that *consumes* (you write to it) uses `super`.
+
+#### 6. Type erasure: what generics look like at runtime
+
+> **Imagine:** You write "chocolate" on a vending machine label, but when the factory ships it, they peel the label off. The machine still works (it was built for chocolate), but the label is gone. `Type erasure` is that factory step: the type parameter is removed before the code runs.
+
+```diagram
+{"n":"CT:Compile time Box<String>:0:0|RT:Runtime: just Box:1:0|RC:ClassCastException if misused with raw type:2:1","e":"CT>RT:type erased|RT>RC:raw type bypasses checks"}
+```
+
+```java
+Box<String> sb = new Box<>("hello");
+Box<Integer> ib = new Box<>(42);
+System.out.println(sb.getClass() == ib.getClass()); // true  (both are just Box)
+System.out.println(sb.getClass().getSimpleName());   // Box
+```
+
+Consequences of type erasure:
+| Cannot do | Why | Workaround |
+| --- | --- | --- |
+| `new T()` | T is unknown at runtime | Pass a `Supplier<T>` or `Class<T>` |
+| `new T[10]` | Same reason | Use `Object[]` and cast, or `List<T>` |
+| `instanceof Box<String>` | Only `instanceof Box` works at runtime | Use `instanceof Box<?>` |
+| Overload by type param | `maxOf(List<String>)` and `maxOf(List<Integer>)` erase to the same signature | Use different method names or `Class<T>` parameter |
+
+#### 7. Generic interfaces
+
+```java
+interface Repository<T, ID> {
+    Optional<T> findById(ID id);
+    List<T> findAll();
+    void save(T entity);
+}
+
+class UserRepository implements Repository<User, Long> {
+    // T is User, ID is Long throughout the class
+    @Override public Optional<User> findById(Long id) { ... }
+}
+```
+
+This is the pattern Spring Data uses for `JpaRepository<Entity, ID>`.
+
+#### Common mistakes
+
+| Mistake | What happens | Fix |
+| --- | --- | --- |
+| Using a raw type (`Box b = new Box("x")`) | No compile-time check; potential `ClassCastException` at runtime | Always parameterise: `Box<String>` |
+| `new T()` or `new T[n]` inside a generic class | Compile error: type unknown at runtime | Pass `Supplier<T>` or `Class<T>` |
+| `List<Integer>` where `List<Number>` is expected | Compile error: generics are invariant | Use `List<? extends Number>` |
+| Overloading by generic parameter | Erase to the same signature, compile error | Different method names |
+| `instanceof List<String>` | Compile error or warning | `instanceof List<?>` |
+| `compareTo` without `<T extends Comparable<T>>` | Cannot call `compareTo` on `T` | Add the bound |
+
+#### Which Java version? (quick reference)
+
+| Feature | Applies from |
+| --- | --- |
+| Generics, bounded type parameters, wildcards, type erasure | Java 5 |
+| Diamond operator `<>` | Java 7 |
+| Generic methods infer type from arguments | Java 5 |
+| `Comparable<T>` as a generic interface | Java 5 |
+| `List.of`, `Set.of`, `Map.of` (used in exercise) | Java 9 |
 
 ### Exception Architecture
 
