@@ -4,9 +4,19 @@ after: 11
 title: Names through a stream
 level: Easy
 @@ task
-Write `shout(List<String> names)` with one stream pipeline: keep names with **4 or more** letters, turn them to UPPER CASE, sort them alphabetically, and join them with `", "`.
+You just learned the stream pipeline: `filter` keeps items, `map` reshapes them, `sorted` orders them, and `Collectors.joining` stitches them into a string.
+
+Write `shout(List<String> names)` as **one stream pipeline**:
+1. Keep only names with **4 or more** letters (`filter`).
+2. Turn them to **UPPER CASE** (`map(String::toUpperCase)`).
+3. Sort them **alphabetically** (`sorted()`).
+4. Join them with `", "` (`collect(Collectors.joining(", "))`).
 @@ hint
-`names.stream().filter(...).map(String::toUpperCase).sorted().collect(Collectors.joining(", "))`.
+**Hint 1 (idea).** Four stations on the belt: filter the short names out, shout the rest, sort, then join with a comma-space.
+
+**Hint 2 (the tools).** `names.stream().filter(n -> n.length() >= 4).map(String::toUpperCase).sorted().collect(Collectors.joining(", "))`.
+
+**Hint 3 (shape).** The whole method body is one `return` statement with the pipeline above.
 @@ expect
 ANITA, KABIR, RAVI, ZOYA
 CCCC
@@ -16,7 +26,11 @@ import java.util.stream.*;
 
 public class Main {
     static String shout(List<String> names) {
-        // TODO: filter, map, sorted, collect(Collectors.joining(", "))
+        // step 1: names.stream()
+        // step 2: .filter(n -> n.length() >= 4)
+        // step 3: .map(String::toUpperCase)
+        // step 4: .sorted()
+        // step 5: .collect(Collectors.joining(", "))
         return "";
     }
 

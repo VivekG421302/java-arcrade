@@ -4,13 +4,18 @@ after: 6
 title: Count the words, sorted
 level: Medium
 @@ task
-Write `countWords(String text)` that returns how many times each word appears.
+You just learned that `TreeMap` keeps keys in alphabetical order, that `merge(key, 1, Integer::sum)` counts in one line, and that `split("[^a-z]+")` splits on anything that is not a letter.
 
-- compare words ignoring upper/lower case (`Hello` and `hello` are the same word)
-- words are runs of letters; punctuation and spaces only separate them
-- return a `TreeMap` so the words come out in alphabetical order
+Write `countWords(String text)` that returns how many times each word appears:
+- Ignore upper and lower case — `Hello` and `hello` are the same word.
+- Words are runs of letters; punctuation and spaces only separate them.
+- Return a `TreeMap` so the words come out in alphabetical order.
 @@ hint
-`text.toLowerCase().split("[^a-z]+")` gives the words (skip empty strings; the first piece can be empty). `map.merge(word, 1, Integer::sum)` counts in one line.
+**Hint 1 (idea).** Lowercase the whole text first so case does not matter. Split on non-letters to get the words. Walk the words and count each one in a `TreeMap`.
+
+**Hint 2 (the tools).** `text.toLowerCase().split("[^a-z]+")` gives an array of words. `map.merge(word, 1, Integer::sum)` counts in one line. Skip empty strings with `if (!word.isEmpty())`.
+
+**Hint 3 (shape).** `for (String word : text.toLowerCase().split("[^a-z]+")) { if (!word.isEmpty()) counts.merge(word, 1, Integer::sum); }` — that is the whole body.
 @@ expect
 {and=2, bat=1, cat=1, hat=1, the=3}
 {hello=3}
@@ -20,7 +25,9 @@ import java.util.*;
 public class Main {
     static Map<String, Integer> countWords(String text) {
         Map<String, Integer> counts = new TreeMap<>();
-        // TODO: lowercase, split on anything that is not a letter, count each word
+        // step 1: for (String word : text.toLowerCase().split("[^a-z]+"))
+        // step 2:     if (!word.isEmpty())
+        // step 3:         counts.merge(word, 1, Integer::sum)
         return counts;
     }
 

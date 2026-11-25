@@ -4,12 +4,17 @@ after: 12
 title: Days between and day of the week
 level: Easy
 @@ task
-Use `java.time` (never `Date` or `Calendar`) to write:
+You just learned that `LocalDate.parse` reads an ISO date string (`yyyy-MM-dd`), that `ChronoUnit.DAYS.between(from, to)` counts the days between two dates, and that `getDayOfWeek().toString()` gives the day name.
 
-- `daysBetween(from, to)`: the number of days from one ISO date (`2024-01-01`) to another
-- `weekdayOf(date)`: the day of the week as text, such as `FRIDAY`
+Write two methods:
+- `daysBetween(from, to)`: parse both strings, then return `ChronoUnit.DAYS.between(a, b)`.
+- `weekdayOf(date)`: parse the string, then return `getDayOfWeek().toString()`.
 @@ hint
-`LocalDate.parse("2024-01-01")` reads an ISO date. `ChronoUnit.DAYS.between(a, b)` counts the days. `date.getDayOfWeek()` returns an enum; `.toString()` gives the name.
+**Hint 1 (idea).** Both methods do the same two steps: parse the string into a `LocalDate`, then ask the date for the information you need.
+
+**Hint 2 (the tools).** `LocalDate.parse("2024-01-01")` reads an ISO date. `ChronoUnit.DAYS.between(a, b)` returns a `long`. `.getDayOfWeek()` returns a `DayOfWeek` enum; `.toString()` gives `FRIDAY`.
+
+**Hint 3 (shape).** `daysBetween`: `return ChronoUnit.DAYS.between(LocalDate.parse(from), LocalDate.parse(to));` — `weekdayOf`: `return LocalDate.parse(date).getDayOfWeek().toString();`
 @@ expect
 366
 35
@@ -21,12 +26,15 @@ import java.time.temporal.ChronoUnit;
 
 public class Main {
     static long daysBetween(String from, String to) {
-        // TODO: LocalDate.parse + ChronoUnit.DAYS.between
+        // step 1: LocalDate a = LocalDate.parse(from);
+        // step 2: LocalDate b = LocalDate.parse(to);
+        // step 3: return ChronoUnit.DAYS.between(a, b);
         return 0;
     }
 
     static String weekdayOf(String date) {
-        // TODO: LocalDate.parse + getDayOfWeek()
+        // step 1: LocalDate d = LocalDate.parse(date);
+        // step 2: return d.getDayOfWeek().toString();
         return "";
     }
 

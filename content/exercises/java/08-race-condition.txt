@@ -4,11 +4,17 @@ after: 8
 title: Fix the lost updates
 level: Medium
 @@ task
-Four threads each add 1000 to a shared counter, so the answer must be **4000**. `increment()` reads the value, gives other threads a chance to run (this just makes the unlucky timing easy to see), then writes it back, so updates get lost.
+You just learned that `synchronized` on a method locks on `this`, making the whole read-yield-write one locked step, and that readers of shared state also need the same lock.
 
-Make `Counter` thread-safe. Either `synchronized` or an `AtomicInteger` works; do not remove the `Thread.yield()` line.
+Four threads each add 1000 to a shared counter, so the answer must be **4000**. Right now `increment()` reads the value, lets other threads run (`Thread.yield()`), then writes it back — so updates get lost.
+
+Make `Counter` thread-safe by adding `synchronized` to both `increment()` and `get()`. Do not remove the `Thread.yield()` line.
 @@ hint
-Reading and writing as two steps is the bug. `synchronized` on the method makes the whole read-yield-write one step for everyone; `AtomicInteger.incrementAndGet()` does the same in a single atomic operation (then the yield is not needed at all).
+**Hint 1 (idea).** The gap between reading and writing `value` lets another thread sneak in and read the same stale value. `synchronized` closes that gap.
+
+**Hint 2 (the tool).** Add the keyword `synchronized` before `void increment()` and before `int get()`. Both use `this` as the lock, so they exclude each other.
+
+**Hint 3 (shape).** `synchronized void increment() { ... }` and `synchronized int get() { return value; }` — that is all that changes.
 @@ expect
 4000
 @@ starter
@@ -16,12 +22,14 @@ public class Main {
     static class Counter {
         private int value;
 
+        // step 1: add synchronized here
         void increment() {
             int current = value;
             Thread.yield();          // another thread may run right here
             value = current + 1;
         }
 
+        // step 2: add synchronized here too (readers need the same lock)
         int get() { return value; }
     }
 
