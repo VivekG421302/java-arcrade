@@ -1118,69 +1118,100 @@ Module 10 builds on this page: locks beyond `synchronized`, atomics, CAS and too
 
 ### Object Internals & Primitives
 
-Every object has a hidden **header** plus its fields. **Primitives** (`int`) hold the value directly; **wrappers** (`Integer`) are objects. `Integer` caches -128 to 127, so `==` can lie for bigger numbers.
+Every object has a hidden `header` plus its fields. `Primitives` (`int`) hold the value directly; `wrappers` (`Integer`) are objects. `Integer` caches -128 to 127, so `==` can lie for bigger numbers.
 
 > **Imagine:** `int` is a number on a card. `Integer` is a box containing the card. `==` asks "is this the same box?", `equals()` asks "is the card the same?".
 
-#### What an object looks like in memory
+#### 1. What an object looks like in memory
 
-An object on the heap is **header + fields + padding** (sizes are rounded up to a multiple of 8 bytes).
+> **Imagine:** A parcel. The **label on the outside** (`header`) says what kind of parcel it is and who is handling it right now. Inside are the **items** (`fields`). Warehouses only store parcels in standard slot sizes, so a little **packing paper** (`padding`) fills any gap.
+
+```diagram
+{"n":"H1:Mark word: hash, GC age, lock state:0:0|H2:Class pointer: link to the blueprint:1:0|F:Fields: your data:2:0|PD:Padding to a multiple of 8 bytes:3:0|OBJ:!One object on the heap:3:1","e":"H1>H2|H2>F|F>PD|PD>OBJ:together make"}
+```
 
 | Part | Size on a 64-bit JVM | Holds |
 | --- | --- | --- |
-| Mark word | 8 bytes | Identity hash code, GC age, lock state |
-| Class pointer | 4 bytes (compressed, the default for heaps under about 32 GB) | Link to the class in Metaspace |
-| Fields | per type | Your data |
+| `Mark word` | 8 bytes | Identity hash code, GC age, lock state |
+| `Class pointer` | 4 bytes (compressed, the default for heaps under about 32 GB) | Link to the class in Metaspace |
+| Fields | by type | Your data |
 
-So an empty object costs about 16 bytes, and `new Integer(5)` about 16 bytes versus 4 for an `int`. A million `Integer` objects in a `List` cost far more than an `int[]`. **Java 24** adds experimental *compact object headers* (8 bytes in total) and **Java 25** makes them a supported product option (`-XX:+UseCompactObjectHeaders`).
+An empty object costs about 16 bytes. An `Integer` is about 16 bytes where an `int` is 4, so a million `Integer`s in a `List` cost far more than an `int[]`. **Java 24** added experimental *compact object headers* (8 bytes in total) and **Java 25** made them a supported option (`-XX:+UseCompactObjectHeaders`).
 
-A reference variable points to an object (arrays and `String`s are objects too) or to `null` (nothing). A *reference* is like an address; copying it does not copy the object.
+A reference variable points to an object (arrays and `String`s are objects too) or to `null` (nothing). A `reference` is like an address; copying it does not copy the object.
 
-#### Primitive types: the full table
+#### 2. Primitive types: the eight boxes
 
-| Type | Size | Range | Default | Notes |
+> **Imagine:** Eight storage boxes of different sizes. `byte` is a matchbox, `short` a pencil case, `int` a shoebox, `long` a suitcase. Put a big thing into a small box and it will not fit (data is lost). Pour a small box into a big one and it always fits.
+
+| Type | Size | Range | Default | Story |
 | --- | --- | --- | --- | --- |
-| **byte** | 1 byte | -128 to 127 | 0 | Raw data, file and network buffers |
-| **short** | 2 bytes | -32,768 to 32,767 | 0 | Rare |
-| **char** | 2 bytes | 0 to 65,535 (UTF-16 code unit) | `'\u0000'` | Unsigned; `'A'` is 65 |
-| **int** | 4 bytes | -2,147,483,648 to 2,147,483,647 | 0 | The default integer type |
-| **long** | 8 bytes | about ±9.2 × 10^18 | 0L | Needs an `L` suffix for big literals |
-| **float** | 4 bytes | about 7 decimal digits | 0.0f | `f` suffix |
-| **double** | 8 bytes | about 15 decimal digits | 0.0 | The default decimal type |
-| **boolean** | JVM-dependent (usually 1 byte) | `true` / `false` | false | Not a number: `if (1)` does not compile |
+| `byte` | 1 byte | -128 to 127 | 0 | Matchbox: raw file and network data |
+| `short` | 2 bytes | -32,768 to 32,767 | 0 | Pencil case: rare |
+| `char` | 2 bytes | 0 to 65,535 (one UTF-16 unit) | `'\u0000'` | A letter stamp that is really a number: `'A'` is 65 |
+| `int` | 4 bytes | -2,147,483,648 to 2,147,483,647 | 0 | Shoebox: the default whole number |
+| `long` | 8 bytes | about ±9.2 × 10^18 | 0L | Suitcase: needs an `L` suffix for big literals |
+| `float` | 4 bytes | about 7 decimal digits | 0.0f | Small measuring cup, `f` suffix |
+| `double` | 8 bytes | about 15 decimal digits | 0.0 | Big measuring cup: the default decimal |
+| `boolean` | JVM-dependent (usually 1 byte) | `true` / `false` | false | A light switch: not a number, `if (1)` will not compile |
 
-Defaults apply to **fields** and array elements only. A **local variable** has no default: using it before assigning is a compile error.
+Defaults apply to **fields** and array elements only. A **local variable** has no default; using it before assigning is a compile error.
 
 Literals: `1_000_000` (underscores, since **Java 7**), `0b1010` (binary, **Java 7**) = 10, `0x1F` (hex) = 31, `017` (octal, careful!) = 15, `3000000000L`, `1.5f`.
 
-#### Arithmetic traps (every line below was run)
+#### 3. Overflow: the car odometer
 
-```java
-System.out.println(Integer.MAX_VALUE + 1);          // -2147483648  int overflow wraps silently
-System.out.println(1_000_000_000 * 3);              // -1294967296  overflow: int * int is still int
-System.out.println(1_000_000_000L * 3);             // 3000000000   one long makes the whole expression long
-System.out.println(7 / 2 + " " + 7 % 2);            // 3 1          integer division drops the fraction
-System.out.println(-7 / 2 + " " + -7 % 2);          // -3 -1        % keeps the sign of the left side
-System.out.println(Math.floorMod(-7, 3));           // 2            real modulo for index wrap-around
-System.out.println(7 / 2.0);                        // 3.5
-System.out.println(5 / 2 * 2.0 + " " + 5 / 2.0 * 2);// 4.0 5.0      order matters
-System.out.println((int) 3.99 + " " + (int) -3.99); // 3 -3         casting truncates toward zero
-System.out.println(Math.round(3.5) + " " + Math.round(-3.5)); // 4 -3
-System.out.println((byte) 200);                     // -56          narrowing keeps only the low 8 bits
-System.out.println(1.0 / 0);                        // Infinity     no exception for double
+> **Imagine:** A car odometer showing 999999. Drive one more kilometre and it rolls over to 000000 without any warning. An `int` does the same: after the biggest number it wraps to the smallest, silently.
+
+```diagram
+{"n":"M:Integer.MAX_VALUE 2147483647:0:0|P:add 1:1:0|W:!wraps to -2147483648:2:0","e":"M>P|P>W:no error, no warning"}
 ```
 
-- **Widening** (int to long to double) is automatic. **Narrowing** needs a cast and can lose data.
-- A compound assignment such as `sh += 5` includes a hidden cast, so `short sh = 10; sh += 5;` compiles, but `sh = sh + 5;` does not.
-- Integer division by zero throws `ArithmeticException`; double division gives `Infinity` or `NaN`.
-- `Math.addExact`, `subtractExact`, `multiplyExact`, `toIntExact` (**Java 8**) throw `ArithmeticException: integer overflow` instead of wrapping. Use them for money counts and IDs.
-- `char` is a number: `'A' + 1` is the `int` 66, but `(char) ('A' + 1)` is `'B'`. `'a' + 'b'` is 195, not "ab".
-- `"a" + 1 + 2` is `"a12"`, while `1 + 2 + "a"` is `"3a"` (left to right).
-- `x = x++ + ++x;` with `x = 5` gives 12. Do not write this; know that `i++` returns the old value.
+```java
+System.out.println(Integer.MAX_VALUE + 1);          // -2147483648  wraps silently
+System.out.println(1_000_000_000 * 3);              // -1294967296  int * int is still int
+System.out.println(1_000_000_000L * 3);             // 3000000000   one long makes it long
+```
 
-Bit operators: `&` `|` `^` `~` `<<` `>>` (keeps sign) `>>>` (fills with zero). With 5 and 3: `5&3`=1, `5|3`=7, `5^3`=6, `~5`=-6, `5<<2`=20, `-16>>2`=-4, `-16>>>28`=15.
+`Math.addExact`, `subtractExact`, `multiplyExact` and `toIntExact` (**Java 8**) throw `ArithmeticException: integer overflow` instead of wrapping. Use them for counts and ids.
 
-#### Floating point and money
+#### 4. Casting: pouring between boxes
+
+> **Imagine:** Pouring from a small glass into a big jug always works (`widening`, automatic). Pouring a jug into a small glass spills the extra (`narrowing`, you must write the cast to show you accept the loss).
+
+```diagram
+{"n":"B:byte:0:0|S:short:1:0|I:int:2:0|L:long:3:0|F:float:4:0|D:double:5:0","e":"B>S:automatic widening|S>I:automatic|I>L:automatic|L>F:automatic|F>D:automatic"}
+```
+
+```java
+System.out.println((int) 3.99 + " " + (int) -3.99);       // 3 -3     cast truncates toward zero
+System.out.println(Math.round(3.5) + " " + Math.round(-3.5)); // 4 -3
+System.out.println((byte) 200);                            // -56      keeps only the low 8 bits
+System.out.println(1.0 / 0);                               // Infinity no exception for double
+short sh = 10; sh += 5;                                    // compiles: += hides a cast
+```
+
+#### 5. Everyday arithmetic traps (all run and checked)
+
+| Code | Result | Why |
+| --- | --- | --- |
+| `7 / 2` | `3` | Integer division drops the fraction |
+| `7 % 2`, `-7 % 2` | `1`, `-1` | `%` keeps the sign of the left side |
+| `Math.floorMod(-7, 3)` | `2` | A real modulo, good for wrapping indexes |
+| `7 / 2.0` | `3.5` | One `double` makes it a `double` division |
+| `5 / 2 * 2.0` and `5 / 2.0 * 2` | `4.0` and `5.0` | Order of evaluation matters |
+| `'A' + 1` and `(char) ('A' + 1)` | `66` and `B` | `char` is really a number |
+| `'a' + 'b'` | `195` | Two numbers, not the text "ab" |
+| `"a" + 1 + 2` and `1 + 2 + "a"` | `a12` and `3a` | Left to right |
+| `x = x++ + ++x` with `x = 5` | `12` | `i++` returns the old value; do not write this |
+
+Integer division by zero throws `ArithmeticException`; `double` division gives `Infinity` or `NaN`.
+
+Bit operators with 5 and 3: `5&3`=1, `5|3`=7, `5^3`=6, `~5`=-6, `5<<2`=20, `-16>>2`=-4 (keeps the sign), `-16>>>28`=15 (fills with zeros).
+
+#### 6. Decimals and money: a ruler without a mark for one third
+
+> **Imagine:** A ruler with marks at halves, quarters, eighths. You can show 0.5 or 0.25 exactly, but a tenth falls between two marks, so the ruler gives the nearest mark. `double` is that ruler. It is perfect for physics, wrong for rupees.
 
 ```java
 System.out.println(0.1 + 0.2);                      // 0.30000000000000004
@@ -1190,13 +1221,21 @@ System.out.println(new BigDecimal("0.1").add(new BigDecimal("0.2")));   // 0.3
 System.out.println(new BigDecimal(0.1));            // 0.1000000000000000055511151231257827021181583404541015625
 ```
 
-`double` stores binary fractions, so many decimals are only approximate. **Never use `double` for money.** Use `BigDecimal` built from a **String** (not from a `double`), or keep whole units such as paise in a `long`. Compare `BigDecimal` with `compareTo`, not `equals` (`2.0` and `2.00` are not `equals`).
+| Need | Use |
+| --- | --- |
+| Money | `BigDecimal` built from a **String**, or whole paise in a `long` |
+| Compare `BigDecimal` | `compareTo`, not `equals` (`2.0` and `2.00` are not `equals`) |
+| Science, graphics | `double` |
 
-#### Wrapper classes and autoboxing
+#### 7. Wrappers, autoboxing and the Integer cache
 
-Each primitive has a wrapper: `Integer`, `Long`, `Double`, `Boolean`, `Character`, `Byte`, `Short`, `Float`. They are needed for generics (`List<Integer>`, never `List<int>`), `null`, and utility methods.
+> **Imagine:** A hotel that keeps rooms numbered -128 to 127 permanently made up. Ask for room 127 twice and you are given the **same** room. Ask for room 128 and the hotel builds a **new** room each time. `==` asks "same room?", `equals` asks "same room number?".
 
-Boxing (since **Java 5**) wraps automatically; unboxing unwraps. The JVM **caches** boxes for `Integer`, `Long`, `Short` and `Byte` from -128 to 127 (`Character` from 0 to 127, `Boolean` always), so `==` behaves differently for small and large values. This is a classic bug source.
+```diagram
+{"n":"A:Integer a = 127:0:0|B:Integer b = 127:0:1|C:Integer c = 128:0:2|D:Integer d = 128:0:3|R1:!one cached box 127:2:0|R2:!new box 128 (1):2:2|R3:!new box 128 (2):2:3","e":"A>R1:points to|B>R1:points to the same box|C>R2:points to|D>R3:points to a different box"}
+```
+
+Each primitive has a wrapper: `Integer`, `Long`, `Double`, `Boolean`, `Character`, `Byte`, `Short`, `Float`. They are needed for generics (`List<Integer>`, never `List<int>`), `null` and helper methods. `Autoboxing` (since **Java 5**) wraps automatically; unboxing unwraps. The JVM caches boxes for `Integer`, `Long`, `Short` and `Byte` from -128 to 127 (`Character` from 0 to 127, `Boolean` always).
 
 ```java
 Integer a = 127, b = 127;
@@ -1207,36 +1246,43 @@ System.out.println(c.equals(d));  // true   (compare values)
 
 Integer i = 127; Long l = 127L;
 System.out.println(i.equals(l));  // false  different wrapper types are never equal
-System.out.println(l.longValue() == i); // true   primitives compare by value
 
 Integer nothing = null;
-int z = nothing;                  // NullPointerException: automatic unboxing of null
+int z = nothing;                  // NullPointerException: unboxing null
 ```
 
-Real-code rules:
+| Rule | Why |
+| --- | --- |
+| Compare wrappers with `equals()` | `==` compares boxes |
+| `int n = map.get("x")` may throw | A missing key returns `null`. Use `getOrDefault` |
+| Avoid boxing in hot loops | `Long sum = 0L; sum += i;` creates garbage |
+| Not `new Integer(5)` | Deprecated in **Java 9**, marked for removal in **Java 16**. Use `Integer.valueOf(5)` |
+| Helpers | `Integer.parseInt("42")`, `Integer.compare(3, 5)`, `Integer.toBinaryString(10)` is `1010`, `Integer.toHexString(255)` is `ff` |
 
-- Compare wrappers with `equals()` (or unbox first). Never `==`.
-- A `Map<String, Integer>` returns `null` for a missing key; `int n = map.get("x")` throws `NullPointerException`. Use `getOrDefault`.
-- Boxing inside a loop creates garbage (`Long sum = 0L; sum += i;`). Use primitives in hot paths.
-- `new Integer(5)` is deprecated since **Java 9** and was marked for removal in **Java 16**. Use `Integer.valueOf(5)` or autoboxing.
-- Useful statics: `Integer.parseInt("42")`, `Integer.valueOf("7")`, `Integer.compare(3, 5)` (-1), `Integer.toBinaryString(10)` ("1010"), `Integer.toHexString(255)` ("ff"), `Integer.MAX_VALUE`.
+#### 8. Strings: laminated cards and a shared shelf
 
-#### Strings: objects that never change
+> **Imagine:** A `String` is a laminated card: you can read it but not edit it. To "change" it you print a new card. Cards for words written directly in your code (`"hi"`) are kept on one shared shelf (the `string pool`) so everybody reuses the same card. `new String("hi")` is a photocopy, a different card with the same text.
 
-`String` is **immutable**: every "change" makes a new object. Literals live in the **string pool** and are shared.
+```diagram
+{"n":"S1:s1 = hi:0:0|S2:s2 = hi:0:1|S3:s3 = new String hi:0:2|P:Pool card hi (shared):2:0|CP:Photocopy card hi:2:2","e":"S1>P:same card|S2>P:same card|S3>CP:own copy"}
+```
 
 ```java
 String s1 = "hi", s2 = "hi", s3 = new String("hi");
-System.out.println(s1 == s2);          // true   same pooled literal
-System.out.println(s1 == s3);          // false  new String makes another object
+System.out.println(s1 == s2);          // true   same pooled card
+System.out.println(s1 == s3);          // false  a photocopy
 System.out.println(s1.equals(s3));     // true   always compare text with equals
-System.out.println(s1 == s3.intern()); // true   intern() returns the pooled one
+System.out.println(s1 == s3.intern()); // true   intern() returns the pooled card
 ```
 
-- Joining strings in a loop with `+` creates a new string each time. Use `StringBuilder` (single thread) in loops. (`StringBuffer` is the old synchronised version.)
-- **Java 9**: *compact strings* store Latin-1 text in one byte per character, so most strings take half the memory.
-- Handy since **Java 11**: `isBlank()`, `strip()`, `repeat(n)`, `lines()`. `" hi ".strip()` gives `"hi"`, `"ab".repeat(3)` gives `"ababab"`.
-- **Java 15**: text blocks (`"""`) for multi-line text such as SQL or JSON; `formatted()`.
+| Tool | Use | Since |
+| --- | --- | --- |
+| `StringBuilder` | Build text in a loop (`+` in a loop makes a new String every time) | Java 5 |
+| Compact strings | Latin-1 text uses one byte per character, half the memory | **Java 9** |
+| `isBlank()`, `strip()`, `repeat(n)`, `lines()` | `" hi ".strip()` gives `"hi"`, `"ab".repeat(3)` gives `"ababab"` | **Java 11** |
+| Text blocks `"""` | Multi-line text such as SQL or JSON | **Java 15** |
+| `formatted()` | `"Hi %s".formatted(name)` | **Java 15** |
+| `Objects.equals(a, b)`, `"x".equals(s)` | Null-safe comparison | Java 7 |
 
 ```java
 String tb = """
@@ -1244,15 +1290,19 @@ String tb = """
       Block""";                          // 'Hello' then '  Block' on the next line
 ```
 
-- `null` is not "empty". `"".equals(s)` and `Objects.equals(a, b)` are null-safe.
+`null` is not "empty": `null` means "no card at all".
 
-#### var (Java 10)
+#### 9. var (Java 10)
 
 `var list = new ArrayList<String>();` lets the compiler infer the type of a **local** variable. It is still statically typed. It cannot be used for fields, parameters or a variable without an initialiser.
 
-#### References: Java passes everything by value
+#### 10. Java passes everything by value (a photocopy of the address)
 
-A method receives a **copy of the reference**. It can change the object it points at, but it cannot make the caller's variable point somewhere else.
+> **Imagine:** You give a friend a **photocopy of your house address**. They can visit your house and repaint the door (change the object), but they cannot move your house or change the address on the paper you keep (your variable).
+
+```diagram
+{"n":"C:Caller variable arr:0:0|CP:Method gets a copy of the address:1:0|O:!Same array object on the heap:2:0|X:Method sets its copy to something else:1:1|Y:Caller's arr is unchanged:0:1","e":"C>CP:copy the reference|CP>O:both point to it|CP>X:re-assign|X>Y:no effect outside"}
+```
 
 ```java
 static void change(int n, int[] arr, StringBuilder sb, String s) {
@@ -1266,19 +1316,25 @@ static void change(int n, int[] arr, StringBuilder sb, String s) {
 
 `final` on a reference stops re-assignment, not changes to the object: `final int[] fa = {1}; fa[0] = 2;` is legal.
 
-#### equals(), hashCode() and toString(): the object contract
+#### 11. equals(), hashCode() and toString(): the hotel locker system
 
-Every class extends `Object`, which supplies `equals`, `hashCode`, `toString`, `getClass`, and others. The defaults compare **identity** (are these the same object?), and `toString()` prints something like `Demo$Plain@1b6d3586`.
+> **Imagine:** A hotel with lockers. `hashCode()` is the **floor number** you are sent to; it is a quick guess. `equals()` is the **passport check** at the locker. A locker finder first goes to the right floor, then compares passports. If two identical guests get *different* floor numbers (equals true, hashCode different), the finder looks on the wrong floor and says "no such guest".
 
-**Contract for `equals`** (all must hold, for non-null objects):
+```diagram
+{"n":"A:set.add(new Point 1,2):0:0|H:Compute hashCode:1:0|B:Go to that bucket:2:0|E:Bucket empty?:2:1|Q:Any entry equals this one?:1:1|AD:!Add the point:2:2|SK:!Duplicate: do not add:0:1","e":"A>H|H>B:picks the floor|B>E|E>AD:yes|E>Q:no|Q>SK:equals true|Q>AD:equals false"}
+```
 
-1. *Reflexive*: `x.equals(x)` is true.
-2. *Symmetric*: `x.equals(y)` is the same as `y.equals(x)`.
-3. *Transitive*: if `x` equals `y` and `y` equals `z`, then `x` equals `z`.
-4. *Consistent*: repeated calls give the same answer if nothing changed.
-5. `x.equals(null)` is **false**, and it never throws.
+Every class extends `Object`, which supplies `equals`, `hashCode`, `toString`. The defaults compare **identity** ("same object?"), and `toString()` prints something like `Demo$Plain@1b6d3586`.
 
-**Contract for `hashCode`:** if `a.equals(b)` is true, then `a.hashCode() == b.hashCode()` **must** be true. (Different objects may share a hash code; that is only slower.) So: **override both together or neither.**
+| `equals` contract | Meaning |
+| --- | --- |
+| Reflexive | `x.equals(x)` is true |
+| Symmetric | `x.equals(y)` is the same as `y.equals(x)` |
+| Transitive | `x`=`y` and `y`=`z` means `x`=`z` |
+| Consistent | Same answer every time if nothing changed |
+| Null | `x.equals(null)` is **false**, never an exception |
+
+**`hashCode` contract:** if `a.equals(b)` is true, then `a.hashCode() == b.hashCode()` **must** be true. Different objects may share a hash code (only slower). So **override both together or neither**.
 
 ```java
 class Point {
@@ -1287,7 +1343,7 @@ class Point {
 
     @Override public boolean equals(Object o) {
         if (this == o) return true;                    // 1. same object, done
-        if (!(o instanceof Point)) return false;       // 2. also handles null (null is not an instance of anything)
+        if (!(o instanceof Point)) return false;       // 2. also handles null
         Point p = (Point) o;                           // 3. cast (safe after the check)
         return x == p.x && y == p.y;                   // 4. compare the same fields hashCode uses
     }
@@ -1296,16 +1352,14 @@ class Point {
 }
 ```
 
-Shorter form since **Java 16** (pattern matching for `instanceof`, preview in 14 and 15):
+Shorter since **Java 16** (pattern matching for `instanceof`, preview in 14 and 15):
 
 ```java
 @Override public boolean equals(Object o) {
     if (this == o) return true;
-    return o instanceof Point p && x == p.x && y == p.y;   // 'p' is already cast inside the &&
+    return o instanceof Point p && x == p.x && y == p.y;   // p is already cast inside the &&
 }
 ```
-
-Why it matters: `HashSet` and `HashMap` use `hashCode()` to pick a bucket and `equals()` to compare inside it (Collections page).
 
 ```java
 Set<Point> set = new HashSet<>();
@@ -1314,18 +1368,28 @@ set.add(new Point(1, 2));
 System.out.println(set.size());   // 1 with equals+hashCode, 2 with the defaults
 ```
 
-Helpers: `Objects.equals(a, b)` (null-safe), `Objects.hash(a, b, c)` (combine fields; `Objects.hash(1, 2)` is 994 but `Objects.hash(2, 1)` is 1024, so order matters), `Arrays.hashCode(int[])`, `Objects.requireNonNull(x, "message")`. `String.hashCode()` is defined by its text (`"abc".hashCode()` is 96354).
+| Helper | Use |
+| --- | --- |
+| `Objects.equals(a, b)` | Null-safe equals |
+| `Objects.hash(a, b, c)` | Combine fields. `Objects.hash(1, 2)` is 994 but `Objects.hash(2, 1)` is 1024: order matters |
+| `Arrays.hashCode(int[])` | Hash of an array |
+| `Objects.requireNonNull(x, "msg")` | Fail early on `null` |
+| `"abc".hashCode()` | 96354 (a `String` hashes its text) |
 
 Pitfalls:
 
-- Overriding `equals` but not `hashCode`: objects vanish from hash sets and maps. Both must use the same fields.
-- Writing `equals(Point p)` instead of `equals(Object o)` makes an *overload*, not an override. Always add `@Override`.
-- Using a **mutable** field in `hashCode` and then changing it while the object is in a `HashSet`/`HashMap` key: the entry is lost (Collections page).
-- `getClass() != o.getClass()` versus `instanceof`: `instanceof` allows subclasses to be equal (easy to break symmetry); `getClass()` is strict. Choose one and keep classes `final` when possible.
-- `toString()` should never throw and should not print secrets such as passwords.
-- `clone()` and `finalize()`: avoid. `finalize()` was deprecated in **Java 9** and deprecated for removal in **Java 18**. Use try-with-resources or `Cleaner` (Java 9).
+| Pitfall | What happens |
+| --- | --- |
+| Override `equals` but not `hashCode` | Objects vanish from hash sets and maps |
+| Write `equals(Point p)` instead of `equals(Object o)` | An *overload*, not an override. Always add `@Override` |
+| Mutable field in `hashCode`, changed while the object is a map key | The entry is lost (Collections page) |
+| `getClass() != o.getClass()` vs `instanceof` | `instanceof` lets subclasses be equal (can break symmetry); `getClass()` is strict |
+| `toString()` printing secrets or throwing | Never print passwords |
+| `clone()` and `finalize()` | Avoid. `finalize()` deprecated in **Java 9**, for removal in **Java 18**. Use try-with-resources or `Cleaner` (Java 9) |
 
-#### Records: equals, hashCode and toString for free (Java 16)
+#### 12. Records: a pre-printed form (Java 16)
+
+> **Imagine:** A pre-printed form with boxes to fill in. You only write the boxes (the fields). The form already knows how to compare two filled forms, print them and copy them. A `record` is that form.
 
 ```java
 record Money(String cur, long cents) {}
@@ -1333,19 +1397,31 @@ new Money("INR", 500).equals(new Money("INR", 500));   // true
 System.out.println(new Money("INR", 500));              // Money[cur=INR, cents=500]
 ```
 
-A record is a short immutable data class: the compiler writes the constructor, accessors (`cur()`, `cents()`), `equals`, `hashCode` and `toString`. Preview in **Java 14 and 15**, final in **Java 16**. Prefer a record for plain data carriers and map keys.
+The compiler writes the constructor, accessors (`cur()`, `cents()`), `equals`, `hashCode` and `toString`. Preview in **Java 14 and 15**, final in **Java 16**. Prefer a record for plain data carriers and map keys.
 
-#### Immutability checklist
+#### 13. Immutability: a laminated card you can safely hand around
 
-Make a class immutable (safe to share between threads, safe as a map key): `final` class, `private final` fields, no setters, copy mutable inputs in the constructor and copies out in getters (`List.copyOf(list)`, **Java 10**), no `this` escape. `List.of`, `Set.of`, `Map.of` (**Java 9**) make unmodifiable collections.
+> **Imagine:** A laminated ID card can be photocopied and handed to ten people at once; nobody can scribble on it. An immutable object is safe to share between threads in the same way.
+
+| Checklist for an immutable class | Why |
+| --- | --- |
+| `final` class | Nobody can subclass and add mutation |
+| `private final` fields | Set once |
+| No setters | Nothing can change it |
+| Copy mutable inputs and outputs (`List.copyOf(list)`, **Java 10**) | Callers cannot change your inside |
+| No `this` escape from the constructor | Nobody sees it half-built |
+
+`List.of`, `Set.of`, `Map.of` (**Java 9**) make unmodifiable collections.
 
 #### Common mistakes
 
-- `==` on `String` or `Integer`.
-- `double` for money.
-- `int` overflow in totals, timestamps (use `long`) and `a * b` before widening.
-- Unboxing a `null`.
-- Forgetting `hashCode` when overriding `equals`.
+| Mistake | Fix |
+| --- | --- |
+| `==` on `String` or `Integer` | `equals()` |
+| `double` for money | `BigDecimal` or whole paise |
+| `int` overflow in totals and timestamps | `long`, or `Math.addExact` |
+| Unboxing `null` | Check for `null` or use `getOrDefault` |
+| `equals` without `hashCode` | Override both, same fields |
 
 #### Which Java version? (quick reference)
 
@@ -1353,7 +1429,8 @@ Make a class immutable (safe to share between threads, safe as a map key): `fina
 | --- | --- |
 | Autoboxing, `Integer` cache | Java 5 |
 | Underscores and binary literals | Java 7 |
-| `Math.addExact` family, `Objects` helpers | Java 7 and 8 |
+| `Objects` helpers | Java 7 |
+| `Math.addExact` family | Java 8 |
 | `List.of`, `Set.of`, `Map.of`, compact strings, `Cleaner` | Java 9 |
 | `var`, `List.copyOf` | Java 10 |
 | `strip`, `isBlank`, `repeat`, `lines` | Java 11 |
