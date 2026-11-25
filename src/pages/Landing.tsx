@@ -50,6 +50,7 @@ export default function Landing() {
           <li key={to}><Link to={to} className="flex min-h-[44px] items-baseline justify-between py-2 hover:text-sky-500"><span className="font-medium">{t}</span><span className="text-sm text-slate-400">{n}</span></Link></li>
         ))}
       </ul>
+      <Link to="/devops" className="mt-8 flex min-h-[44px] items-baseline justify-between rounded-xl bg-slate-100 px-4 py-3 hover:text-sky-500 dark:bg-white/5"><span className="font-medium">New: Deployment &amp; DevOps Mastery</span><span className="text-sm text-slate-400">Stage 1 of 8 is live</span></Link>
     </div>
   )
 }
