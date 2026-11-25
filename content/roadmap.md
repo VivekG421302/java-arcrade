@@ -1877,48 +1877,237 @@ Do not catch `Exception` or `Throwable` in business code — you will accidental
 
 ### Collections Internals
 
-ArrayList is a resizable array. HashMap uses hashCode to choose a bucket and equals to find the key inside it. Break the hashCode/equals contract and lookups fail.
+Java's collection library gives you a toolkit of data structures. Each one makes a different trade-off between speed of look-up, speed of add/remove, and ordering. Picking the right one is as important as knowing the syntax.
 
-> **Imagine:** HashMap is a hotel with lockers. hashCode picks the corridor; equals finds your exact locker. Change your name after check-in and nobody can find your bag.
+> **Imagine:** You are running a storeroom. A `List` is shelves with numbered slots — fast to reach slot 7, slow to find "the red box" among a thousand. A `Set` is a rack of pigeonholes — instantly knows if something is there, never stores two of the same. A `Map` is an index card system — look up by name and find the value in one step.
 
-#### Lifecycle diagram: HashMap put() Flow
+#### Lifecycle diagram: The Collection Hierarchy
 
 ```diagram
-{"n":"K:put(k, v):0:0|H:hash(k):1:0|B:Bucket index:2:0|EM:Bucket empty?:2:1|EQ:equals() match?:1:1|RP:!Replace value:0:1|NW:!Add new node:2:2|RZ:Resize check:1:2","e":"K>H|H>B:spread bits|B>EM:hash & (n-1)|EM>NW:empty|EM>EQ:occupied|EQ>RP:same key|EQ>NW:different key|NW>RZ:over 75%?"}
+{"n":"IT:Iterable:0:2|CO:Collection:1:2|LI:List:2:1|QU:Queue:2:2|SE:Set:2:3|MP:Map (separate):0:4|AL:ArrayList:3:0|LL:LinkedList:3:1|AD:ArrayDeque:3:2|HS:HashSet:3:3|LS:LinkedHashSet:4:3|TS:TreeSet:5:3|HM:HashMap:1:4|LHM:LinkedHashMap:2:4|TM:TreeMap:3:4","e":"IT>CO|CO>LI|CO>QU|CO>SE|LI>AL|LI>LL|QU>AD|SE>HS|HS>LS|LS>TS|MP>HM|HM>LHM|LHM>TM"}
 ```
 
-1. **hash** – hashCode() is mixed so high bits also matter.
-2. **Index** – the bucket is chosen with hash & (length-1).
-3. **Empty bucket** – the new node is placed straight in.
-4. **Occupied** – every node in the bucket is compared with equals().
-5. **Same key** – only the value is replaced.
-6. **Different key** – the node is appended; a chain of 8 or more becomes a tree.
-7. **Resize** – above 75% full the table doubles and entries are re-spread.
+The interfaces on the left say *what* a collection can do. The classes on the right say *how* it does it. Code to the interface (`List<String> list = new ArrayList<>()`) so you can swap the implementation later.
 
-#### Detailed explanation
+#### 1. List: an ordered shelf with numbered slots
 
-put(key, value) computes hash(key), picks a bucket, and uses equals() to find an existing key. When a bucket gets long (8+ entries) it becomes a tree. The table doubles when it is 75% full. If you mutate a key after inserting it, its hash changes and the entry is lost.
+> **Imagine:** A numbered shelf in a warehouse. You can add a box anywhere, remove one by its number, and the shelves slide up or down to fill the gap. `ArrayList` is shelves bolted to the floor (fast to reach by number, slow to insert in the middle). `LinkedList` is boxes on a chain (fast to insert anywhere, slow to reach by number).
+
+```diagram
+{"n":"AL:ArrayList: contiguous slots:0:0|AR:index 0,1,2..N:1:0|FB:get(i) O(1):2:0|SA:add/remove middle O(N):2:1|LL:LinkedList: chain of nodes:0:1|NX:each node has prev and next:1:1|FA:add/remove first or last O(1):2:2|SG:get(i) O(N):2:3","e":"AL>AR|AR>FB|AR>SA|LL>NX|NX>FA|NX>SG"}
+```
 
 ```java
-class UserKey {
-  final long id;
-  UserKey(long id) { this.id = id; }
-  @Override public boolean equals(Object o) {
-    return o instanceof UserKey u && u.id == id;
-  }
-  @Override public int hashCode() { return Long.hashCode(id); } // must match equals
-}
-Map<UserKey, String> m = new HashMap<>();
-m.put(new UserKey(1), "Asha");
-m.get(new UserKey(1)); // "Asha" only because equals+hashCode agree
+List<String> names = new ArrayList<>(List.of("Priya", "Asha", "Raj"));
+names.add("Dev");                   // add to end
+names.add(1, "Mia");               // insert at index 1
+names.remove("Raj");               // remove by value
+System.out.println(names);         // [Priya, Mia, Asha, Dev]
+System.out.println(names.get(0));  // Priya
+System.out.println(names.size());  // 4
 ```
 
-| Structure | get | insert | Ordered? |
-| --- | --- | --- | --- |
-| **ArrayList** | O(1) by index | O(n) middle | insertion order |
-| **LinkedList** | O(n) | O(1) at ends | insertion order |
-| **HashMap** | O(1) average | O(1) average | no |
-| **TreeMap** | O(log n) | O(log n) | sorted by key |
+| Method | What it does |
+| --- | --- |
+| `add(e)` | Append to end |
+| `add(i, e)` | Insert at index, shift right |
+| `get(i)` | Retrieve by index |
+| `remove(i)` or `remove(Object)` | Remove by index or by value |
+| `set(i, e)` | Replace at index |
+| `size()`, `isEmpty()`, `contains(e)` | Inspect |
+| `List.of(...)` | Unmodifiable list (since **Java 9**) |
+
+`ArrayList` is the right default. Use `LinkedList` only when you do many insertions at both ends.
+
+#### 2. Queue and Deque: a line at the counter
+
+> **Imagine:** A queue at a bank. People join at the back and leave from the front (FIFO). A `Deque` is a double-ended line: you can join or leave from either end, making it both a queue and a stack.
+
+```diagram
+{"n":"HD:Head (front):0:0|TL:Tail (back):0:2|P1:poll from head:1:0|P2:offer to tail:1:2|DQ:ArrayDeque:0:1","e":"TL>DQ:addLast|DQ>HD|HD>P1:remove first|P2>TL:addLast"}
+```
+
+```java
+Deque<String> q = new ArrayDeque<>();
+q.addLast("first"); q.addLast("second"); q.addFirst("zero");
+System.out.println(q.peekFirst());  // zero  (look without removing)
+System.out.println(q.pollFirst());  // zero  (remove and return)
+System.out.println(q);             // [first, second]
+```
+
+Use `ArrayDeque` as a stack (push/pop) or a queue (offer/poll). It is faster than `LinkedList` for both.
+
+`PriorityQueue` removes the **smallest** element first (a **min-heap**):
+
+```java
+PriorityQueue<Integer> pq = new PriorityQueue<>(List.of(5, 1, 3));
+System.out.println(pq.poll()); // 1
+System.out.println(pq.poll()); // 3
+```
+
+Pass `Comparator.reverseOrder()` for a max-heap.
+
+#### 3. Map: the index card system
+
+> **Imagine:** A library card catalogue. You write an author's name on a tab (`key`) and behind it is the shelf number (`value`). Look up the name in one step, no matter how many cards there are. `HashMap` is the fastest card catalogue. `TreeMap` files the cards in alphabetical order. `LinkedHashMap` files them in the order you added them.
+
+```diagram
+{"n":"K:Key: Asha:0:0|H:hash(key) picks a bucket:1:0|BK:Bucket in the array:2:0|EQ:equals() finds the entry:3:0|V:!Value: 95:4:0","e":"K>H|H>BK|BK>EQ|EQ>V"}
+```
+
+```java
+Map<String, Integer> scores = new HashMap<>();
+scores.put("Asha", 80);
+scores.put("Raj",  90);
+scores.put("Asha", 95);                         // replaces the old value
+System.out.println(scores.get("Asha"));         // 95
+System.out.println(scores.getOrDefault("Dev", 0)); // 0  (never null for a default)
+```
+
+| Method | What it does |
+| --- | --- |
+| `put(k, v)` | Add or replace |
+| `get(k)` | Retrieve (returns `null` if missing) |
+| `getOrDefault(k, def)` | Retrieve with a fallback |
+| `containsKey(k)` / `containsValue(v)` | Check presence |
+| `remove(k)` | Remove an entry |
+| `entrySet()` | Set of `Map.Entry<K,V>` to iterate |
+| `keySet()`, `values()` | Keys or values as a collection |
+| `forEach((k,v) -> ...)` | Iterate without boilerplate |
+| `putIfAbsent(k, v)` | Only adds when the key is missing (since **Java 8**) |
+| `computeIfAbsent(k, fn)` | Add and return a computed default (since **Java 8**) |
+
+**`merge`: count or accumulate in one line** (the word-count exercise uses this):
+
+```java
+Map<String, Integer> counts = new TreeMap<>();
+for (String word : "the cat and the hat and the bat".split(" "))
+    counts.merge(word, 1, Integer::sum);
+                //  key   new-value-when-absent  combine-function-when-present
+System.out.println(counts); // {and=2, bat=1, cat=1, hat=1, the=3}
+```
+
+`merge(k, v, fn)`: if `k` is absent, store `v`; if `k` is present, store `fn(oldValue, v)`. It is the cleanest way to build a frequency map.
+
+**TreeMap: sorted by key (what the exercise returns)**:
+
+```java
+Map<String, Integer> sorted = new TreeMap<>(scores);
+System.out.println(sorted); // {Asha=95, Raj=90}  — alphabetical order
+```
+
+`TreeMap` implements `SortedMap`. Its keys are ordered by their natural order (`Comparable`) or by a `Comparator` you pass to the constructor.
+
+**computeIfAbsent: build a grouped map**:
+
+```java
+Map<String, List<String>> groups = new HashMap<>();
+groups.computeIfAbsent("fruits", k -> new ArrayList<>()).add("apple");
+groups.computeIfAbsent("fruits", k -> new ArrayList<>()).add("mango");
+System.out.println(groups); // {fruits=[apple, mango]}
+```
+
+#### 4. Set: the duplicate filter
+
+> **Imagine:** A guest list for a party. You write a name and it either goes on the list (new guest) or the bouncer says "you are already on here" and ignores the duplicate. A `Set` never stores two equal elements.
+
+```diagram
+{"n":"HS:HashSet: fast O(1) lookup:0:0|LH:LinkedHashSet: insertion order:1:0|TR:TreeSet: sorted ascending:2:0","e":"HS>LH:+remembers order|LH>TR:+sorted order"}
+```
+
+```java
+Set<String> set = new HashSet<>(List.of("a", "b", "a", "c"));
+System.out.println(set.size());        // 3  (duplicate "a" removed)
+System.out.println(set.contains("b")); // true
+
+Set<String> linked = new LinkedHashSet<>(List.of("banana", "apple", "cherry", "apple"));
+System.out.println(linked); // [banana, apple, cherry]  — insertion order, no duplicate
+
+TreeSet<Integer> ts = new TreeSet<>(List.of(5, 2, 8, 1, 2));
+System.out.println(ts);         // [1, 2, 5, 8]  — sorted, no duplicate
+System.out.println(ts.first()); // 1
+System.out.println(ts.last());  // 8
+```
+
+| Choose | When |
+| --- | --- |
+| `HashSet` | Fastest: just check membership, order does not matter |
+| `LinkedHashSet` | Need the insertion order preserved |
+| `TreeSet` | Need elements sorted (uses `compareTo` or a `Comparator`) |
+
+#### 5. The word-count exercise pattern
+
+> **Imagine:** A tally sheet on a corkboard. Each word is a row; you add a mark every time you see it. `toLowerCase` makes "Hello" and "hello" the same row. `split("[^a-z]+")` cuts the sentence at anything that is not a letter, giving you just the words.
+
+```sequence
+{"p":"T:text|S:split|M:merge into TreeMap|R:!result","m":"T>S:toLowerCase then [^a-z]+|S>M:word by word|M>M:merge(word,1,Integer::sum)|M>R:sorted alphabetical map"}
+```
+
+```java
+static Map<String, Integer> countWords(String text) {
+    Map<String, Integer> counts = new TreeMap<>();
+    for (String word : text.toLowerCase().split("[^a-z]+")) {
+        if (!word.isEmpty()) counts.merge(word, 1, Integer::sum);
+    }
+    return counts;
+}
+countWords("Hello, hello!! HELLO?");                   // {hello=3}
+countWords("the cat and the hat and the bat");         // {and=2, bat=1, cat=1, hat=1, the=3}
+```
+
+`split("[^a-z]+")` on `"Hello, hello!!"` → after `toLowerCase`: `"hello, hello!!"` → split on non-letters → `["hello", "hello", ""]`. The empty string at the end (from the trailing `!!`) must be skipped with `if (!word.isEmpty())`.
+
+#### 6. Sorting and Comparator
+
+> **Imagine:** A librarian who can sort books by title, by author, by length, or by any combination you describe. `Comparator` is the sorting rule you hand to the librarian.
+
+```java
+List<String> lst = new ArrayList<>(List.of("banana", "apple", "cherry"));
+Collections.sort(lst);                                              // natural order
+lst.sort(Comparator.comparingInt(String::length));                  // by length
+lst.sort(Comparator.comparingInt(String::length)
+         .thenComparing(Comparator.naturalOrder()));                 // length then alphabet
+```
+
+| Comparator helper | What it sorts by |
+| --- | --- |
+| `Comparator.naturalOrder()` | Natural (`Comparable`) order |
+| `Comparator.reverseOrder()` | Reverse natural order |
+| `Comparator.comparingInt(fn)` | Integer key extracted by `fn` |
+| `Comparator.comparing(fn)` | Comparable key extracted by `fn` |
+| `.thenComparing(...)` | Tie-break with another comparator |
+| `.reversed()` | Flip any comparator |
+
+#### 7. Unmodifiable collections (Java 9)
+
+```java
+List<String> imm = List.of("x", "y");     // also Set.of(), Map.of()
+imm.add("z");                             // throws UnsupportedOperationException
+```
+
+`List.of`, `Set.of` and `Map.of` (since **Java 9**) return unmodifiable collections. Use them for constants and return values you do not want callers to change. `Collections.unmodifiableList(list)` is the older way (wraps a mutable list).
+
+#### Common mistakes
+
+| Mistake | What happens | Fix |
+| --- | --- | --- |
+| `map.get(k)` without null check | `NullPointerException` when key is absent | `getOrDefault` or `containsKey` first |
+| Mutable object as a `HashMap` key then changing it | Entry becomes unreachable | Use immutable keys; `String`, `Integer`, records |
+| `List.of(...)` then calling `add` | `UnsupportedOperationException` | Wrap: `new ArrayList<>(List.of(...))` |
+| `TreeMap` with a key that does not implement `Comparable` | `ClassCastException` | Provide a `Comparator` to the constructor |
+| Iterating a `HashMap` and expecting sorted output | Unpredictable order | Use `TreeMap` or sort the `entrySet` |
+| `split(" ")` for word-count | Misses punctuation | `split("[^a-z]+")` after `toLowerCase` |
+
+#### Which Java version? (quick reference)
+
+| Feature | Applies from |
+| --- | --- |
+| `ArrayList`, `HashMap`, `HashSet`, `TreeMap`, `TreeSet`, `LinkedList` | Java 2 |
+| `LinkedHashMap`, `LinkedHashSet` | Java 4 |
+| `ArrayDeque`, `PriorityQueue` | Java 6 |
+| `putIfAbsent`, `computeIfAbsent`, `merge`, `forEach` on `Map` | Java 8 |
+| `List.of`, `Set.of`, `Map.of` (unmodifiable) | Java 9 |
+| `List.copyOf`, `Map.copyOf`, `Set.copyOf` | Java 10 |
 
 ### I/O, NIO & Files
 
