@@ -4,12 +4,25 @@ after: 5
 title: Throw, catch and always clean up
 level: Medium
 @@ task
+You just learned that `Integer.parseInt` throws `NumberFormatException` on bad text, that you can catch one exception and throw another with a cleaner message, and that `finally` always runs.
+
 Two jobs:
 
-1. In `readAge`, throw `IllegalArgumentException` with the message `age must be a number: <text>` when the text is not a whole number, and `age out of range: <n>` when the number is below 0 or above 150.
-2. In `main`, wrap the call so a bad input prints `error: <message>` instead of crashing, and a `finally` block prints `checked <text>` after **every** input, good or bad.
+**1. In `readAge(String text)`:**
+- Try `Integer.parseInt(text)`. If it throws `NumberFormatException`, catch it and throw `new IllegalArgumentException("age must be a number: " + text)`.
+- After parsing succeeds, check the range. If `age < 0` or `age > 150`, throw `new IllegalArgumentException("age out of range: " + age)`.
+- Otherwise return `age`.
+
+**2. In `main`, inside the loop:**
+- Wrap `readAge(text)` in a `try` block. On success, print `ok <age>`.
+- Add a `catch (IllegalArgumentException e)` that prints `error: ` followed by `e.getMessage()`.
+- Add a `finally` block that prints `checked <text>` — this must run after every input, good or bad.
 @@ hint
-`Integer.parseInt` throws `NumberFormatException` (a kind of `IllegalArgumentException`) on bad text; catch it and throw your own message. In `main`: `try { ... } catch (IllegalArgumentException e) { ... } finally { ... }`.
+**Hint 1 (idea).** `readAge` translates raw input into a valid age. It raises an alarm (throws) when anything is wrong. `main` handles the alarm (catches) and always mops the floor (finally).
+
+**Hint 2 (the tools).** `Integer.parseInt(text)` throws `NumberFormatException`. Catch it with `catch (NumberFormatException e)` and re-throw: `throw new IllegalArgumentException("age must be a number: " + text)`. In `main`: `try { ... } catch (IllegalArgumentException e) { ... } finally { ... }`.
+
+**Hint 3 (shape).** In `readAge`: `int age; try { age = Integer.parseInt(text); } catch (NumberFormatException e) { throw new IllegalArgumentException("age must be a number: " + text); } if (age < 0 || age > 150) throw new IllegalArgumentException("age out of range: " + age); return age;` — In `main`: `try { System.out.println("ok " + readAge(text)); } catch (IllegalArgumentException e) { System.out.println("error: " + e.getMessage()); } finally { System.out.println("checked " + text); }`
 @@ expect
 ok 42
 checked 42
@@ -20,15 +33,20 @@ checked -5
 @@ starter
 public class Main {
     static int readAge(String text) {
-        // TODO: parse the text; throw IllegalArgumentException with the messages from the task
+        int age;
+        // step 1: try { age = Integer.parseInt(text); }
+        //         catch (NumberFormatException e) { throw new IllegalArgumentException("age must be a number: " + text); }
+        // step 2: if age < 0 or age > 150, throw new IllegalArgumentException("age out of range: " + age)
+        // step 3: return age
         return 0;
     }
 
     public static void main(String[] args) {
         for (String text : new String[] {"42", "abc", "-5"}) {
-            // TODO: wrap in try / catch (IllegalArgumentException) / finally
-            int age = readAge(text);
-            System.out.println("ok " + age);
+            // step 1: try { System.out.println("ok " + readAge(text)); }
+            // step 2: catch (IllegalArgumentException e) { System.out.println("error: " + e.getMessage()); }
+            // step 3: finally { System.out.println("checked " + text); }
+            System.out.println("ok " + readAge(text));
         }
     }
 }

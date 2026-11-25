@@ -1652,9 +1652,228 @@ This is the pattern Spring Data uses for `JpaRepository<Entity, ID>`.
 
 ### Exception Architecture
 
-Checked exceptions must be handled; unchecked ones (RuntimeException) need not. Use try-with-resources to close things, and never swallow errors silently.
+An `exception` is a signal that something went wrong. Java stops normal flow, searches for a matching `catch` block, and runs it. `Errors` are for JVM problems you normally do not catch. `Exceptions` are for program problems you can handle.
 
-> **Imagine:** Checked is a fire drill you must plan for. Unchecked is a surprise power cut. Swallowing an exception is pulling the batteries out of the smoke alarm.
+> **Imagine:** A fire in a restaurant kitchen. The chef (`code`) raises an alarm (`throws an exception`). The manager (`catch`) handles it: they evacuate customers and call the fire brigade. Whether there is a fire or not, the closing staff still mop the floors at the end of the night (`finally`).
+
+#### Lifecycle diagram: Exception Throw and Catch
+
+```diagram
+{"n":"T:Code throws an exception:0:0|JVM:JVM looks for a matching catch:1:0|C:Matching catch found:2:0|UC:No match: unwind up the stack:2:1|FC:finally block runs:3:0|FU:finally block runs:3:1|HC:!Handler code runs:4:0|EX:!Program crashes (unhandled):4:1","e":"T>JVM|JVM>C:match in this method|JVM>UC:no match|C>FC|UC>FU|FC>HC|FU>EX"}
+```
+
+The `finally` block runs whether a `catch` fired or not, whether a return statement was hit or not. It is the only guarantee.
+
+#### 1. The exception hierarchy: a family tree
+
+> **Imagine:** A family tree of trouble reports. `Throwable` is the great-grandparent. `Error` is one branch (JVM disasters you do not touch), `Exception` is the other. Inside `Exception`, the `RuntimeException` branch is "unchecked" (the compiler trusts you), and everything else is "checked" (the compiler insists you handle it).
+
+```diagram
+{"n":"TH:Throwable:0:1|ER:Error:1:0|EX:Exception:1:2|IOER:IOError:2:0|SOE:StackOverflowError:2:1|CE:Checked exceptions:2:2|RE:RuntimeException:2:3|IOE:IOException, SQLException:3:2|NPE:NullPointerException:3:3|IAE:IllegalArgumentException:4:3|NFE:NumberFormatException:5:3","e":"TH>ER|TH>EX|ER>IOER|ER>SOE|EX>CE|EX>RE|CE>IOE|RE>NPE|RE>IAE|IAE>NFE"}
+```
+
+| Branch | Checked? | Who throws it | Example |
+| --- | --- | --- | --- |
+| `Error` | No | JVM itself | `StackOverflowError`, `OutOfMemoryError` |
+| `RuntimeException` | No (unchecked) | Your code, bad inputs | `NullPointerException`, `IllegalArgumentException`, `NumberFormatException` |
+| `Exception` (non-runtime) | Yes (checked) | I/O, database, network | `IOException`, `SQLException` |
+
+**Unchecked exceptions** do not need a `throws` declaration or a `catch`. They signal programming errors. **Checked exceptions** do — the compiler refuses to compile if you ignore them.
+
+#### 2. throw and catch: raising and handling
+
+> **Imagine:** A burglar alarm (`throw`). When someone breaks in, it fires. The security guard (`catch`) responds. If no guard is on duty, the alarm keeps ringing up the chain until someone answers — or the whole building freezes (`program crash`).
+
+```java
+static void riskyMethod(int n) {
+    if (n < 0) throw new IllegalArgumentException("n must be >= 0, got: " + n);
+    System.out.println("ok: " + n);
+}
+
+try {
+    riskyMethod(-1);
+} catch (IllegalArgumentException e) {
+    System.out.println("caught: " + e.getMessage()); // caught: n must be >= 0, got: -1
+}
+riskyMethod(5); // ok: 5
+```
+
+| Keyword | Meaning |
+| --- | --- |
+| `throw` | Fire the exception right now |
+| `throws` | Declare that a method *may* fire a checked exception (callers must handle it) |
+| `catch (Type e)` | Handle that type of exception (and any subtype) |
+| `e.getMessage()` | The message you passed to the constructor |
+| `e.getClass().getSimpleName()` | The exception's class name as a String |
+
+The message string is built with `+` concatenation, just like any other string. Build it to be useful: include the bad value.
+
+#### 3. try / catch / finally: the cleaning crew
+
+> **Imagine:** A hospital procedure (`try`). If anything goes wrong, the surgeon's assistant takes over (`catch`). After the procedure, whether it succeeded or not, the cleaning crew always sanitises the room (`finally`). They do not care what happened during the surgery.
+
+```sequence
+{"p":"T:try block|C:catch block|F:finally block","m":"T>T:runs normally|T>C:exception fired|C>F:runs after catch|T>F:runs even if no exception|T>F:runs even on return"}
+```
+
+```java
+for (String text : new String[]{"42", "abc", "-5"}) {
+    try {
+        int age = readAge(text);
+        System.out.println("ok " + age);         // runs only when readAge succeeds
+    } catch (IllegalArgumentException e) {
+        System.out.println("error: " + e.getMessage()); // runs only when it throws
+    } finally {
+        System.out.println("checked " + text);    // ALWAYS runs
+    }
+}
+// ok 42
+// checked 42
+// error: age must be a number: abc
+// checked abc
+// error: age out of range: -5
+// checked -5
+```
+
+`finally` with a `return` inside it **replaces** the `return` from `try`. Avoid `return` inside `finally`; it swallows exceptions silently. Use `finally` only for cleanup.
+
+#### 4. Integer.parseInt and NumberFormatException (the exercise uses these)
+
+> **Imagine:** A vending machine that accepts only coins. You put in a note — it spits it back (`NumberFormatException`). You catch the rejection, then throw your own cleaner error message upward.
+
+```java
+static int readAge(String text) {
+    int age;
+    try {
+        age = Integer.parseInt(text);               // throws NumberFormatException on "abc"
+    } catch (NumberFormatException e) {
+        throw new IllegalArgumentException("age must be a number: " + text);
+    }
+    if (age < 0 || age > 150)
+        throw new IllegalArgumentException("age out of range: " + age);
+    return age;
+}
+```
+
+`NumberFormatException` is a subclass of `IllegalArgumentException`. Catching the specific one and re-throwing a cleaner message is a standard pattern: the caller gets a readable message, and the original cause is preserved by the stack trace.
+
+| `Integer.parseInt` result | Situation |
+| --- | --- |
+| Returns `int` | Input was a valid whole number |
+| Throws `NumberFormatException` | Input was not a whole number (`"abc"`, `"3.5"`, `""`) |
+
+#### 5. Catching multiple exceptions: multi-catch (Java 7)
+
+> **Imagine:** One fire extinguisher that works on both wood fires and electrical fires. One `catch` block that handles two different exceptions, without repeating the same code twice.
+
+```java
+try {
+    int i = Integer.parseInt(s);       // may throw NumberFormatException
+    System.out.println(arr[i]);        // may throw ArrayIndexOutOfBoundsException
+} catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+    System.out.println("caught: " + e.getClass().getSimpleName());
+}
+```
+
+The `|` joins two exception types in one catch. The variable `e` is effectively final in a multi-catch block.
+
+#### 6. Exception chaining: wrapping the cause
+
+> **Imagine:** A manager receives a complaint. She files it in a report with a note: "this came from the customer's original complaint (attached)". `Exception chaining` is that note — the new exception carries the original cause so it can be inspected later.
+
+```java
+try {
+    Integer.parseInt("bad");
+} catch (NumberFormatException e) {
+    throw new RuntimeException("parsing failed", e);   // e is the cause
+}
+// later, when caught:
+// e.getMessage()                            -> "parsing failed"
+// e.getCause().getClass().getSimpleName()   -> "NumberFormatException"
+```
+
+Pass the original exception as the second argument to the new one's constructor. `getCause()` retrieves it.
+
+#### 7. Writing a custom exception
+
+> **Imagine:** A bank has a standard alarm, but it also has a specialised "insufficient funds" alarm that includes how much money was missing. That extra information is not in a generic alarm — a custom exception carries domain-specific data.
+
+```java
+class InsufficientFundsException extends RuntimeException {
+    private final double amount;
+
+    InsufficientFundsException(double amount) {
+        super("not enough funds, need " + amount);    // sets getMessage()
+        this.amount = amount;
+    }
+    double getAmount() { return amount; }             // extra data specific to this exception
+}
+
+try {
+    throw new InsufficientFundsException(100.0);
+} catch (InsufficientFundsException e) {
+    System.out.println(e.getMessage()); // not enough funds, need 100.0
+    System.out.println(e.getAmount());  // 100.0
+}
+```
+
+Extend `RuntimeException` for unchecked (the caller chooses whether to catch it). Extend `Exception` for checked (the caller must catch or declare). Keep the name in the past tense and ending in `Exception`: `InsufficientFundsException`, `InvalidAgeException`.
+
+| Field | Rule |
+| --- | --- |
+| `super("message")` | Sets `getMessage()` |
+| Extra fields | Private and final; expose via getters |
+| Always extend | `RuntimeException` (unchecked) or `Exception` (checked) |
+| Serialization | Add `private static final long serialVersionUID = 1L;` (for Serializable) |
+
+#### 8. try-with-resources: automatic cleanup (Java 7)
+
+> **Imagine:** A library book that automatically returns itself to the shelf when you close the cover, even if you fell asleep on the last page. `try-with-resources` closes any `AutoCloseable` object when the block ends, whether it ended normally or with an exception.
+
+```java
+try (var reader = new java.io.BufferedReader(new java.io.FileReader("data.txt"))) {
+    System.out.println(reader.readLine());
+}   // reader.close() is called here automatically
+```
+
+The resource is declared inside the `try (...)`. Multiple resources are separated by `;`. Closing happens in reverse order of declaration. The I/O section covers `BufferedReader` and `FileReader` in detail; the point here is the pattern.
+
+#### 9. What to catch, what to let bubble
+
+```diagram
+{"n":"EX:Exception fires:0:1|REC:Can you recover here?:1:1|CL:Does cleanup need to happen?:2:0|LG:Log and rethrow or wrap:2:2|CT:catch and handle:1:0|FN:finally for cleanup:3:0|BU:!Let it bubble up:1:2","e":"EX>REC|REC>CT:yes|REC>BU:no|REC>LG:partially|CT>FN|LG>BU|BU>FN"}
+```
+
+| Situation | Do |
+| --- | --- |
+| You can fix the problem here | `catch` and handle |
+| You can partially handle it (log) | `catch`, log, re-throw or wrap |
+| You cannot fix it and cleanup is needed | `finally`, let bubble |
+| You cannot fix it and no cleanup | Let bubble (do not `catch` just to rethrow the same exception) |
+
+Do not catch `Exception` or `Throwable` in business code — you will accidentally swallow `StackOverflowError` or bugs.
+
+#### Common mistakes
+
+| Mistake | What happens | Fix |
+| --- | --- | --- |
+| Empty `catch` block `{}` | Error swallowed silently, impossible to debug | At minimum `e.printStackTrace()` |
+| `catch (Exception e)` for everything | Also catches runtime bugs you did not plan for | Catch the specific type |
+| `return` inside `finally` | Swallows exceptions | Never `return` in `finally` |
+| Throw checked exception without `throws` | Compile error | Declare `throws` or use `RuntimeException` |
+| `new IllegalArgumentException(e)` instead of `(msg, e)` | Cause lost | Always pass both message and cause |
+| Extending `Exception` when you mean `RuntimeException` | Callers must catch it everywhere | Choose the right parent |
+
+#### Which Java version? (quick reference)
+
+| Feature | Applies from |
+| --- | --- |
+| `try`, `catch`, `finally`, `throw`, `throws` | Java 1.0 |
+| Checked vs unchecked (`RuntimeException`) | Java 1.0 |
+| `multi-catch` (`catch (A | B e)`) | Java 7 |
+| `try-with-resources` (`AutoCloseable`) | Java 7 |
+| `NumberFormatException` as subclass of `IllegalArgumentException` | Java 5 |
+| Helpful NullPointerExceptions (which field was null) | Java 14 |
 
 ### Collections Internals
 
