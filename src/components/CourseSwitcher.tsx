@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useMatch, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, ChevronDown, Cog, Coffee, Database } from 'lucide-react'
+import { Check, ChevronDown, Cog, Coffee, Database, Server } from 'lucide-react'
 import { COURSE_IDS, COURSE_META, COURSES, type CourseId } from '../lib/content'
 import { useCourse } from '../hooks/useCourse'
 import { tip } from '../lib/shortcuts'
@@ -14,12 +14,13 @@ const counts = (c: CourseId, d: (typeof COURSES)[CourseId]) =>
 function useSwitch() {
   const { course, setCourse } = useCourse()
   const nav = useNavigate()
-  return { course, pick: (c: CourseId) => { if (c !== course) { setCourse(c); nav('/') } } }
+  const onDevops = !!useMatch('/devops/*')
+  return { course, onDevops, nav, pick: (c: CourseId) => { if (c !== course || onDevops) { setCourse(c); nav('/') } } }
 }
 
 /** Course selector for the middle of the top bar. */
 function CourseDropdown() {
-  const { course, pick } = useSwitch()
+  const { course, pick, onDevops, nav } = useSwitch()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -30,13 +31,14 @@ function CourseDropdown() {
     window.addEventListener('keydown', esc)
     return () => { document.removeEventListener('pointerdown', down); window.removeEventListener('keydown', esc) }
   }, [open])
-  const Icon = icons[course]
+  const Icon = onDevops ? Server : icons[course]
+  const label = onDevops ? 'DevOps' : COURSE_META[course].name
   return (
     <div ref={ref} className="relative">
-      <button type="button" aria-haspopup="listbox" aria-expanded={open} aria-label={`Course: ${COURSE_META[course].name}. Change course`} {...tip('Choose course', 'course')} onClick={() => setOpen(!open)}
+      <button type="button" aria-haspopup="listbox" aria-expanded={open} aria-label={`Course: ${label}. Change course`} {...tip('Choose course', 'course')} onClick={() => setOpen(!open)}
         className="inline-flex h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200/70 dark:text-slate-200 dark:hover:bg-white/10">
         <Icon size={17} aria-hidden />
-        <span>{COURSE_META[course].name}</span>
+        <span>{label}</span>
         <ChevronDown size={14} aria-hidden className={`text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <div className="pointer-events-none absolute left-1/2 top-12 z-40 w-64 max-w-[90vw] -translate-x-1/2">
@@ -47,7 +49,7 @@ function CourseDropdown() {
               {COURSE_IDS.map((c) => {
                 const I = icons[c], d = COURSES[c]
                 return (
-                  <li key={c} role="option" aria-selected={course === c}>
+                  <li key={c} role="option" aria-selected={!onDevops && course === c}>
                     <button type="button" onClick={() => { pick(c); setOpen(false) }}
                       className="flex min-h-[48px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-900/5 dark:hover:bg-white/10">
                       <I size={18} aria-hidden className="shrink-0 text-slate-600 dark:text-slate-300" />
@@ -55,11 +57,22 @@ function CourseDropdown() {
                         <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">{COURSE_META[c].name}</span>
                         <span className="block text-xs text-slate-500 dark:text-slate-400">{counts(c, d)}</span>
                       </span>
-                      {course === c && <Check size={16} aria-hidden className="shrink-0 text-sky-600 dark:text-sky-400" />}
+                      {!onDevops && course === c && <Check size={16} aria-hidden className="shrink-0 text-sky-600 dark:text-sky-400" />}
                     </button>
                   </li>
                 )
               })}
+              <li role="option" aria-selected={onDevops}>
+                <button type="button" onClick={() => { nav('/devops'); setOpen(false) }}
+                  className="flex min-h-[48px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-900/5 dark:hover:bg-white/10">
+                  <Server size={18} aria-hidden className="shrink-0 text-slate-600 dark:text-slate-300" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">DevOps</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">Deploy Spring Boot · Stage 1 of 8</span>
+                  </span>
+                  {onDevops && <Check size={16} aria-hidden className="shrink-0 text-sky-600 dark:text-sky-400" />}
+                </button>
+              </li>
             </motion.ul>
           )}
         </AnimatePresence>

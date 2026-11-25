@@ -11,12 +11,15 @@ const QuestionBank = lazy(() => import('./pages/QuestionBank'))
 const AntiPatterns = lazy(() => import('./pages/AntiPatterns'))
 const Scenarios = lazy(() => import('./pages/Scenarios'))
 const Projects = lazy(() => import('./pages/Projects'))
+const DevOpsRoutes = lazy(() => import('./courses/devops/routes'))
 
 export default function App() {
   const { course } = useCourse()
   return (
     <Workspace>
       <Routes key={course}>
+        {/* the DevOps module is a sibling of the course layout: it has no CourseId, so Java/Rust/PostgreSQL data and progress are untouched */}
+        <Route path="devops/*" element={<DevOpsRoutes />} />
         <Route element={<Layout />}>
           <Route index element={<Landing />} />
           <Route path="phase/:id" element={<PhaseView />} />

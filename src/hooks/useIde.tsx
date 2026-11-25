@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useCourse } from './useCourse'
 import { usePersisted } from './usePersisted'
 import { exercisesOf } from '../lib/exercises'
@@ -47,7 +48,8 @@ const num = (k: string, d: number) => { const v = Number(get(k)); return v > 0 ?
 export function IdeProvider({ children }: { children: ReactNode }) {
   const { data, meta, course } = useCourse()
   const [openSaved, setOpen] = usePersisted('ide:open', false)
-  const open = openSaved && meta.ide   // a course without a runnable IDE never shows it, but the saved choice is kept for the others
+  const onDevops = useLocation().pathname.startsWith('/devops')   // the DevOps playground is its own terminal, so the code IDE stays out of the way
+  const open = openSaved && meta.ide && !onDevops   // a course without a runnable IDE never shows it, but the saved choice is kept for the others
   const [qn, setQn] = usePersisted<number | null>('ide:qn', null)
   const [exId, setExId] = usePersisted<string | null>('ide:ex', null)
   const [hidden, setHidden] = usePersisted('ide:hidden', false)
