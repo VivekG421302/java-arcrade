@@ -4,11 +4,22 @@ after: 3
 title: Make two equal points one set entry
 level: Easy
 @@ task
-A `HashSet` finds duplicates with `hashCode()` first and `equals()` second. Right now `Point` uses the default identity versions, so two points with the same `x` and `y` count as different.
+A `HashSet` finds duplicates with `hashCode()` first and `equals()` second. Right now `Point` uses the default identity versions, so two points with the same `x` and `y` count as different, and the set ends up with 2 entries instead of 1.
 
-Override **both** methods in `Point` so that points with equal `x` and `y` are equal, have the same hash code, and a `Point` is never equal to `null`.
+Fill in the two methods in `Point` (you learned the recipe in *Object Internals & Primitives*, section "equals(), hashCode() and toString()"):
+
+1. `equals(Object o)` is true when `o` is a `Point` with the same `x` **and** the same `y`. It must return `false` for `null`.
+2. `hashCode()` must use the **same fields** as `equals`, so equal points have equal hash codes.
+
+Run it: when all four printed lines match the expected output, the exercise is done.
 @@ hint
-`equals`: return true if `o == this`; if `o instanceof Point p`, compare `x == p.x && y == p.y`; otherwise false. `hashCode`: `Objects.hash(x, y)`.
+**Hint 1 (idea).** Two points are "the same" when both coordinates match. `equals` answers that; `hashCode` must follow the same rule.
+
+**Hint 2 (the four steps of equals).** Same object? return true. Not a `Point`? return false (this also covers `null`). Otherwise compare `x` and `y`. The starter has these steps as comments.
+
+**Hint 3 (almost the answer).** `if (this == o) return true;` then `return o instanceof Point p && x == p.x && y == p.y;`. For the hash code: `return Objects.hash(x, y);`.
+
+**If the output is wrong:** `2` on the first line means `equals` or `hashCode` is still the default; `false` on the second line means `hashCode` is missing or uses different fields; a crash on the third line means `equals` does not handle `null`.
 @@ expect
 1
 true
@@ -22,7 +33,17 @@ public class Main {
         final int x, y;
         Point(int x, int y) { this.x = x; this.y = y; }
 
-        // TODO: override equals(Object) and hashCode()
+        @Override public boolean equals(Object o) {
+            // step 1: if (this == o) return true;
+            // step 2: return false when o is not a Point (null is not a Point)
+            // step 3: compare x and y
+            return false;
+        }
+
+        @Override public int hashCode() {
+            // use the same fields as equals: x and y
+            return 0;
+        }
     }
 
     public static void main(String[] args) {
