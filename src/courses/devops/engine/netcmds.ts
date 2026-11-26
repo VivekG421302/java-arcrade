@@ -1,7 +1,8 @@
 // Network-facing commands. ssh/scp/sftp share one key check, so a world-readable .pem fails the same way everywhere (Chaos 1.4).
 import { base, can, join, listDir, mkdirp, parent, writeFile, type Fs } from './fs'
 import { httpRequest } from './app'
-import { HOME, LOCAL_PROJECT, openSsh, pgAccepting, PUBLIC_IP, longDate, type World } from './world'
+import { HOME, LOCAL_PROJECT, openSsh, pgAccepting, PUBLIC_IP, longDate, serverDown, ufwBlocks, type World } from './world'
+import { DOMAIN, listensOn } from './nginx'
 import { flagsOf } from './corecmds'
 import type { CmdCtx, CmdFn, OutLine, Shell } from './shellTypes'
 
@@ -32,7 +33,11 @@ function authenticate(c: CmdCtx, key: string | null, user: string, host: string)
 const parseTarget = (t: string) => { const m = /^(?:([\w.-]+)@)?([\w.-]+)$/.exec(t); return m ? { user: m[1] ?? 'learner', host: m[2] } : null }
 
 function reach(c: CmdCtx, host: string, prog: string): boolean {
-  if (host === PUBLIC_IP) return true
+  if (host === PUBLIC_IP || host === DOMAIN) {
+    if (serverDown(c.w)) { c.err(`${prog}: connect to host ${host} port 22: Connection refused`); c.tip('The server is still rebooting (real ones take 30 to 60 seconds). Wait a moment, try `sleep 10`, then connect again.'); return false }
+    if (ufwBlocks(c.w, 22)) { c.err(`${prog}: connect to host ${host} port 22: Connection timed out`); c.tip('Nothing answers on port 22 at all. When you cannot reach the server by network, the hosting company\'s rescue console is your way back in.'); return false }
+    return true
+  }
   if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) c.err(`${prog}: connect to host ${host} port 22: Connection timed out`)
   else c.err(`${prog}: Could not resolve hostname ${host}: Name or service not known`)
   return false
@@ -182,18 +187,25 @@ export function sftpLine(w: World, sh: Shell, line: string): { out: OutLine[]; l
 
 // ---------- HTTP ----------
 
+const REASON: Record<number, string> = { 200: 'OK', 301: 'Moved Permanently', 400: 'Bad Request', 404: 'Not Found', 500: 'Internal Server Error', 502: 'Bad Gateway', 503: 'Service Unavailable' }
+
 const curl: CmdFn = (c) => {
   const { flags, operands } = flagsOf(c.argv.slice(1).filter((a) => !a.startsWith('--')), ['o', 'X', 'H', 'm'])
-  const url = operands[0]
+  let url = operands[0]
   if (!url) { c.err("curl: try 'curl --help' or 'curl --manual' for more information"); return 2 }
-  const r = httpRequest(c.w, c.host, url)
-  if (r.kind === 'fail') { c.err(r.msg); return r.code }
-  const reason = { 200: 'OK', 404: 'Not Found', 500: 'Internal Server Error', 503: 'Service Unavailable' }[r.status] ?? ''
-  if (flags.has('i') || flags.has('I')) {
-    c.out(`HTTP/1.1 ${r.status} ${reason}`); c.out('Content-Type: application/json'); c.out(`Content-Length: ${r.body.length}`); c.out(`Date: ${longDate(c.w.clock)}`); c.out('')
+  for (let hop = 0; hop < 6; hop++) {
+    const r = httpRequest(c.w, c.host, url)
+    if (r.kind === 'fail') { c.err(r.msg); return r.code }
+    if (flags.has('i') || flags.has('I')) {
+      c.out(r.proto === 'HTTP/2' ? `HTTP/2 ${r.status}` : `HTTP/1.1 ${r.status} ${REASON[r.status] ?? ''}`.trimEnd())
+      r.headers.forEach((h) => c.out(h)); c.out('')
+    }
+    if (flags.has('L') && r.location) { url = r.location; continue }
+    if (!flags.has('I')) c.out(r.body)
+    return 0
   }
-  if (!flags.has('I')) c.out(r.body)
-  return 0
+  c.err('curl: (47) Maximum (50) redirects followed')
+  return 47
 }
 
 const wget: CmdFn = (c) => {
@@ -220,6 +232,8 @@ const ss: CmdFn = (c) => {
   const w = c.w
   c.out(pad('LISTEN', '0', '4096', '127.0.0.53%lo:53', '0.0.0.0:*', proc('systemd-resolve', 521, 'root', 14)))
   c.out(pad('LISTEN', '0', '128', '0.0.0.0:22', '0.0.0.0:*', proc('sshd', w.sshdPid, 'root', 3)))
+  const ng = w.procs.find((p) => p.unit === 'nginx' && p.cmd.startsWith('nginx: master'))
+  for (const port of [80, 443]) if (ng && listensOn(w, port)) c.out(pad('LISTEN', '0', '511', `0.0.0.0:${port}`, '0.0.0.0:*', proc('nginx', ng.pid + 1, 'root', 6)))
   const pg = w.procs.find((p) => p.kind === 'postgres')
   if (pgAccepting(w) && pg) {
     c.out(pad('LISTEN', '0', '244', '127.0.0.1:5432', '0.0.0.0:*', proc('postgres', pg.pid, 'postgres', 5)))

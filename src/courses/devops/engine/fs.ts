@@ -8,6 +8,7 @@ export interface FsEntry {
   size: number        // bytes
   content?: string
   mtime: number       // epoch seconds (simulated clock)
+  link?: string       // symlink target (absolute path); reads follow it
 }
 export type Fs = Record<string, FsEntry>
 
@@ -63,6 +64,7 @@ export function listDir(fs: Fs, dir: string): string[] {
 }
 
 export function modeString(e: FsEntry): string {
+  if (e.link) return 'lrwxrwxrwx'
   const bits = e.mode.padStart(3, '0').split('').map(Number)
   const tri = (n: number) => (n & 4 ? 'r' : '-') + (n & 2 ? 'w' : '-') + (n & 1 ? 'x' : '-')
   return (e.type === 'dir' ? 'd' : '-') + bits.map(tri).join('')
@@ -145,4 +147,11 @@ export function glob(fs: Fs, pattern: string, cwd: string, home: string): string
     return listDir(fs, d).filter((n) => re.test(n) && (!n.startsWith('.') || seg.startsWith('.'))).flatMap((n) => walk(join(d, n), i + 1, next(n)))
   }
   return walk(dir, 0, shown0).sort()
+}
+
+/** Follow symlinks (up to 8 hops) like the kernel does when a program opens a path. */
+export function resolveLink(fs: Fs, p: string): FsEntry | undefined {
+  let e = fs[p]
+  for (let i = 0; e?.link && i < 8; i++) e = fs[e.link]
+  return e
 }

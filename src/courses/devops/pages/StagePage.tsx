@@ -7,14 +7,28 @@ import GatePanel from '../components/GatePanel'
 import ImagineCard from '../components/ImagineCard'
 import LabPanel from '../components/LabPanel'
 import Playground from '../components/Playground'
-import { useTracker } from '../runtime'
+import { STAGES, StageCtx, useTracker } from '../runtime'
 
 export default function StagePage() {
-  const { n } = useParams()
+  const no = Number(useParams().n)
+  if (!STAGES[no]) return <Navigate to="/devops" replace />
+  return <StageCtx.Provider value={no}><StageBody no={no} /></StageCtx.Provider>
+}
+
+function StageBody({ no }: { no: number }) {
   const t = useTracker()
+  const prev = useTracker(Math.max(1, no - 1))
   const stage = t.stage
-  if (Number(n) !== stage.number) return <Navigate to="/devops" replace />
   const read = t.p.imagineRead
+  if (no > 1 && !prev.p.stageComplete) {
+    return (
+      <div className="mx-auto max-w-2xl px-5 py-10">
+        <h1 className="flex items-center gap-2 text-2xl font-bold"><Lock size={20} aria-hidden />Stage {no} is locked</h1>
+        <p className="mt-2 text-slate-600 dark:text-slate-400">Finish Stage {no - 1}: its labs, its required chaos lab, and its quiz. The checklist is at the bottom of that stage.</p>
+        <Link to={`/devops/stage/${no - 1}`} className="mt-4 inline-flex min-h-[44px] items-center rounded-lg bg-sky-600 px-4 font-medium text-white hover:bg-sky-500">Go to Stage {no - 1}</Link>
+      </div>
+    )
+  }
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-2 md:px-8">
       <nav aria-label="Breadcrumb" className="text-sm text-slate-500 dark:text-slate-400"><Link to="/devops" className="hover:text-sky-500">Course map</Link> / Stage {stage.number}</nav>

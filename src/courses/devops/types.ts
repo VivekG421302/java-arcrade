@@ -128,6 +128,8 @@ export interface LabStep {
   validation: TerminalCommandRule
   hintAfterAttempts: number
   hintText?: string
+  /** Extension: text the learner must type into a file (unit file, nginx site...). Shown with a Copy button; the simplified nano accepts paste. */
+  snippet?: { title: string; text: string }
 }
 
 export interface TerminalCommandRule {
@@ -164,6 +166,8 @@ export interface PlaygroundSpec {
     editor: 'nano' | 'vim'
   }
   topology: { nodes: TopologyNode[]; showHealthBadges: true }
+  /** Extension: show a provider rescue console button (stage 2 onwards, for the UFW lockout). */
+  rescueConsole?: boolean
 }
 
 export interface VirtualFileSystemNode {

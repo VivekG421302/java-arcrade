@@ -1,4 +1,5 @@
 import { appendText, startApp, ORDERS_SEED_SQL } from './app'
+import { installNginx } from './nginx'
 import { flagsOf } from './corecmds'
 import { can, exists, mkdirp, writeFile } from './fs'
 import { ANSI, sqlBridge, type CmdCtx, type CmdFn, type OutLine, type Shell } from './shellTypes'
@@ -41,12 +42,17 @@ const setsid: CmdFn = (c) => c.run(c.argv.slice(1), { immune: true })
 // ---------- apt ----------
 
 const KNOWN = {
+  nginx: { ver: '1.18.0-6ubuntu14.4', mb: 2 },
+  certbot: { ver: '1.21.0-1build1', mb: 6 },
+  'python3-certbot-nginx': { ver: '1.21.0-1', mb: 1 },
+  ufw: { ver: '0.36.1-4ubuntu0.1', mb: 0 },
   'openjdk-17-jre-headless': { ver: '17.0.13+11-2ubuntu1~22.04', mb: 213 },
   'openjdk-17-jdk-headless': { ver: '17.0.13+11-2ubuntu1~22.04', mb: 264 },
   postgresql: { ver: '14+238', mb: 49 },
   curl: { ver: '7.81.0-1ubuntu1.18', mb: 0 },
 } as Record<string, { ver: string; mb: number }>
-const LOCKED = { nginx: 2, ufw: 2, certbot: 2, 'docker.io': 4, 'docker-compose': 5, rsync: 3, git: 7 } as Record<string, number>
+const LOCKED = { 'docker.io': 4, 'docker-compose': 5, rsync: 3, git: 7 } as Record<string, number>
+const STAGE2_PKGS = ['nginx', 'certbot', 'python3-certbot-nginx', 'ufw']
 
 const apt: CmdFn = (c) => {
   const { flags, operands } = flagsOf(c.argv.slice(1).filter((a) => !a.startsWith('--')))
@@ -69,10 +75,11 @@ const apt: CmdFn = (c) => {
   if (!pkgs.length) { c.err('E: No packages specified'); return 100 }
   let code = 0
   for (const p of pkgs) {
+    if (STAGE2_PKGS.includes(p) && w.state.stage < 2) { c.err(`E: Package '${p}' is part of Stage 2 of this course and is not available yet.`); code = 100; continue }
     if (p in LOCKED) { c.err(`E: Package '${p}' is part of Stage ${LOCKED[p]} of this course and is not available yet.`); code = 100; continue }
     if (p.startsWith('mysql')) { c.err(`E: Package '${p}' is not available in this simulator build yet (the MySQL track is coming in a later phase).`); code = 100; continue }
     if (!w.x.apt.updated || !KNOWN[p]) { c.err(`E: Unable to locate package ${p}`); if (!w.x.apt.updated) c.tip('A brand-new server has an empty package catalogue. Run `sudo apt update` first.'); code = 100; continue }
-    const have = p.startsWith('openjdk-17') ? w.state.packages.java17 : p === 'postgresql' ? w.x.pg.installed : p === 'curl'
+    const have = p.startsWith('openjdk-17') ? w.state.packages.java17 : p === 'postgresql' ? w.x.pg.installed : p === 'curl' || p === 'ufw' ? true : w.x.apt.pkgs.includes(p)
     if (have) { c.out('Reading package lists... Done'); c.out(`${p} is already the newest version (${KNOWN[p].ver}).`); c.out('0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.'); continue }
     c.out('Reading package lists... Done'); c.out('Building dependency tree... Done')
     c.out('The following NEW packages will be installed:'); c.out(`  ${p === 'postgresql' ? 'postgresql postgresql-14 postgresql-client-14 postgresql-common' : p}`)
@@ -82,39 +89,14 @@ const apt: CmdFn = (c) => {
     if (p === 'postgresql') {
       c.out('Setting up postgresql-client-14 (14.13-0ubuntu0.22.04.1) ...'); c.out('Setting up postgresql-14 (14.13-0ubuntu0.22.04.1) ...')
       c.out('Creating new PostgreSQL cluster 14/main ...'); c.out('Setting up postgresql (14+238) ...'); installPostgres(w)
-    } else { c.out(`Setting up ${p}:amd64 (${KNOWN[p].ver}) ...`); if (p.startsWith('openjdk-17')) w.state.packages.java17 = true }
+    } else {
+      c.out(`Setting up ${p}${p.startsWith('python3') ? '' : ':amd64'} (${KNOWN[p].ver}) ...`)
+      if (p.startsWith('openjdk-17')) w.state.packages.java17 = true
+      if (p === 'nginx') { installNginx(w); c.out('Created symlink /etc/systemd/system/multi-user.target.wants/nginx.service → /lib/systemd/system/nginx.service.') }
+      if (STAGE2_PKGS.includes(p)) w.x.apt.pkgs.push(p)
+    }
   }
   return code
-}
-
-// ---------- systemctl (Stage 1: only the PostgreSQL that apt installed; writing your own services is Stage 2) ----------
-
-const systemctl: CmdFn = (c) => {
-  const [verb, unitRaw] = c.argv.slice(1).filter((a) => !a.startsWith('-'))
-  const unit = (unitRaw ?? '').replace(/\.service$/, '')
-  const w = c.w
-  if (!verb) { c.out('UNIT LOAD ACTIVE SUB DESCRIPTION'); return 0 }
-  if (c.host === 'local' || unit !== 'postgresql' || !w.x.pg.installed) {
-    if (!unit) { c.err('Too few arguments.'); return 1 }
-    c.err(`${verb === 'status' ? '' : 'Failed to ' + verb + ' ' + unit + '.service: '}Unit ${unit}.service ${verb === 'status' ? 'could not be found.' : 'not found.'}`.trim())
-    if (unit === 'springboot' || unit === 'shop') c.tip('Turning your app into a managed service is the big Stage 2 upgrade. For now the app is started by hand.')
-    return verb === 'status' ? 4 : 5
-  }
-  if (verb === 'status') {
-    const up = w.x.pg.running
-    const since = `Tue 2026-11-24 ${hhmm(w.clock - 190)}:12 UTC`
-    c.out(`${up ? ANSI.green + '●' : '○'}${ANSI.off} postgresql.service - PostgreSQL RDBMS`)
-    c.out('     Loaded: loaded (/lib/systemd/system/postgresql.service; enabled; vendor preset: enabled)')
-    c.out(up ? `     Active: ${ANSI.green}active (running)${ANSI.off} since ${since}; 3min ago` : '     Active: inactive (dead)')
-    if (up) { c.out(`   Main PID: 1630 (postgres)`); c.out('      Tasks: 6 (limit: 1058)'); c.out('     Memory: 21.4M') }
-    return up ? 0 : 3
-  }
-  if (c.user !== 'root') { c.err(`Failed to ${verb} postgresql.service: Interactive authentication required.`); c.err("See system logs and 'systemctl status postgresql.service' for details."); c.tip('Changing a service needs administrator rights: put `sudo` in front.'); return 1 }
-  if (verb === 'start' || verb === 'restart') { startPostgresProcs(w); return 0 }
-  if (verb === 'stop') { killProc(w, 1630); w.x.pg.running = false; return 0 }
-  if (verb === 'is-active') { c.out(w.x.pg.running ? 'active' : 'inactive'); return w.x.pg.running ? 0 : 3 }
-  if (verb === 'enable') { c.out('Synchronizing state of postgresql.service with SysV service script...'); return 0 }
-  c.err(`Unknown command verb ${verb}.`); return 1
 }
 
 // ---------- java & maven ----------
@@ -324,6 +306,6 @@ export function saveEdit(w: World, host: 'local' | 'remote', path: string, conte
   return { ok: true, msg: `[ Wrote ${content.split('\n').length} lines ]` }
 }
 
-export const SVC: Record<string, CmdFn> = { sudo, nohup, setsid, apt, 'apt-get': apt, systemctl, java: javaCmd, mvn, psql, nano }
+export const SVC: Record<string, CmdFn> = { sudo, nohup, setsid, apt, 'apt-get': apt, java: javaCmd, mvn, psql, nano }
 export { exists }
 export type { CmdCtx }

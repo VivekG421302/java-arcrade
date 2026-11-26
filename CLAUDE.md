@@ -8,6 +8,8 @@ Guidance for working in this repo (`VivekG421302/java-arcrade`): a React 18 + Vi
 - Zero server cost: everything must run client-side in the browser. Persistence is `localStorage` / IndexedDB (Supabase is optional and only used by the existing courses).
 - Match existing conventions: Tailwind slate/sky palette, `dark:` variants with `bg-[#0f1115]` family surfaces, lucide icons, 44px minimum touch targets, `data-tip` tooltips, visible focus, no all-caps eyebrow labels.
 - Never commit secrets. Do not paste or store access tokens in files or memory.
+- **Push verified work to `main`** after each increment (the owner asked for this habit). Before pushing: `git fetch` and rebase onto `origin/main` (the owner also pushes content commits), then `npm run build` and `npm run verify:devops` must pass. Never force-push. Pass any token inline for the one command; never write it into `.git/config` or a file.
+- When scripting edits (python `str.replace`), **assert the old text is present**: a non-matching replace fails silently and the bug only shows up later.
 
 ## Commands
 
@@ -41,7 +43,11 @@ engine/             Framework-free simulator (no React)
   world.ts          World = fs + process table + hidden state; syncWorld() derives SimulatedServerState
   parse.ts          bash-subset parser (quotes, && || ; | &, > >> 2>&1, ~ and $VAR)
   shell.ts          executor, prompts, REPLs, Ctrl+C, Tab completion
-  corecmds.ts / netcmds.ts / svccmds.ts / app.ts   commands (core, ssh/scp/curl/ss, apt/systemctl/java/mvn/psql/nano)
+  corecmds.ts / netcmds.ts / svccmds.ts / app.ts   commands (core, ssh/scp/curl/ss, apt/java/mvn/psql/nano) and the app + HTTP model
+  stage2cmds.ts     systemctl (all verbs), journalctl, nginx, ufw, certbot, reboot
+  systemd.ts        unit parsing, EnvironmentFile, Restart= loops, journal, enable/disable, reboot; registers the syncWorld hooks
+  nginx.ts          config parser with nginx-style [emerg] errors, test/reload/restart, Host/port routing, 502, certbot's edits
+  stage2world.ts    Stage 2 starting world (enterStage2) and fullyHardened() baseline for chaos labs; canonical unit/env/site files
   rules.ts          TerminalCommandRule evaluator
   tracker.ts        step validation, attempts/hints, chaos phases, gate, quiz
   session.ts        Simulator: world + terminal tabs + localStorage persistence + events
@@ -49,7 +55,7 @@ engine/             Framework-free simulator (no React)
   badges.ts         topology health badges, derived ONLY from world state
   sftpGui.ts        FileZilla pane actions on the same filesystems
   verify.ts         headless walkthrough used by `npm run verify:devops`
-runtime.ts          singletons + React hooks (useSim, useTracker); wires psql to runSql
+runtime.ts          STAGES registry, one Simulator + Tracker per stage, React hooks (useSim/useTracker/useStageDef via StageCtx); wires psql to runSql
 components/ pages/  UI (Playground, TerminalPane, FileZillaPane, TopologyMap, StepBar, LabPanel, ChaosPanel, GatePanel, …)
 routes.tsx          lazy-loaded at /devops/*
 ```
@@ -66,11 +72,12 @@ routes.tsx          lazy-loaded at /devops/*
 
 ### Adding a stage
 
-1. Add `data/stageN.ts` exporting a `CourseStage` (call `validateStage`) and any new filesystem content.
-2. Extend `World`/`Extras` and commands only as the stage needs (e.g. systemd units, nginx), then derive new `SimulatedServerState` fields in `syncWorld`.
-3. Add chaos injections to `engine/chaos.ts`; extend `badges.ts` (`502_BAD_GATEWAY`, `CrashLoopBackOff` are already defined).
-4. Generalise `runtime.ts` (currently one `Tracker` for stage 1) to a tracker per stage, and `routes`/`StagePage` to look the stage up by number.
-5. Flip `live: true` in `data/catalog.ts`.
+1. Add `data/stageN.ts` exporting a `CourseStage` (call `validateStage`) and a `PlaygroundSpec` (topology nodes, optional `rescueConsole`).
+2. Add an `enterStageN(world)` starting point in `engine/` and a `fullyDone(world)` baseline if chaos labs need one. Extend `World`/`Extras` and commands only as the stage needs, and derive new `SimulatedServerState` fields plus rule-facing facts (`x.d.*`) in `syncWorld`/the derive hook.
+3. Add chaos injections to `engine/chaos.ts` (names match `injectionScript`); extend `badges.ts` and `TopologyMap` edge states.
+4. Register the stage in `runtime.ts` `STAGES` (own storage key, `init: enterStageN`) and flip `live: true` in `data/catalog.ts`.
+5. Extend `engine/verify.ts` with a walkthrough that plays the stage's own commands.
+6. Tools that unlock later are gated by `LOCKED` in `shell.ts` and `apt` (compared with `world.state.stage`), so earlier worlds keep failing like a missing program.
 
 ### Status
 
@@ -82,4 +89,13 @@ routes.tsx          lazy-loaded at /devops/*
   - `cd x && cmd &` keeps the `cd` in the current shell (deliberate simplification, differs from real bash).
   - The MySQL track is not implemented; `apt install mysql-*` explains that it is coming.
   - Progress and simulator state live in `localStorage` (`devops:v1:*`) only.
-- **Next:** Phase 2, Stage 2 (systemd + Nginx hardening).
+- **Phase 2 (done):** Stage 2, systemd + Nginx hardening (receptionist and generator): 3 labs, 3 chaos labs (502 wrong upstream, UFW lockout with a rescue console, restart loop from a missing EnvironmentFile), quiz, gate. Stage 2 is locked until Stage 1's gate is complete; each stage has its own simulator (`devops:v1:sim:stage-2`) and progress.
+- **Stage 2 decisions to remember:**
+  - The Stage 2 world starts after Stage 1: database and jar exist, nothing runs, and the new build reads secrets from `${DB_URL}`, `${DB_USER}`, `${DB_PASSWORD}` (fills Stage 1's pain P1.4).
+  - nginx install enables the placeholder `default` site, as real Ubuntu does; Lab 2.2 removes it because an IP visitor matches no `server_name` and the default wins.
+  - `restart nginx` with a broken config leaves nginx down; `reload` keeps the old config. `kill` (SIGTERM, exit 143) is a clean stop under `SuccessExitStatus=143`; `kill -9` is a crash that systemd restarts.
+  - certbot is non-interactive: no HTTPS redirect unless `--redirect`; `shop.example.com` is the only domain that "resolves" (to 203.0.113.10). Certbot fails with a firewall timeout if UFW blocks port 80.
+  - `reboot` kills every SSH session, restarts enabled units, and SSH is refused for about 18 simulated seconds (`sleep 20` passes the time).
+  - The rescue console tab is a remote shell that does not use the network, so UFW cannot block it.
+  - The simplified nano accepts pasted text; steps that need a file show a `snippet` with a Copy button.
+- **Next:** Phase 3, Stage 3 (shell automation: deploy script, versioned releases with an atomic symlink swap, logrotate, backups, cron). It needs `ln -sfn`/`readlink`/`mv -T`, `crontab`, `logrotate`, `pg_dump`, a script runner (`bash script.sh` with `set -e`) and an editor-friendly way to write multi-line scripts.

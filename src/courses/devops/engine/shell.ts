@@ -2,9 +2,12 @@
 import { CORE } from './corecmds'
 import { NET, sftpLine } from './netcmds'
 import { SVC, psqlLine, saveEdit } from './svccmds'
+import { STAGE2 } from './stage2cmds'
+import './systemd'
 import { parse, type ListItem, type SimpleCmd } from './parse'
 import { appendText } from './app'
 import { can, glob, listDir, parent, resolvePath, tilde, writeFile } from './fs'
+import { jdate } from './systemd'
 import { closeSsh, HOME, HOSTNAME, isoMs, killProc, syncWorld, tick, type World } from './world'
 import { stripAnsi, type CmdCtx, type CmdFn, type ExecResult, type Hold, type OutLine, type Shell } from './shellTypes'
 
@@ -16,7 +19,7 @@ export const newShell = (id: number): Shell => ({ id, localCwd: '/home/learner/s
 
 // Tools that exist later in the course: they fail like a missing program, with a note saying when they unlock.
 const LOCKED: Record<string, number> = {
-  ufw: 2, certbot: 2, journalctl: 2, nginx: 2, rsync: 3, crontab: 3, logrotate: 3, pg_dump: 3, mysqldump: 3, docker: 4,
+  ufw: 2, certbot: 2, journalctl: 2, nginx: 2, reboot: 2, shutdown: 2, rsync: 3, crontab: 3, logrotate: 3, pg_dump: 3, mysqldump: 3, docker: 4,
   'docker-compose': 5, nc: 6, dig: 6, htop: 6, aws: 6, git: 7, gh: 7, kubectl: 8, helm: 8,
 }
 const APT_HINT: Record<string, string> = { mysql: 'mysql-client-core-8.0', docker: 'docker.io', nginx: 'nginx', git: 'git', rsync: 'rsync', ufw: 'ufw', vim: 'vim', unzip: 'unzip' }
@@ -27,11 +30,12 @@ const exitCmd: CmdFn = (c) => {
     c.sh.ssh = null
     c.out('logout'); c.out('Connection to 203.0.113.10 closed.')
     c.tip('The shop worker lost the walkie-talkie. Anything you started without nohup or setsid was told to stop (SIGHUP).')
+    if (c.sh.rescue) c.result.closeTab = true
   } else c.result.closeTab = true
   return 0
 }
 
-const COMMANDS: Record<string, CmdFn> = { ...CORE, ...NET, ...SVC, exit: exitCmd, logout: exitCmd }
+const COMMANDS: Record<string, CmdFn> = { ...CORE, ...NET, ...SVC, ...STAGE2, exit: exitCmd, logout: exitCmd }
 
 export const promptOf = (w: World, sh: Shell): string => {
   const r = sh.repl
@@ -72,8 +76,9 @@ function build(f: Frame, argv: string[], o: Partial<Pick<CmdCtx, 'sudo' | 'immun
 async function invoke(c: CmdCtx): Promise<number> {
   const name = c.argv[0]
   const fn = COMMANDS[name]
-  if (!fn) {
-    const stage = LOCKED[name]
+  const needs = LOCKED[name]
+  if (!fn || (needs && needs > c.w.state.stage && name !== 'systemctl')) {
+    const stage = needs
     if (stage) { c.err(`Command '${name}' not found`); c.tip(`🔒 \`${name}\` unlocks in Stage ${stage}. In Stage 1 you do everything by hand on purpose, so you feel the pain it fixes.`) }
     else if (APT_HINT[name]) { c.err(`Command '${name}' not found, but can be installed with:`); c.err(''); c.err(`sudo apt install ${APT_HINT[name]}`) }
     else c.err(`${name}: command not found`)
@@ -211,6 +216,18 @@ export function interrupt(w: World, hold: Hold): OutLine[] {
 /** One heartbeat for `tail -f app.log`: a customer request, also written to the real log file so `cat` agrees. */
 export function followTick(w: World, hold: Hold): OutLine[] {
   const app = w.procs.find((p) => p.kind === 'app')
+  if (hold.kind === 'follow' && hold.path?.startsWith('journal:')) {
+    const unit = hold.path.slice(8)
+    tick(w, 2)
+    syncWorld(w)
+    const j = w.x.sd.journal[unit] ?? []
+    const before = (hold as Hold & { seen?: number }).seen ?? j.length
+    const fresh: OutLine[] = j.slice(before).map((s) => ({ t: 'out' as const, s }))
+    const a = w.procs.find((p) => p.kind === 'app' && p.unit === unit)
+    if (a && !fresh.length) { const p = ['/api/orders', '/api/health'][w.clock % 2]; const s = `${jdate(w.clock)} shop-server java[${a.pid}]: ${isoMs(w.clock, 233)}  INFO ${a.pid} --- [nio-8080-exec-${1 + (w.clock % 4)}] com.shop.web.OrderController : GET ${p} -> 200 (${9 + (w.clock % 13)} ms)`; j.push(s); w.x.sd.journal[unit] = j; fresh.push({ t: 'out', s }) }
+    ;(hold as Hold & { seen?: number }).seen = (w.x.sd.journal[unit] ?? []).length
+    return fresh
+  }
   if (hold.kind !== 'follow' || !hold.path || !app || !hold.path.endsWith('.log') && !hold.path.endsWith('.out')) return []
   tick(w, 2)
   const paths = ['/api/orders', '/api/health', '/api/orders']

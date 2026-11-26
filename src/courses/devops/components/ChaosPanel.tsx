@@ -8,7 +8,7 @@ export default function ChaosPanel() {
   return (
     <section aria-labelledby="chaos-h" className="mt-10">
       <h2 id="chaos-h" className="text-xl font-bold">Chaos labs</h2>
-      <p className="mt-1 text-slate-600 dark:text-slate-400">Real servers break. Here you break yours on purpose, then work out why. {open ? 'Chaos 1.1 is required to open Stage 2; the other three are strongly recommended.' : 'They open after all six labs.'}</p>
+      <p className="mt-1 text-slate-600 dark:text-slate-400">Real servers break. Here you break yours on purpose, then work out why. {open ? `${t.stage.unlockGate.requiredChaosIds.map((id) => 'Chaos ' + id.replace(/^chaos-/, '').replace('-', '.')).join(' and ')} ${t.stage.unlockGate.requiredChaosIds.length > 1 ? 'are' : 'is'} required to open Stage ${t.stage.number + 1}; the others are strongly recommended.` : `They open after all ${t.stage.labs.length} labs.`}</p>
       <ul className="mt-4 space-y-3">
         {t.stage.chaosLabs.map((c) => {
           const st = t.p.chaos[c.id]

@@ -15,6 +15,8 @@ export interface Shell {
   localHistory: string[]
   ssh: SshCtx | null
   repl: Repl | null
+  /** Provider rescue console: a login that does not travel over the network, so it works even when the firewall blocks port 22. */
+  rescue?: boolean
 }
 
 export interface OutLine { t: 'out' | 'err' | 'sys'; s: string }

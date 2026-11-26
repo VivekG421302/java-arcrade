@@ -2,7 +2,8 @@
 // drag-and-drop is visible to `ls -lh /opt/myapp` and vice versa.
 import { base, can, join, listDir, moveTree, parent, removeTree, type Fs, type FsEntry } from './fs'
 import { transfer } from './netcmds'
-import { PEM, PUBLIC_IP, type World } from './world'
+import { PEM, PUBLIC_IP, serverDown, ufwBlocks, type World } from './world'
+import { DOMAIN } from './nginx'
 
 export interface SftpLog { kind: 'Status' | 'Command' | 'Response' | 'Error'; s: string }
 export interface Row { name: string; type: 'file' | 'dir'; size: number; mode: string; owner: string; mtime: number }
@@ -19,7 +20,8 @@ export function sftpConnect(w: World, f: { host: string; user: string; port: num
   const host = f.host.trim().replace(/^s?ftp:\/\//, '')
   const log: SftpLog[] = [{ kind: 'Status', s: `Connecting to ${host}...` }]
   const fail = (m: string) => { log.push({ kind: 'Error', s: m }, { kind: 'Error', s: 'Could not connect to server' }); return { ok: false, log } }
-  if (host !== PUBLIC_IP) return fail(/^\d+\.\d+\.\d+\.\d+$/.test(host) ? 'Connection timed out after 20 seconds of inactivity' : `Could not resolve host name ${host}`)
+  if ((host === PUBLIC_IP || host === DOMAIN) && (serverDown(w) || ufwBlocks(w, 22))) return fail('Connection timed out after 20 seconds of inactivity')
+  if (host !== PUBLIC_IP && host !== DOMAIN) return fail(/^\d+\.\d+\.\d+\.\d+$/.test(host) ? 'Connection timed out after 20 seconds of inactivity' : `Could not resolve host name ${host}`)
   if (f.port !== 22) return fail('Connection attempt failed with "ECONNREFUSED - Connection refused by server".')
   log.push({ kind: 'Status', s: `Using username "${f.user}".` })
   const key = f.key ? w.fs.local[f.key] : undefined

@@ -68,7 +68,7 @@ export function evaluateRule(rule: TerminalCommandRule, ctx: RuleCtx): RuleResul
     case 'sequence': {
       let i = 0
       for (const line of ctx.log) {
-        if (i < (rule.args ?? []).length && new RegExp(rule.args![i], flag(rule)).test(norm(line))) i++
+        while (i < (rule.args ?? []).length && new RegExp(rule.args![i], flag(rule)).test(norm(line))) i++
       }
       return { passed: i === (rule.args ?? []).length, attempt: false }
     }

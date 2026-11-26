@@ -35,7 +35,7 @@ export const LOCAL_FS: VirtualFileSystemNode = dir('/', [
 export const REMOTE_FS: VirtualFileSystemNode = dir('/', [
   dir('home', [dir('ubuntu', [file('.bashrc', '# ~/.bashrc: executed by bash for non-login shells.\n', '644', 'ubuntu'), dir('.ssh', [file('authorized_keys', 'ssh-rsa AAAAB3Nza... shop-deploy-key\n', '600', 'ubuntu')], 'ubuntu', '700')], 'ubuntu')], 'root'),
   dir('opt', [dir('myapp', [file('application.properties', PROPS, '644', 'ubuntu')], 'ubuntu', '755')], 'root'),
-  dir('etc', [file('hostname', 'shop-server\n'), file('os-release', 'PRETTY_NAME="Ubuntu 22.04.4 LTS"\nNAME="Ubuntu"\nVERSION_ID="22.04"\n')], 'root'),
+  dir('etc', [file('hostname', 'shop-server\n'), file('os-release', 'PRETTY_NAME="Ubuntu 22.04.4 LTS"\nNAME="Ubuntu"\nVERSION_ID="22.04"\n'), dir('systemd', [dir('system', [], 'root')], 'root')], 'root'),
   dir('var', [dir('log', [])], 'root'),
   dir('tmp', [], 'root', '777'),
   dir('usr', [], 'root'),

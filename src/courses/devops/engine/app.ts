@@ -1,6 +1,7 @@
 // What happens when the shop app starts, and what it answers over HTTP. Failures are causal: they read the real simulated world
 // (is PostgreSQL accepting TCP? does the role/database exist? is port 8080 taken?) and print the real-world error.
-import { pgAccepting, spawnApp, appProc, isoMs, peekAppPid, T0, type Proc, type World } from './world'
+import { pgAccepting, spawnApp, appProc, isoMs, longDate, peekAppPid, serverDown, T0, ufwBlocks, type Proc, type World } from './world'
+import { DOMAIN, listensOn, NGINX_VERSION, nginxRoute, type NginxReply } from './nginx'
 import { writeFile, type Fs } from './fs'
 
 const BANNER = [
@@ -17,25 +18,29 @@ const BANNER = [
 const log = (t: number, ms: number, level: 'INFO' | 'ERROR' | 'WARN', pid: number, thread: string, logger: string, msg: string) =>
   `${isoMs(t, ms)} ${level.padStart(5)} ${pid} --- [${thread.padStart(15)}] ${logger.padEnd(40).slice(0, 40)} : ${msg}`
 
-export interface AppConfig { host: string; port: number; db: string; user: string; password: string }
+export interface AppConfig { host: string; port: number; db: string; user: string; password: string; unresolved?: string }
 
 const PACKAGED: AppConfig = { host: 'localhost', port: 5432, db: 'shopdb', user: 'shopuser', password: 'ShopPass123!' }
 
 /** Spring Boot reads ./application.properties from the working directory; otherwise the config baked into the jar (same values). */
-export function readConfig(remoteFs: Fs, cwd: string): AppConfig {
+export function readConfig(remoteFs: Fs, cwd: string, env: Record<string, string> = {}): AppConfig {
   const f = remoteFs[`${cwd === '/' ? '' : cwd}/application.properties`]
   if (!f?.content) return { ...PACKAGED }
-  const get = (k: string) => new RegExp(`^\\s*${k.replace(/\./g, '\\.')}\\s*=\\s*(.*?)\\s*$`, 'm').exec(f.content!)?.[1]
-  const m = /^jdbc:postgresql:\/\/([^:/]+)(?::(\d+))?\/([^?]+)/.exec(get('spring.datasource.url') ?? '')
+  let unresolved: string | undefined
+  // ${NAME} placeholders are filled from the process environment (what a systemd EnvironmentFile provides)
+  const fill = (v: string | undefined) => v?.replace(/\$\{(\w+)\}/g, (_, n: string) => { if (env[n] === undefined) unresolved ??= n; return env[n] ?? '' })
+  const get = (k: string) => fill(new RegExp(`^\\s*${k.replace(/\./g, '\\.')}\\s*=\\s*(.*?)\\s*$`, 'm').exec(f.content!)?.[1])
+  const url = get('spring.datasource.url')
+  const m = /^jdbc:postgresql:\/\/([^:/]+)(?::(\d+))?\/([^?]+)/.exec(url ?? '')
   return {
     host: m?.[1] ?? PACKAGED.host, port: Number(m?.[2] ?? 5432), db: m?.[3] ?? PACKAGED.db,
-    user: get('spring.datasource.username') ?? PACKAGED.user, password: get('spring.datasource.password') ?? PACKAGED.password,
+    user: get('spring.datasource.username') ?? PACKAGED.user, password: get('spring.datasource.password') ?? PACKAGED.password, unresolved,
   }
 }
 
 export interface StartResult { ok: boolean; lines: string[]; proc?: Proc }
 
-export function startApp(w: World, o: { host: 'local' | 'remote'; cwd: string; bound: number | null; immune: boolean; user: string }): StartResult {
+export function startApp(w: World, o: { host: 'local' | 'remote'; cwd: string; bound: number | null; immune: boolean; user: string; env?: Record<string, string>; unit?: string; cmd?: string }): StartResult {
   const t = w.clock
   const portTaken = o.host === 'remote' && w.procs.some((p) => p.kind === 'app')
   const previewPid = o.host === 'remote' ? peekAppPid(w) : 4101
@@ -85,7 +90,12 @@ export function startApp(w: World, o: { host: 'local' | 'remote'; cwd: string; b
   }
 
   // 2. the stockroom (database) must answer, know this role and this database
-  const cfg = readConfig(w.fs.remote, o.cwd)
+  const cfg = readConfig(w.fs.remote, o.cwd, o.env)
+  if (cfg.unresolved) {
+    w.x.app.lastExit = 'db-config'
+    w.x.app.everStarted = true
+    return dbFail(`org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'dataSource' defined in class path resource`, `java.lang.IllegalArgumentException: Could not resolve placeholder '${cfg.unresolved}' in value "\${${cfg.unresolved}}"`)
+  }
   const local = cfg.host === 'localhost' || cfg.host === '127.0.0.1'
   if (!local || cfg.port !== 5432 || !pgAccepting(w)) {
     w.x.app.lastExit = 'db-refused'
@@ -105,7 +115,7 @@ export function startApp(w: World, o: { host: 'local' | 'remote'; cwd: string; b
   }
 
   // 3. everything is in place
-  const proc = spawnApp(w, { bound: o.bound, immune: o.immune, cwd: o.cwd })
+  const proc = spawnApp(w, { bound: o.bound, immune: o.immune, cwd: o.cwd, unit: o.unit, cmd: o.cmd })
   w.x.pg.tablesCreated = true
   const P = proc.pid
   return {
@@ -143,21 +153,49 @@ export const ORDERS_SEED_SQL = `CREATE TABLE orders (id int PRIMARY KEY, custome
 INSERT INTO orders VALUES ${ORDERS.map((o) => `(${o.id}, '${o.customer}', '${o.item}', ${o.qty}, ${o.total.toFixed(2)})`).join(', ')};
 `
 
-export type HttpResult = { kind: 'ok'; status: number; body: string } | { kind: 'fail'; code: 6 | 7; msg: string }
+export type HttpResult =
+  | { kind: 'ok'; status: number; body: string; headers: string[]; proto: 'HTTP/1.1' | 'HTTP/2'; location?: string }
+  | { kind: 'fail'; code: number; msg: string }
 
-export function httpRequest(w: World, from: 'local' | 'remote', rawUrl: string): HttpResult {
-  const m = /^(?:https?:\/\/)?([^/:]+)(?::(\d+))?(\/.*)?$/.exec(rawUrl)
-  if (!m) return { kind: 'fail', code: 6, msg: `curl: (3) URL using bad/illegal format or missing URL` }
-  const host = m[1], port = Number(m[2] ?? (rawUrl.startsWith('https') ? 443 : 80)), path = m[3] ?? '/'
-  const isLoop = host === 'localhost' || host === '127.0.0.1'
-  const toServer = host === '203.0.113.10' || (isLoop && from === 'remote')
-  if (!isLoop && host !== '203.0.113.10') return { kind: 'fail', code: 6, msg: `curl: (6) Could not resolve host: ${host}` }
-  const refused = (): HttpResult => ({ kind: 'fail', code: 7, msg: `curl: (7) Failed to connect to ${host} port ${port} after ${toServer ? 0 : 31} ms: Connection refused` })
-  if (!toServer) return refused()          // `localhost` on the laptop is the laptop: nothing listens there
-  if (port !== 8080 || !appProc(w)) return refused()
+const SERVER_HOSTS = ['203.0.113.10', DOMAIN]
+/** What the Spring Boot app itself answers on :8080 (null when nothing listens there). */
+function appReply(w: World, path: string): NginxReply | null {
+  if (!appProc(w)) return null
   const dbUp = pgAccepting(w)
-  const j = (status: number, body: unknown) => ({ kind: 'ok' as const, status, body: JSON.stringify(body) })
+  const j = (status: number, body: unknown): NginxReply => ({ status, body: JSON.stringify(body) })
+  if (path === '/') return j(200, { service: 'shop-app', version: '1.0.0' })
   if (path === '/api/health' || path === '/actuator/health') return dbUp ? j(200, { status: 'UP' }) : j(503, { status: 'DOWN' })
   if (path === '/api/orders') return dbUp ? j(200, ORDERS) : j(500, { timestamp: new Date(T0 * 1000).toISOString(), status: 500, error: 'Internal Server Error', path })
   return j(404, { timestamp: new Date(w.clock * 1000).toISOString(), status: 404, error: 'Not Found', path })
+}
+
+export function httpRequest(w: World, from: 'local' | 'remote', rawUrl: string): HttpResult {
+  const m = /^(?:(https?):\/\/)?([^/:]+)(?::(\d+))?(\/.*)?$/.exec(rawUrl)
+  if (!m) return { kind: 'fail', code: 3, msg: 'curl: (3) URL using bad/illegal format or missing URL' }
+  const https = m[1] === 'https'
+  const host = m[2], port = Number(m[3] ?? (https ? 443 : 80)), path = m[4] ?? '/'
+  const isLoop = host === 'localhost' || host === '127.0.0.1'
+  if (!isLoop && !SERVER_HOSTS.includes(host)) return { kind: 'fail', code: 6, msg: `curl: (6) Could not resolve host: ${host}` }
+  const toServer = SERVER_HOSTS.includes(host) || (isLoop && from === 'remote')
+  const refused = (): HttpResult => ({ kind: 'fail', code: 7, msg: `curl: (7) Failed to connect to ${host} port ${port} after ${toServer ? 0 : 31} ms: Connection refused` })
+  if (!toServer) return refused()                       // `localhost` on the laptop is the laptop: nothing listens there
+  if (serverDown(w)) return { kind: 'fail', code: 7, msg: `curl: (7) Failed to connect to ${host} port ${port} after 28 ms: Connection refused` }
+  if (from === 'local' && ufwBlocks(w, port)) return { kind: 'fail', code: 28, msg: `curl: (28) Failed to connect to ${host} port ${port} after 130002 ms: Connection timed out` }
+  const date = `Date: ${longDate(w.clock)}`
+  if (port === 8080) {
+    const r = appReply(w, path)
+    if (!r) return refused()
+    return { kind: 'ok', status: r.status, body: r.body, proto: 'HTTP/1.1', headers: ['Content-Type: application/json', `Content-Length: ${r.body.length}`, date] }
+  }
+  if ((port === 80 || port === 443) && listensOn(w, port)) {
+    if (port === 443 && !https) return { kind: 'ok', status: 400, proto: 'HTTP/1.1', body: '400 The plain HTTP request was sent to HTTPS port', headers: [`Server: ${NGINX_VERSION}`, date] }
+    if (port === 80 && https) return { kind: 'fail', code: 35, msg: 'curl: (35) error:1408F10B:SSL routines:ssl3_get_record:wrong version number' }
+    if (https && host !== DOMAIN) return { kind: 'fail', code: 60, msg: `curl: (60) SSL: no alternative certificate subject name matches target host name '${host}'` }
+    const r = nginxRoute(w, port, host, path, (p) => appReply(w, p))
+    const ct = r.body.startsWith('{') || r.body.startsWith('[') ? 'application/json' : 'text/html'
+    const h2 = https
+    const hd = [`server: ${NGINX_VERSION}`, `date: ${longDate(w.clock)}`, `content-type: ${ct}`, `content-length: ${r.body.length}`, ...(r.location ? [`location: ${r.location}`] : [])]
+    return { kind: 'ok', status: r.status, body: r.body, proto: h2 ? 'HTTP/2' : 'HTTP/1.1', location: r.location, headers: h2 ? hd : hd.map((l) => l.replace(/^([a-z-]+):/, (_, k: string) => k.split('-').map((x) => x[0].toUpperCase() + x.slice(1)).join('-') + ':')) }
+  }
+  return refused()
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, CircleAlert, Lightbulb, Terminal as TermIcon } from 'lucide-react'
+import { CheckCircle2, CircleAlert, Clipboard, Lightbulb, Terminal as TermIcon } from 'lucide-react'
 import { useSim, useTracker } from '../runtime'
 
 const phaseName = { lab: '', diagnose: 'Diagnose', fix: 'Fix' } as const
@@ -12,6 +12,7 @@ export default function StepBar() {
   const fb = tracker.feedback
   const [revealed, setRevealed] = useState('')
   const [fbVisible, setFbVisible] = useState(true)
+  const [copied, setCopied] = useState('')
   useEffect(() => { setFbVisible(true); const t = setTimeout(() => setFbVisible(false), 9000); return () => clearTimeout(t) }, [fb?.at])
   const key = cur ? `${cur.ref.id}#${cur.index}` : ''
   const FbIcon = fb?.kind === 'fail' ? CircleAlert : CheckCircle2
@@ -26,6 +27,15 @@ export default function StepBar() {
             <span className="text-slate-500 dark:text-slate-400">step {cur.index + 1} of {cur.total}</span>
           </div>
           <p className="mt-1 text-[15px] leading-snug">{cur.step.instruction}</p>
+          {cur.step.snippet && (
+            <div className="mt-2 rounded-md bg-slate-900 text-slate-100 ring-1 ring-white/10">
+              <div className="flex items-center justify-between gap-2 px-2 py-1 text-xs text-slate-300">
+                <span className="truncate font-mono">{cur.step.snippet.title}</span>
+                <button type="button" onClick={() => { void navigator.clipboard?.writeText(cur.step.snippet!.text); setCopied(key) }} className="inline-flex min-h-[32px] items-center gap-1 rounded px-2 font-medium hover:bg-white/10"><Clipboard size={13} aria-hidden />{copied === key ? 'Copied' : 'Copy'}</button>
+              </div>
+              <pre className="max-h-40 overflow-auto px-2 pb-2 font-mono text-[11.5px] leading-snug">{cur.step.snippet.text}</pre>
+            </div>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {!cur.hintOpen && <button type="button" onClick={() => tracker.askHint()} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md bg-slate-100 px-3 font-medium hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15"><Lightbulb size={14} aria-hidden />Hint</button>}
             {cur.hintOpen && cur.step.command && revealed !== key && <button type="button" onClick={() => setRevealed(key)} className="inline-flex min-h-[36px] items-center rounded-md bg-slate-100 px-3 font-medium hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15">Show the command</button>}

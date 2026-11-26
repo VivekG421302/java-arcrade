@@ -1,6 +1,8 @@
 // Headless walkthrough of Stage 1 (run via scripts/verify-devops.mjs). Types every lab and chaos command from the curriculum data
 // into the real Simulator and asserts the Tracker advances, so content and engine can never silently drift apart.
 import { PLAYGROUND_STAGE1, STAGE_1 } from '../data/stage1'
+import { PLAYGROUND_STAGE2, STAGE_2 } from '../data/stage2'
+import { enterStage2, ENV_FILE, SITE_FILE, UNIT_FILE } from './stage2world'
 import { deriveBadges } from './badges'
 import { Simulator } from './session'
 import { keyChoices, sftpConnect, sftpRename, sftpTransfer } from './sftpGui'
@@ -179,6 +181,196 @@ ok(!wrong.passed, 'wrong quiz answers fail')
 const right = tr.submitQuiz(STAGE_1.unlockGate.quiz.questions.map((q) => q.answerIndex))
 ok(right.passed, 'right answers pass')
 ok(tr.isComplete() && tr.p.stageComplete, 'stage complete after everything', () => JSON.stringify(tr.gateItems().filter((i) => !i.done)))
+
+
+// =====================================================================================================================
+// STAGE 2
+// =====================================================================================================================
+const sim2 = new Simulator(PLAYGROUND_STAGE2, { stage: 2, key: 'devops:v1:sim:stage-2', init: enterStage2 })
+const tr2 = new Tracker(STAGE_2, sim2)
+const text2 = (id: number, n = 14) => sim2.tab(id)!.lines.slice(-n).map((l) => (l.t === 'cmd' ? `${l.prompt}${l.s}` : l.s)).join('\n')
+const where2 = () => { const c = tr2.current(); return c ? `   at ${c.ref.id} step ${c.index + 1}/${c.total}: ${c.step.instruction}\n   last output:\n${text2(sim2.current.shell.id, 18)}` : '   (no active step)' }
+async function go(id: number, line: string, expectAdvance = true) {
+  const before = tr2.current(); const idx = before?.index
+  await sim2.run(id, line)
+  if (sim2.tab(id)?.hold) sim2.interrupt(id)
+  if (expectAdvance && before) { const after = tr2.current(); ok(!after || after.ref.id !== before.ref.id || after.index > idx!, `[s2] "${line}" should complete ${before.ref.id} step ${idx! + 1}`, where2) }
+}
+async function editFile(id: number, cmd: string, content: string, expectAdvance = true) {
+  const before = tr2.current(); const idx = before?.index
+  await sim2.run(id, cmd)
+  const e = sim2.tab(id)!.edit
+  ok(!!e, `[s2] ${cmd} opens the editor`)
+  const r = sim2.saveEditor(id, content)
+  ok(r.ok, `[s2] saving ${e?.path} works`, () => r.msg)
+  sim2.closeEditor(id)
+  if (expectAdvance && before) { const after = tr2.current(); ok(!after || after.ref.id !== before.ref.id || after.index > idx!, `[s2] editing via "${cmd}" should complete ${before.ref.id} step ${idx! + 1}`, where2) }
+}
+
+ok(tr.p.stageComplete, 'stage 1 complete (prerequisite for stage 2)')
+ok(sim2.world.state.stage === 2 && !sim2.world.state.processes.appPid, 'stage 2 world starts with nothing running')
+const S1 = sim2.current.shell.id
+
+// ---------- Lab 2.1
+await go(S1, 'ssh -i ~/.ssh/deploy.pem ubuntu@203.0.113.10')
+await sim2.run(S1, 'sudo nano /etc/springboot.env'); { const r = sim2.saveEditor(S1, 'DB_URL=x\n'); ok(r.ok, 'editor saves'); sim2.closeEditor(S1) }
+ok(tr2.current()?.index === 1, 'a 1-line env file does not satisfy the 3-key step', where2)
+await editFile(S1, 'sudo nano /etc/springboot.env', ENV_FILE, false)
+ok(tr2.current()?.index === 2, 'env file with 3 keys advances', where2)
+await go(S1, 'sudo chmod 600 /etc/springboot.env')
+await sim2.run(S1, 'systemctl status springboot'); ok(/could not be found/.test(text2(S1)), 'no unit before the file exists')
+await editFile(S1, 'sudo nano /etc/systemd/system/springboot.service', UNIT_FILE)
+await go(S1, 'sudo systemctl daemon-reload')
+await go(S1, 'sudo systemctl enable --now springboot')
+ok(/Created symlink/.test(text2(S1, 8)), 'enable prints Created symlink')
+await go(S1, 'systemctl status springboot')
+let b2 = deriveBadges(sim2.world)
+ok(b2.systemd === 'RUNNING' && b2.app === 'RUNNING', 'systemd and app badges RUNNING', () => JSON.stringify(b2))
+ok(sim2.world.state.processes.appManagedBy === 'systemd' && sim2.world.state.systemd.springbootService === 'enabled-running', 'state: managed by systemd')
+await sim2.run(S1, 'ps aux | grep java'); ok(/\/usr\/bin\/java -jar \/opt\/myapp\/app\.jar/.test(text2(S1, 6)), 'ps shows the systemd ExecStart')
+// reboot
+await go(S1, 'sudo reboot')
+ok(sim2.tab(S1)!.shell.ssh === null, 'reboot hangs up the SSH session')
+ok(/closed by remote host/.test(text2(S1, 6)), 'reboot prints the closed-by-remote-host line')
+ok(sim2.world.state.processes.appPid !== null && sim2.world.state.processes.appManagedBy === 'systemd', 'the enabled service came back by itself after reboot')
+await go(S1, 'ssh -i ~/.ssh/deploy.pem ubuntu@203.0.113.10', false)
+ok(sim2.tab(S1)!.shell.ssh === null && /Connection refused/.test(text2(S1, 6)), 'ssh is refused while the server is still booting')
+await go(S1, 'sleep 20', false)
+await go(S1, 'ssh -i ~/.ssh/deploy.pem ubuntu@203.0.113.10')
+await go(S1, 'curl localhost:8080/api/health')
+await go(S1, 'journalctl -u springboot -f')
+ok(tr2.labDone('lab-2-1'), 'lab 2.1 done', where2)
+ok((sim2.world.x.sd.journal.springboot ?? []).some((l) => /Started Shop Spring Boot App/.test(l)), 'journal has the start line')
+
+// ---------- systemd behaviours: SIGTERM is a clean stop, SIGKILL is a crash that gets restarted
+{
+  const pid = () => sim2.world.state.processes.appPid
+  const p1 = pid()!
+  await sim2.run(S1, `sudo kill -9 ${p1}`)
+  ok(pid() === null && sim2.world.x.sd.units.springboot.active === 'activating', 'kill -9 crashes the service, systemd schedules a restart', () => JSON.stringify(sim2.world.x.sd.units.springboot))
+  await sim2.run(S1, 'sleep 6')
+  ok(pid() !== null && pid() !== p1, 'systemd restarted the killed service')
+  await sim2.run(S1, `sudo kill ${pid()}`)
+  ok(pid() === null && sim2.world.x.sd.units.springboot.active === 'inactive', 'SIGTERM (143) is a clean stop: no restart loop')
+  await sim2.run(S1, 'sudo systemctl start springboot')
+  ok(pid() !== null, 'start brings it back')
+  await sim2.run(S1, 'systemctl restart springboot'); ok(/Interactive authentication required/.test(text2(S1, 4)), 'systemctl restart needs sudo')
+  await sim2.run(S1, 'journalctl -u nosuch'); ok(/No entries/.test(text2(S1, 2)), 'journalctl for an unknown unit says no entries')
+}
+
+// ---------- Lab 2.2
+await go(S1, 'sudo apt install -y nginx')
+await go(S1, 'curl http://203.0.113.10')
+ok(sim2.world.state.listeners['80'] !== null, 'nginx listens on 80')
+await editFile(S1, 'sudo nano /etc/nginx/sites-available/shop', SITE_FILE)
+{
+  // the lesson behind `rm sites-enabled/default`: a visitor typing the bare IP matches no server_name, so the default site answers
+  sim2.world.fs.remote['/etc/nginx/sites-enabled/shop'] = { type: 'file', mode: '777', owner: 'root', size: 0, mtime: sim2.world.clock, link: '/etc/nginx/sites-available/shop' }
+  await sim2.run(S1, 'sudo systemctl reload nginx')
+  await sim2.run(S1, 'curl http://203.0.113.10/api/health'); ok(/404 Not Found/.test(text2(S1, 8)), 'with the default site enabled it wins for a bare-IP visitor (404, not the app)', () => text2(S1, 8))
+  delete sim2.world.fs.remote['/etc/nginx/sites-enabled/shop']
+  await sim2.run(S1, 'sudo systemctl reload nginx')
+}
+await go(S1, 'sudo rm /etc/nginx/sites-enabled/default')
+await go(S1, 'sudo ln -s /etc/nginx/sites-available/shop /etc/nginx/sites-enabled/')
+await sim2.run(S1, 'ls -l /etc/nginx/sites-enabled'); ok(/shop -> \/etc\/nginx\/sites-available\/shop/.test(text2(S1, 4)), 'ls -l shows the symlink')
+await sim2.run(S1, 'nginx -t'); ok(/Permission denied/.test(text2(S1, 6)), 'nginx -t without sudo is refused')
+// a broken file is caught with a line number, and reload keeps the old config
+{
+  const good = sim2.world.fs.remote['/etc/nginx/sites-available/shop'].content!
+  sim2.world.fs.remote['/etc/nginx/sites-available/shop'].content = good.replace('proxy_pass http://127.0.0.1:8080;', 'proxy_pass http://127.0.0.1:8080')
+  await sim2.run(S1, 'sudo nginx -t'); ok(/\[emerg\].* in \/etc\/nginx\/sites-enabled\/shop:\d+/.test(text2(S1, 6)), 'nginx -t reports the broken line', () => text2(S1, 6))
+  await sim2.run(S1, 'sudo systemctl reload nginx'); ok(/Job for nginx\.service failed/.test(text2(S1, 6)), 'reload of a broken config fails')
+  ok(sim2.world.state.listeners['80'] !== null, 'the old working config keeps serving after a failed reload')
+  sim2.world.fs.remote['/etc/nginx/sites-available/shop'].content = good
+}
+await go(S1, 'sudo nginx -t')
+await go(S1, 'sudo systemctl reload nginx')
+const W2 = sim2.addTab()!
+await go(W2, 'curl http://203.0.113.10/api/health')
+await go(S1, 'sudo apt install -y certbot python3-certbot-nginx && sudo certbot --nginx -d shop.example.com')
+ok(sim2.world.state.listeners['443'] !== null, 'nginx now listens on 443')
+await go(W2, 'curl -I https://shop.example.com')
+ok(tr2.labDone('lab-2-2'), 'lab 2.2 done', where2)
+await sim2.run(W2, 'curl -I https://203.0.113.10/api/health'); ok(/certificate subject name/.test(text2(W2, 4)), 'a certificate for a domain does not match the bare IP')
+await sim2.run(W2, 'curl -I http://localhost'); ok(/refused/.test(text2(W2, 4)), 'localhost on the laptop is the laptop')
+
+// ---------- Lab 2.3
+await go(S1, 'sudo ufw allow 22,80,443/tcp')
+await go(S1, 'sudo ufw enable')
+await go(S1, 'sudo ufw status numbered')
+ok(/\[ 1\] 22\/tcp/.test(text2(S1, 12)), 'ufw status numbered shows rule 1')
+await go(W2, 'curl http://203.0.113.10:8080/api/health')
+ok(tr2.labDone('lab-2-3'), 'lab 2.3 done', where2)
+await go(W2, 'curl https://shop.example.com/api/health', false)
+ok(tr2.p.gate['gate-front-desk'] === true, 'gate: front desk answers through nginx', () => text2(W2, 6))
+ok(tr2.p.gate['gate-door-8080'] === true, 'gate: port 8080 times out from outside')
+b2 = deriveBadges(sim2.world)
+ok(b2.nginx === 'RUNNING' && b2.systemd === 'RUNNING' && b2.db === 'RUNNING', 'all-green topology after the labs', () => JSON.stringify(b2))
+await sim2.run(W2, 'ssh -i ~/.ssh/deploy.pem ubuntu@203.0.113.10'); ok(sim2.tab(W2)!.shell.ssh !== null, 'ssh (door 22) still works with the firewall on')
+await sim2.run(W2, 'exit')
+
+// ---------- chaos 2.1: wrong upstream -> 502
+tr2.inject('chaos-2-1')
+b2 = deriveBadges(sim2.world)
+ok(b2.nginx === '502_BAD_GATEWAY' && b2.app === 'RUNNING', 'chaos 2.1 shows 502 on nginx while the app is fine', () => JSON.stringify(b2))
+{
+  const inc = STAGE_2.chaosLabs[0]; const steps = [...inc.diagnosticTrail, ...inc.exactFix]
+  for (let i = 0; i < steps.length; i++) {
+    if (inc.id === 'chaos-2-1' && i === 3) { const f = sim2.world.fs.remote['/etc/nginx/sites-available/shop'].content!; await editFile(S1, 'sudo nano /etc/nginx/sites-available/shop', f.replace(':8088', ':8080')); ok(sim2.world.state.listeners['80'] !== null, 'still serving'); continue }
+    await go(S1, steps[i].command!, false)
+    const cur = tr2.current(); ok(!cur || cur.ref.id !== inc.id || cur.index > i, `[s2] chaos-2-1 step ${i + 1} (${steps[i].command}) should advance`, where2)
+  }
+  ok(tr2.chaosDone('chaos-2-1'), 'chaos 2.1 done', where2)
+}
+
+// ---------- chaos 2.2: firewall lockout, rescue console
+tr2.inject('chaos-2-2')
+ok(sim2.tabs.every((t) => !t.shell.ssh), 'lockout drops every ssh session')
+{
+  const L = sim2.current.shell.id
+  await go(L, 'ssh -i ~/.ssh/deploy.pem ubuntu@203.0.113.10')
+  const b = deriveBadges(sim2.world); ok(b.app === 'RUNNING' && sim2.world.state.processes.appManagedBy === 'systemd', 'the service survived the lockout (systemd, not a login session)')
+  const R = sim2.openRescue()!
+  ok(sim2.tab(R)!.shell.rescue === true && !!sim2.tab(R)!.shell.ssh, 'rescue console is a remote shell that needs no network')
+  await go(R, 'sudo ufw status')
+  await go(R, 'sudo ufw allow 22/tcp'); await go(R, 'sudo ufw reload')
+  await sim2.run(R, 'exit'); ok(!sim2.tab(R), 'exit closes the rescue console')
+  const L2 = sim2.current.shell.id
+  await go(L2, 'ssh -i ~/.ssh/deploy.pem ubuntu@203.0.113.10')
+  ok(tr2.chaosDone('chaos-2-2'), 'chaos 2.2 done', where2)
+  await sim2.run(L2, 'exit')
+}
+
+// ---------- chaos 2.3: restart loop from a missing EnvironmentFile
+tr2.inject('chaos-2-3')
+b2 = deriveBadges(sim2.world)
+ok(b2.systemd === 'CrashLoopBackOff' && b2.app === 'CrashLoopBackOff', 'chaos 2.3 shows CrashLoopBackOff', () => JSON.stringify(b2))
+ok(sim2.world.state.systemd.springbootService === 'restart-loop', 'state: restart-loop')
+{
+  const t = sim2.current.shell.id
+  if (!sim2.tab(t)!.shell.ssh) await sim2.run(t, 'ssh -i ~/.ssh/deploy.pem ubuntu@203.0.113.10')
+  const inc = STAGE_2.chaosLabs[2]; const steps = [...inc.diagnosticTrail, ...inc.exactFix]
+  for (let i = 0; i < steps.length; i++) {
+    if (steps[i].command?.startsWith('sudo nano')) { await editFile(t, steps[i].command!, ENV_FILE); continue }
+    await go(t, steps[i].command!, false)
+    const cur = tr2.current(); ok(!cur || cur.ref.id !== inc.id || cur.index > i, `[s2] chaos-2-3 step ${i + 1} (${steps[i].command}) should advance`, where2)
+  }
+  ok(tr2.chaosDone('chaos-2-3'), 'chaos 2.3 done', where2)
+  b2 = deriveBadges(sim2.world); ok(b2.systemd === 'RUNNING', 'service healthy again')
+}
+{
+  // a flapping unit really loops: journal shows restart counters
+  tr2.inject('chaos-2-3')
+  await sim2.run(sim2.current.shell.id, 'journalctl -u springboot -n 40 --no-pager')
+  ok(/restart counter is at \d+/.test(text2(sim2.current.shell.id, 40)), 'journal shows restart counters')
+}
+
+// ---------- chaos 2.2 order lesson, quiz, gate
+ok(!tr2.isComplete(), 'stage 2 incomplete before the quiz')
+ok(!tr2.submitQuiz([0, 0, 0, 0, 0]).passed, 'stage 2 wrong answers fail')
+ok(tr2.submitQuiz(STAGE_2.unlockGate.quiz.questions.map((q) => q.answerIndex)).passed, 'stage 2 right answers pass')
+ok(tr2.isComplete() && tr2.p.stageComplete, 'stage 2 complete', () => JSON.stringify(tr2.gateItems().filter((i) => !i.done)))
 
 console.log(failures ? `\n${failures} of ${checks} checks FAILED` : `All ${checks} checks passed ✓`)
 if (failures) throw new Error(`${failures} verification check(s) failed`)

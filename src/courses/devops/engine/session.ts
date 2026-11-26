@@ -3,14 +3,14 @@
 import type { PlaygroundSpec } from '../types'
 import { injectChaos } from './chaos'
 import { closeShell, exec, followTick, interrupt, newShell, promptOf, saveEdit, type ExecResult, type Hold, type OutLine, type Shell } from './shell'
-import { createWorld, syncWorld, type World } from './world'
+import { createWorld, HOME, openSsh, syncWorld, type World } from './world'
 
 export interface TermLine { t: 'cmd' | 'out' | 'err' | 'sys'; s: string; prompt?: string }
 export interface EditReq { host: 'local' | 'remote'; path: string; sudo: boolean }
 export interface Tab { shell: Shell; lines: TermLine[]; hold: Hold | null; secret: boolean; edit: EditReq | null; busy: boolean }
 export interface SimEvent { command: string; result: ExecResult | null; tabId: number | null }
 
-const KEY = 'devops:v1:sim'
+export interface SimOptions { key?: string; stage?: number; init?: (w: World) => void }
 const MAX_LINES = 400
 const MAX_TABS = 4
 
@@ -29,13 +29,20 @@ export class Simulator {
   private listeners = new Set<() => void>()
   private saveTimer: ReturnType<typeof setTimeout> | null = null
 
-  constructor(private spec: PlaygroundSpec) {
+  private readonly key: string
+  constructor(private spec: PlaygroundSpec, private opts: SimOptions = {}) {
+    this.key = opts.key ?? 'devops:v1:sim'
     this.world = this.fresh()
     this.restore()
     if (!this.tabs.length) this.addTab(false)
   }
 
-  private fresh(): World { return createWorld(this.spec.terminal.filesystem, this.spec.terminal.remoteFilesystem ?? this.spec.terminal.filesystem) }
+  private fresh(): World {
+    const w = createWorld(this.spec.terminal.filesystem, this.spec.terminal.remoteFilesystem ?? this.spec.terminal.filesystem, this.opts.stage ?? 1)
+    this.opts.init?.(w)
+    syncWorld(w)
+    return w
+  }
 
   // ---- store plumbing ----
   subscribe = (l: () => void) => { this.listeners.add(l); return () => { this.listeners.delete(l) } }
@@ -52,12 +59,12 @@ export class Simulator {
   }
   save() {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ v: 1, world: this.world, nextTabId: this.nextTabId, active: this.active, tabs: this.tabs.map((t) => ({ shell: t.shell, lines: t.lines.slice(-MAX_LINES) })) }))
+      localStorage.setItem(this.key, JSON.stringify({ v: 1, world: this.world, nextTabId: this.nextTabId, active: this.active, tabs: this.tabs.map((t) => ({ shell: t.shell, lines: t.lines.slice(-MAX_LINES) })) }))
     } catch { /* storage full or unavailable: the simulator still works, it just will not survive a reload */ }
   }
   private restore() {
     try {
-      const raw = localStorage.getItem(KEY)
+      const raw = localStorage.getItem(this.key)
       if (!raw) return
       const d = JSON.parse(raw)
       if (d.v !== 1 || !d.world || !Array.isArray(d.tabs)) return
@@ -118,8 +125,34 @@ export class Simulator {
       if (this.tabs.length > 1) { this.closeTab(id); return r }
       t.lines.push({ t: 'sys', s: '[This is the only terminal. It stays open: use + to add another.]' })
     }
+    this.applyHangup()
     this.emit({ command: secret ? '(password)' : line, result: r, tabId: id })
     return r
+  }
+
+  /** After `reboot`: every SSH session on every tab is gone. */
+  private applyHangup() {
+    if (!this.world.x.reboot.hangup) return
+    this.world.x.reboot.hangup = false
+    for (const t of this.tabs) {
+      if (!t.shell.ssh) continue
+      t.shell.ssh = null; t.shell.repl = null; t.hold = null; t.secret = false; t.edit = null
+      t.lines.push({ t: 'err', s: 'Connection to 203.0.113.10 closed by remote host.' }, { t: 'err', s: 'Connection to 203.0.113.10 closed.' })
+    }
+    this.current.lines.push({ t: 'sys', s: '[simulator] The server is rebooting. Real servers take 30 to 60 seconds to come back. Services that are enabled start by themselves.' })
+  }
+
+  /** The hosting company's out-of-band console: a login that does not use the network (and so ignores the firewall). */
+  openRescue(): number | null {
+    if (this.tabs.length >= MAX_TABS) return null
+    const shell = newShell(this.nextTabId++)
+    const slot = openSsh(this.world)
+    shell.rescue = true
+    shell.ssh = { id: slot.id, user: 'ubuntu', cwd: HOME.remote }
+    this.tabs.push({ shell, lines: [{ t: 'sys', s: 'Provider rescue console (like the AWS EC2 Serial Console or a VPS web console). It does not use the network, so a firewall cannot block it. Type exit to close it.' }], hold: null, secret: false, edit: null, busy: false })
+    this.active = this.tabs.length - 1
+    this.emit({ command: '[opened rescue console]', result: null, tabId: shell.id })
+    return shell.id
   }
 
   interrupt(id: number) {

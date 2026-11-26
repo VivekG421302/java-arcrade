@@ -28,17 +28,39 @@ export interface Proc {
   bound: number | null            // ssh session id this process dies with (SIGHUP) unless immune
   immune: boolean                 // started with nohup / setsid
   listens: number[]
+  unit?: string                   // systemd unit that owns this process
 }
 
 export interface SshSlot { id: number; tty: string; since: number }
 
 export interface Extras {
-  app: { everStarted: boolean; lastExit: 'none' | 'sighup' | 'bind' | 'db-refused' | 'db-auth' | 'db-missing' | 'killed' | 'stopped'; starts: number }
+  app: { everStarted: boolean; lastExit: 'none' | 'sighup' | 'bind' | 'db-refused' | 'db-auth' | 'db-missing' | 'db-config' | 'killed' | 'sigkill' | 'sigterm' | 'stopped'; starts: number }
   pg: { installed: boolean; running: boolean; users: Record<string, string>; dbs: Record<string, string>; grants: Record<string, string[]>; tablesCreated: boolean; confListen: string; activeListen: string }
-  apt: { updated: boolean }
+  apt: { updated: boolean; pkgs: string[] }
   sftp: { connected: boolean; transfers: number }
   net: { appReachableFromInternet: boolean }
+  /** Stage 2: systemd, nginx, ufw, certbot. All inert in a Stage 1 world. */
+  sd: { units: Record<string, UnitState>; loaded: Record<string, string>; journal: Record<string, string[]> }
+  nginx: { installed: boolean; running: boolean; enabled: boolean; loaded: NginxConfig | null }
+  ufw: { enabled: boolean; rules: number[] }
+  certs: string[]
+  reboot: { count: number; hangup: boolean; downUntil: number }
+  /** Facts derived from files after every command, so lab rules can say `state-equals x.d.envKeys 3`. */
+  d: { envKeys: number; envMode: string; unitFile: 'missing' | 'ok' | 'invalid'; siteFile: 'missing' | 'ok' | 'wrong-upstream' | 'invalid'; siteEnabled: boolean; defaultSiteEnabled: boolean; ufwAllows22: boolean }
 }
+
+export interface UnitState {
+  enabled: boolean
+  active: 'inactive' | 'active' | 'activating' | 'failed'
+  result: string                  // 'success' | 'exit-code' | 'resources' | ...
+  pid: number | null
+  restarts: number
+  since: number
+  nextRestartAt: number | null
+}
+
+export interface NginxServer { listen: number[]; ssl: boolean; names: string[]; defaultServer: boolean; proxy: number | null; welcome: boolean; redirectTo: string | null }
+export interface NginxConfig { servers: NginxServer[] }
 
 export interface World {
   v: 1
@@ -63,7 +85,7 @@ export function initialState(): SimulatedServerState {
     packages: { java17: false, java21: false, postgresql: false, nginx: false, docker: false },
     processes: { appPid: null, appManagedBy: 'none' },
     listeners: { '22': 812, '80': null, '443': null, '5432': null, '8080': null },
-    firewall: { ufwEnabled: false, allowedPorts: [22] },
+    firewall: { ufwEnabled: false, allowedPorts: [] },
     files: {},
     disks: { rootUsedPct: 18, varLogUsedPct: 4 },
     systemd: { springbootService: 'disabled' },
@@ -76,14 +98,19 @@ export function initialState(): SimulatedServerState {
   }
 }
 
-export function createWorld(local: VirtualFileSystemNode, remote: VirtualFileSystemNode): World {
+export function createWorld(local: VirtualFileSystemNode, remote: VirtualFileSystemNode, stage = 1): World {
   const w: World = {
     v: 1, clock: T0, boot: T0 - 3 * 86400 - 4 * 3600,
-    state: initialState(),
+    state: { ...initialState(), stage },
     x: {
       app: { everStarted: false, lastExit: 'none', starts: 0 },
       pg: { installed: false, running: false, users: {}, dbs: {}, grants: {}, tablesCreated: false, confListen: 'localhost', activeListen: 'localhost' },
-      apt: { updated: false }, sftp: { connected: false, transfers: 0 }, net: { appReachableFromInternet: false },
+      apt: { updated: false, pkgs: [] }, sftp: { connected: false, transfers: 0 }, net: { appReachableFromInternet: false },
+      sd: { units: {}, loaded: {}, journal: {} },
+      nginx: { installed: false, running: false, enabled: false, loaded: null },
+      ufw: { enabled: false, rules: [] },
+      certs: [], reboot: { count: 0, hangup: false, downUntil: 0 },
+      d: { envKeys: 0, envMode: '', unitFile: 'missing', siteFile: 'missing', siteEnabled: false, defaultSiteEnabled: false, ufwAllows22: false },
     },
     fs: { local: buildFs(local, T0 - 86400), remote: buildFs(remote, T0 - 86400) },
     procs: [], ssh: [], nextPid: 2401, nextSsh: 1, appSeq: 0, remoteHistory: [], sshdPid: 812,
@@ -97,6 +124,10 @@ export function createWorld(local: VirtualFileSystemNode, remote: VirtualFileSys
 }
 
 export const tick = (w: World, s = 1) => { w.clock += s }
+/** UFW drops inbound traffic from outside to any port without an allow rule (loopback and established sessions are unaffected). */
+export const ufwBlocks = (w: World, port: number) => w.x.ufw.enabled && !w.x.ufw.rules.includes(port)
+/** The server is still booting after `reboot`: nothing answers yet. */
+export const serverDown = (w: World) => w.x.reboot.downUntil > w.clock
 export const pad = (n: number, l = 2) => String(n).padStart(l, '0')
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -123,21 +154,33 @@ export const pgProc = (w: World) => w.procs.find((p) => p.kind === 'postgres')
 
 const hash = (s: string) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(16).padStart(8, '0') }
 
-const TRACKED: [keyof World['fs'], string][] = [['remote', `${APP_DIR}/app.jar`], ['remote', `${APP_DIR}/app.log`], ['remote', PG_CONF], ['local', PEM], ['local', `${LOCAL_PROJECT}/target/${JAR_NAME}`]]
+const TRACKED: [keyof World['fs'], string][] = [['remote', `${APP_DIR}/app.jar`], ['remote', `${APP_DIR}/app.log`], ['remote', PG_CONF], ['local', PEM], ['local', `${LOCAL_PROJECT}/target/${JAR_NAME}`], ['remote', '/etc/springboot.env'], ['remote', '/etc/systemd/system/springboot.service'], ['remote', '/etc/nginx/sites-available/shop']]
+
+/** Stage 2 plugs its systemd scheduler in here (kept as a hook so world.ts does not import it back). */
+export const hooks: { advance: ((w: World) => void) | null; derive: ((w: World) => void) | null } = { advance: null, derive: null }
 
 /** Recompute the spec's SimulatedServerState from ground truth. Call after every command. */
 export function syncWorld(w: World) {
+  hooks.advance?.(w)
   const s = w.state
   const app = appProc(w), pg = pgProc(w)
   w.x.pg.confListen = pgConfListen(w)
   s.server.uptimeSeconds = w.clock - w.boot
   s.packages.postgresql = w.x.pg.installed
   s.processes.appPid = app?.pid ?? null
-  s.processes.appManagedBy = app ? (app.immune ? 'nohup' : 'none') : 'none'
+  s.processes.appManagedBy = app ? (app.unit ? 'systemd' : app.immune ? 'nohup' : 'none') : 'none'
   s.listeners['22'] = w.sshdPid
   s.listeners['8080'] = app?.pid ?? null
   s.listeners['5432'] = pgAccepting(w) && pg ? pg.pid : null
-  s.firewall.ufwEnabled = false
+  s.firewall.ufwEnabled = w.x.ufw.enabled
+  s.firewall.allowedPorts = [...w.x.ufw.rules]
+  s.packages.nginx = w.x.nginx.installed
+  const ng = w.procs.find((p) => p.unit === 'nginx' && p.cmd.startsWith('nginx: master'))
+  s.listeners['80'] = ng && w.x.nginx.loaded?.servers.some((v) => v.listen.includes(80)) ? ng.pid : null
+  s.listeners['443'] = ng && w.x.nginx.loaded?.servers.some((v) => v.listen.includes(443)) ? ng.pid : null
+  const sb = w.x.sd.units.springboot
+  s.systemd.springbootService = !sb ? 'disabled' : sb.active === 'active' && sb.enabled ? 'enabled-running' : sb.active === 'activating' ? 'restart-loop' : sb.active === 'failed' ? 'failed' : 'disabled'
+  hooks.derive?.(w)
   for (const [host, p] of TRACKED) {
     const e = w.fs[host][p]
     s.files[`${host}:${p}`] = { exists: !!e, contentHash: e ? hash((e.content ?? '') + e.size) : '', permissions: e?.mode ?? '' }
@@ -149,11 +192,11 @@ export function syncWorld(w: World) {
 /** The PID the next app launch will get (spec walkthrough: 2142, then 2317, ...). Failed launches print it too, without consuming it. */
 export const peekAppPid = (w: World) => APP_PIDS[w.appSeq] ?? APP_PIDS[APP_PIDS.length - 1] + 163 * (w.appSeq - APP_PIDS.length + 1)
 
-export function spawnApp(w: World, o: { bound: number | null; immune: boolean; cwd: string; pid?: number }): Proc {
+export function spawnApp(w: World, o: { bound: number | null; immune: boolean; cwd: string; pid?: number; unit?: string; cmd?: string }): Proc {
   const next = peekAppPid(w)
   const pid = o.pid ?? next
   if (pid === next) w.appSeq++
-  const p: Proc = { pid, user: 'ubuntu', cmd: 'java -jar app.jar', tty: w.ssh.find((s) => s.id === o.bound)?.tty ?? '?', stat: 'Sl', rssKb: 402112, started: w.clock, kind: 'app', bound: o.bound, immune: o.immune, listens: [8080] }
+  const p: Proc = { pid, user: 'ubuntu', cmd: o.cmd ?? 'java -jar app.jar', unit: o.unit, tty: w.ssh.find((s) => s.id === o.bound)?.tty ?? '?', stat: 'Sl', rssKb: 402112, started: w.clock, kind: 'app', bound: o.bound, immune: o.immune, listens: [8080] }
   w.procs.push(p)
   w.x.app.everStarted = true
   w.x.app.lastExit = 'none'

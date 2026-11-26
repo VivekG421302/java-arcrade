@@ -4,7 +4,10 @@ import { startApp } from './app'
 import { writeFile } from './fs'
 import { closeShell } from './shell'
 import type { OutLine, Shell } from './shellTypes'
-import { APP_DIR, fastForward, killProc, openSsh, PEM, PG_CONF, pgConfListen, spawnApp, startPostgresProcs, syncWorld, type World } from './world'
+import { fullyHardened } from './stage2world'
+import { nginxReload } from './nginx'
+import { startUnit, stopUnit } from './systemd'
+import { tick, APP_DIR, fastForward, killProc, openSsh, PEM, PG_CONF, pgConfListen, spawnApp, startPostgresProcs, syncWorld, type World } from './world'
 
 /** A healthy, fully deployed shop with nothing running: the starting point every chaos lab assumes. */
 export function healthyBaseline(w: World) {
@@ -21,6 +24,9 @@ export function healthyBaseline(w: World) {
 }
 
 type Injection = (w: World, shells: Shell[]) => string
+
+/** Gives the restart loop a few cycles of history, as if it had been flapping for half a minute. */
+const letItFlap = (w: World) => { for (let i = 0; i < 4; i++) { tick(w, 6); syncWorld(w) } }
 
 const REMEMBER = (w: World, cmd: string) => { if (!w.remoteHistory.includes(cmd)) w.remoteHistory.push(cmd) }
 
@@ -50,6 +56,32 @@ const INJECTIONS: Record<string, Injection> = {
     startPostgresProcs(w)
     startApp(w, { host: 'remote', cwd: APP_DIR, bound: null, immune: true, user: 'ubuntu' })   // the app tries to start and dies
     return '💥 PostgreSQL was restarted with a different network setting, and the shop app just tried to start.'
+  },
+  /** Chaos 2.1: the receptionist's phonebook says 8088 while the kitchen listens on 8080. */
+  nginxWrongUpstream(w) {
+    fullyHardened(w)
+    const f = w.fs.remote['/etc/nginx/sites-available/shop']
+    w.fs.remote['/etc/nginx/sites-available/shop'] = { ...f, content: (f.content ?? '').replace(':8080', ':8088'), mtime: w.clock }
+    nginxReload(w)
+    return '💥 Someone edited the nginx site file and reloaded nginx. Visitors now get an error page.'
+  },
+  /** Chaos 2.2: the guard was switched on with doors 80 and 443 on the list, but not door 22. */
+  ufwLockout(w, shells) {
+    fullyHardened(w)
+    w.x.ufw.rules = [80, 443]
+    w.x.ufw.enabled = true
+    for (const sh of shells) closeShell(w, sh)
+    w.ssh = []
+    return '💥 `ufw enable` just ran without a rule for port 22. Your connection dropped, and nothing new can get in.'
+  },
+  /** Chaos 2.3: the service file points at /etc/springboot.env, which does not exist. */
+  missingEnvFile(w) {
+    fullyHardened(w)
+    delete w.fs.remote['/etc/springboot.env']
+    stopUnit(w, 'springboot')
+    startUnit(w, 'springboot')
+    letItFlap(w)
+    return '💥 After a clean-up, /etc/springboot.env is gone. systemd keeps trying to start the app.'
   },
   /** Chaos 1.4: the key file is world-readable. */
   loosenKeyPermissions(w) {

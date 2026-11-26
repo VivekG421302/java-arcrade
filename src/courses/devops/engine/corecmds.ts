@@ -1,5 +1,5 @@
 // Core Linux commands for the simulated terminal. Each handler prints what the real command prints, including real error text.
-import { base, can, humanSize, join, listDir, mkdirp, modeString, parent, removeTree, copyTree, moveTree, writeFile, type FsEntry } from './fs'
+import { base, can, humanSize, join, listDir, mkdirp, modeString, parent, removeTree, copyTree, moveTree, resolveLink, writeFile, type FsEntry } from './fs'
 import { glob } from './fs'
 import { appProc, hhmm, killProc, lsDate, longDate, pad, PUBLIC_IP, HOSTNAME, tick, type Proc } from './world'
 import type { CmdCtx, CmdFn } from './shellTypes'
@@ -59,7 +59,7 @@ const ls: CmdFn = (c) => {
     if (!long) { wrapNames(entries.map(([n]) => n)).forEach((l) => c.out(l)); return }
     const rows = entries.map(([n, e]) => {
       const subdirs = e.type === 'dir' ? Object.keys(c.fs).filter((k) => parent(k) === (n === '.' || n === '..' ? c.abs(n) : c.abs(n)) && c.fs[k].type === 'dir' && k !== '/').length : 0
-      return [modeString(e), String(e.type === 'dir' ? 2 + subdirs : 1), e.owner, e.owner, human ? humanSize(e.size) : String(e.size), lsDate(e.mtime), n]
+      return [modeString(e), String(e.type === 'dir' ? 2 + subdirs : 1), e.owner, e.owner, human ? humanSize(e.size) : String(e.size), lsDate(e.mtime), e.link ? `${n} -> ${e.link}` : n]
     })
     const wid = [1, 2, 3, 4].map((i) => Math.max(...rows.map((r) => r[i].length)))
     for (const r of rows) c.out(`${r[0]} ${r[1].padStart(wid[0])} ${r[2].padEnd(wid[1])} ${r[3].padEnd(wid[2])} ${r[4].padStart(wid[3])} ${r[5]} ${r[6]}`)
@@ -97,7 +97,7 @@ const cat: CmdFn = (c) => {
   if (!files.length) { lines(c.stdin ?? '').forEach((l) => c.out(l)); return 0 }
   let code = 0
   for (const f of files) {
-    const e = c.fs[c.abs(f)]
+    const e = resolveLink(c.fs, c.abs(f))
     if (!e) { c.err(`cat: ${f}: No such file or directory`); code = 1 }
     else if (e.type === 'dir') { c.err(`cat: ${f}: Is a directory`); code = 1 }
     else if (!can(e, c.user, 'r')) { c.err(`cat: ${f}: Permission denied`); code = 1 }
@@ -130,6 +130,25 @@ const mkdir: CmdFn = (c) => {
     mkdirp(c.fs, p, c.user, c.w.clock)
   }
   return code
+}
+
+const ln: CmdFn = (c) => {
+  const { flags, operands } = flagsOf(c.argv.slice(1))
+  if (operands.length < 2) { c.err(`ln: missing file operand${operands.length ? ` after '${operands[0]}'` : ''}`); return 1 }
+  const [src, dst] = operands
+  const target = c.abs(src)
+  const dp = c.abs(dst)
+  const to = c.fs[dp]?.type === 'dir' ? join(dp, base(target)) : dp
+  if (c.fs[to]) {
+    if (!flags.has('f')) { c.err(`ln: failed to create ${flags.has('s') ? 'symbolic ' : ''}link '${dst}': File exists`); return 1 }
+    delete c.fs[to]
+  }
+  const par = c.fs[parent(to)]
+  if (!par) { c.err(`ln: failed to create symbolic link '${dst}': No such file or directory`); return 1 }
+  if (!can(par, c.user, 'w')) { c.err(`ln: failed to create ${flags.has('s') ? 'symbolic ' : ''}link '${dst}': Permission denied`); return 1 }
+  if (!flags.has('s')) { copyTree(c.fs, target, to, c.user, c.w.clock); return c.fs[target] ? 0 : (c.err(`ln: failed to access '${src}': No such file or directory`), 1) }
+  c.fs[to] = { type: 'file', mode: '777', owner: c.user, size: target.length, mtime: c.w.clock, link: target }
+  return 0
 }
 
 const touch: CmdFn = (c) => {
@@ -272,7 +291,7 @@ const grep: CmdFn = (c) => {
   if (!operands.length) sources.push([null, lines(c.stdin ?? '')])
   let code = 1
   for (const f of operands) {
-    const e = c.fs[c.abs(f)]
+    const e = resolveLink(c.fs, c.abs(f))
     if (!e) { c.err(`grep: ${f}: No such file or directory`); code = 2; continue }
     if (e.type === 'dir') { c.err(`grep: ${f}: Is a directory`); continue }
     if (!can(e, c.user, 'r')) { c.err(`grep: ${f}: Permission denied`); code = 2; continue }
@@ -306,7 +325,7 @@ const headTail = (which: 'head' | 'tail'): CmdFn => (c) => {
   if (!files.length) { pick(lines(c.stdin ?? '')).forEach((l) => c.out(l)); return 0 }
   let code = 0
   for (const f of files) {
-    const e = c.fs[c.abs(f)]
+    const e = resolveLink(c.fs, c.abs(f))
     if (!e) { c.err(`${which}: cannot open '${f}' for reading: No such file or directory`); code = 1; continue }
     if (!can(e, c.user, 'r')) { c.err(`${which}: cannot open '${f}' for reading: Permission denied`); code = 1; continue }
     if (files.length > 1) c.out(`==> ${f} <==`)
@@ -438,11 +457,10 @@ function signalFrom(s: string): number | null {
   return SIGS[n.toUpperCase()] ?? null
 }
 
-function deliver(c: CmdCtx, p: Proc, label: string): number {
+function deliver(c: CmdCtx, p: Proc, sig: number): number {
   if (p.user !== c.user && c.user !== 'root') { c.err(`bash: kill: (${p.pid}) - Operation not permitted`); return 1 }
   if (p.pid === 1 || p.kind === 'sshd') { c.err(`bash: kill: (${p.pid}) - Operation not permitted`); return 1 }
-  killProc(c.w, p.pid, 'killed')
-  void label
+  killProc(c.w, p.pid, sig === 9 ? 'sigkill' : 'sigterm')
   return 0
 }
 
@@ -456,7 +474,6 @@ const kill: CmdFn = (c) => {
     else if (a.startsWith('-') && signalFrom(a) !== null) sig = signalFrom(a)!
     else pids.push(a)
   }
-  void sig
   if (!pids.length) { c.err('kill: usage: kill [-s sigspec | -n signum | -sigspec] pid | jobspec ... or kill -l [sigspec]'); return 2 }
   let code = 0
   for (const s of pids) {
@@ -464,7 +481,7 @@ const kill: CmdFn = (c) => {
     if (!Number.isInteger(pid)) { c.err(`bash: kill: ${s}: arguments must be process or job IDs`); code = 1; continue }
     const p = c.w.procs.find((q) => q.pid === pid)
     if (!p) { c.err(`bash: kill: (${pid}) - No such process`); code = 1; continue }
-    code = deliver(c, p, s) || code
+    code = deliver(c, p, sig) || code
   }
   return code
 }
@@ -480,8 +497,9 @@ const pkill: CmdFn = (c) => {
   if (!pat) { c.err('pkill: no matching criteria specified'); return 2 }
   const hits = matchProcs(c, pat, flags.has('f'))
   if (!hits.length) return 1
+  const sig = c.argv.some((a) => /^-(9|KILL|SIGKILL)$/i.test(a)) ? 9 : 15
   let code = 0
-  for (const p of hits) code = deliver(c, p, pat) || code
+  for (const p of hits) code = deliver(c, p, sig) || code
   return code
 }
 
@@ -527,7 +545,7 @@ const noop: CmdFn = (c) => { if (c.argv[0] === 'sleep') tick(c.w, Number(c.argv[
 const clear: CmdFn = (c) => { c.result.clear = true; return 0 }
 
 export const CORE: Record<string, CmdFn> = {
-  pwd, cd, ls, cat, echo, mkdir, touch, rm, cp, mv, chmod, chown, grep, egrep: (c) => grep({ ...c, argv: ['grep', '-E', ...c.argv.slice(1)] }), head: headTail('head'), tail: headTail('tail'), wc, find, sed, tee,
+  pwd, cd, ls, cat, echo, mkdir, ln, touch, rm, cp, mv, chmod, chown, grep, egrep: (c) => grep({ ...c, argv: ['grep', '-E', ...c.argv.slice(1)] }), head: headTail('head'), tail: headTail('tail'), wc, find, sed, tee,
   ps, kill, pkill, killall: pkill, pgrep, whoami, hostname: hostnameCmd, id, uname, date, uptime, df, free, env, printenv: env, history, jobs, which,
   sleep: noop, true: noop, false: noop, clear,
 }
