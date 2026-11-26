@@ -7,17 +7,18 @@ import StepBar from './StepBar'
 import TerminalPane from './TerminalPane'
 import TopologyMap from './TopologyMap'
 
-export type ZoneTab = 'ftp' | 'term' | 'view' | 'hint'
-const TAB_IDS: ZoneTab[] = ['ftp', 'term', 'view', 'hint']
+export type ZoneTab = 'ftp' | 'term'
 
 const pill = (on: boolean) => `relative inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium ring-1 ${on ? 'bg-sky-600 text-white ring-sky-600' : 'text-slate-700 ring-slate-300 hover:bg-slate-200/70 dark:text-slate-300 dark:ring-white/15 dark:hover:bg-white/10'}`
 const iconTab = (on: boolean) => `relative grid h-11 w-11 shrink-0 place-items-center rounded-lg ring-1 ${on ? 'bg-sky-600 text-white ring-sky-600' : 'text-slate-700 ring-slate-300 hover:bg-slate-200/70 dark:text-slate-300 dark:ring-white/15 dark:hover:bg-white/10'}`
 const card = 'overflow-hidden rounded-2xl bg-slate-100 shadow-lg ring-1 ring-slate-300/70 dark:bg-[#181b22] dark:ring-white/10'
 
 /**
- * The practical zone. Two layouts over the SAME element tree (so terminals, FileZilla state and typed text survive a switch):
- *  - tabs: one tool at a time, picked from the header (FileZilla, Terminal, the eye = live server map, the bulb = hint)
- *  - grid: all four tools on screen at once, used when the roadmap is collapsed and this zone has the whole width
+ * The practical zone has two zones: FileZilla, and the Terminal zone. The Terminal zone stacks a collapsible strip that
+ * holds View (eye) and Hint (bulb) on top of the terminal. Two layouts over the SAME element tree (so terminals,
+ * FileZilla state and typed text survive a switch):
+ *  - tabs: one zone at a time, picked from the header
+ *  - grid: both zones side by side, used when the roadmap is collapsed and this zone has the whole width
  */
 export default function PracticalZone({ layout, visible, lead, trail }: { layout: 'tabs' | 'grid'; visible: boolean; lead?: ReactNode; trail?: ReactNode }) {
   const sim = useSim()
@@ -25,42 +26,56 @@ export default function PracticalZone({ layout, visible, lead, trail }: { layout
   const def = useStageDef()
   const grid = layout === 'grid'
   const [saved, setTab] = usePersisted<ZoneTab>('ui:devops:tab', 'term')
-  const tab: ZoneTab = TAB_IDS.includes(saved) ? saved : 'term'
+  const tab: ZoneTab = saved === 'ftp' ? 'ftp' : 'term'
+  const [viewOpen, setViewOpen] = usePersisted('ui:devops:view', true)
+  const [hintOpen, setHintOpen] = usePersisted('ui:devops:hint', true)
+  const showTerm = grid || tab === 'term'
+  const showFtp = grid || tab === 'ftp'
+  const hintVisible = hintOpen && showTerm
+  const viewVisible = viewOpen && showTerm
 
   // "Type it for me" in the hint puts text in the terminal prompt: bring the terminal forward so it is seen
   const seenDraft = useRef(sim.draftSeq)
   useEffect(() => { if (sim.draftSeq !== seenDraft.current) { seenDraft.current = sim.draftSeq; setTab('term') } })
-  // picking a lab or chaos lab in the roadmap loads its first step: show it
+  // picking a lab or chaos lab in the roadmap loads its first step: show the terminal zone with the hint open
   const focusKey = tracker.p.focus ? `${tracker.p.focus.kind}:${tracker.p.focus.id}` : ''
   const seenFocus = useRef(focusKey)
-  useEffect(() => { if (focusKey !== seenFocus.current) { seenFocus.current = focusKey; setTab('hint') } }, [focusKey, setTab])
-  // a dot on the bulb when a step passed or failed while another tool is in front
+  useEffect(() => { if (focusKey !== seenFocus.current) { seenFocus.current = focusKey; setTab('term'); setHintOpen(true) } }, [focusKey, setTab, setHintOpen])
+  // a dot on the bulb when a step passed or failed while the hint is out of sight
   const fbAt = tracker.feedback?.at
   const [seenFb, setSeenFb] = useState(fbAt)
-  useEffect(() => { if (grid || tab === 'hint') setSeenFb(fbAt) }, [grid, tab, fbAt])
-  const hintDot = !grid && tab !== 'hint' && fbAt !== undefined && fbAt !== seenFb
+  useEffect(() => { if (hintVisible) setSeenFb(fbAt) }, [hintVisible, fbAt])
+  const hintDot = !hintVisible && fbAt !== undefined && fbAt !== seenFb
 
+  const toggle = (which: 'view' | 'hint') => {
+    const on = which === 'view' ? viewOpen : hintOpen
+    const set = which === 'view' ? setViewOpen : setHintOpen
+    if (!showTerm) { setTab('term'); set(true) } else set(!on)
+  }
   const label = (i: number) => { const s = sim.tabs[i].shell; return s.rescue ? 'Rescue console' : s.ssh ? `PuTTY ${s.ssh.user}@shop-server` : sim.tabs.length > 1 ? `Laptop ${i + 1}` : 'Laptop' }
-  const shown = (id: ZoneTab) => grid || tab === id
-  const panel = (id: ZoneTab) => grid
-    ? `flex min-h-0 min-w-0 flex-col ${card} ${id === 'hint' || id === 'view' ? 'max-h-[40vh]' : ''}`
-    : tab === id ? 'flex min-h-0 flex-1 flex-col' : 'hidden'
-  const title = (Icon: LucideIcon, text: string) => grid && (
-    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-slate-200 px-3 text-sm font-medium dark:border-white/10"><Icon size={15} aria-hidden />{text}</div>
-  )
-  const termVisible = visible && shown('term')
+  const termVisible = visible && showTerm
 
-  const tabBtn = (id: ZoneTab, Icon: LucideIcon, text: string, tip: string, dot = false) => (
+  const tabBtn = (id: ZoneTab, Icon: LucideIcon, text: string, tip: string) => (
     <button key={id} role="tab" type="button" id={`zone-tab-${id}`} aria-selected={tab === id} aria-controls={`zone-panel-${id}`} aria-label={text} data-tip={tip} onClick={() => setTab(id)} className={pill(tab === id)}>
       <Icon size={16} aria-hidden /><span className={tab === id ? '' : 'hidden sm:inline'}>{text}</span>
-      {dot && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-slate-50 dark:ring-[#0f1115]" aria-label="New feedback" />}
     </button>
   )
-  const iconBtn = (id: ZoneTab, Icon: LucideIcon, text: string, tip: string, dot = false) => (
-    <button key={id} role="tab" type="button" id={`zone-tab-${id}`} aria-selected={tab === id} aria-controls={`zone-panel-${id}`} aria-label={text} data-tip={tip} data-tip-end={id === 'hint' && !trail ? '' : undefined} onClick={() => setTab(id)} className={iconTab(tab === id)}>
+  const toggleBtn = (which: 'view' | 'hint', Icon: LucideIcon, text: string, tip: string, on: boolean, dot = false) => (
+    <button key={which} type="button" aria-pressed={on} aria-label={on ? `Hide ${text}` : `Show ${text}`} data-tip={tip} data-tip-end={which === 'hint' && !trail ? '' : undefined} onClick={() => toggle(which)} className={iconTab(on)}>
       <Icon size={18} aria-hidden />
       {dot && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-slate-50 dark:ring-[#0f1115]" aria-label="New feedback" />}
     </button>
+  )
+
+  /** One half of the collapsible strip above the terminal. Stays mounted while hidden so the hint and map keep their state. */
+  const strip = (id: 'view' | 'hint', open: boolean, Icon: LucideIcon, text: string, close: () => void, children: ReactNode) => (
+    <div id={`zone-panel-${id}`} role="region" aria-label={text} className={open ? 'min-w-0 flex-1' : 'hidden'}>
+      <div className="flex h-8 items-center gap-2 bg-slate-200/60 px-3 text-xs font-medium text-slate-600 dark:bg-white/5 dark:text-slate-300">
+        <Icon size={14} aria-hidden /><span className="flex-1">{text}</span>
+        <button type="button" onClick={close} aria-label={`Collapse ${text}`} data-tip={`Collapse ${text}`} data-tip-end="" className="grid h-6 w-6 place-items-center rounded hover:bg-slate-300/70 dark:hover:bg-white/10"><X size={13} aria-hidden /></button>
+      </div>
+      {children}
+    </div>
   )
 
   const footer = (
@@ -70,37 +85,41 @@ export default function PracticalZone({ layout, visible, lead, trail }: { layout
     </div>
   )
 
+  const zoneCls = (shown: boolean) => grid ? `flex min-h-0 min-w-0 flex-col ${card}` : shown ? 'flex min-h-0 flex-1 flex-col' : 'hidden'
+
   return (
     <section id="playground" aria-label="Practice server" className="flex h-full min-h-0 min-w-0 flex-col px-2 pb-2">
       <header className="flex h-14 shrink-0 items-center gap-2">
         {lead}
         {grid
-          ? <h2 className="min-w-0 flex-1 truncate px-1 text-sm font-semibold">Stage {def.stage.number}: practice server</h2>
+          ? (
+            <>
+              <h2 className="min-w-0 flex-1 truncate px-1 text-sm font-semibold">Stage {def.stage.number}: practice server</h2>
+              <div className="flex shrink-0 items-center gap-2">
+                {toggleBtn('view', Eye, 'View', 'View: live map of the server', viewVisible)}
+                {toggleBtn('hint', Lightbulb, 'Hint', 'Hint: what to do now', hintVisible, hintDot)}
+              </div>
+            </>
+          )
           : (
-            <div role="tablist" aria-label="Practice tools" className="flex min-w-0 flex-1 items-center gap-2">
+            <div role="tablist" aria-label="Practice zones" className="flex min-w-0 flex-1 items-center gap-2">
               {tabBtn('ftp', FolderSync, 'FileZilla', 'FileZilla: send files to the server')}
-              {tabBtn('term', SquareTerminal, 'Terminal', 'Terminals: your laptop and the server')}
+              {tabBtn('term', SquareTerminal, 'Terminal', 'Terminal zone: terminals, view and hint')}
               <span className="flex-1" />
-              {iconBtn('view', Eye, 'View', 'View: live map of the server')}
-              {iconBtn('hint', Lightbulb, 'Hint', 'Hint: what to do now', hintDot)}
+              {toggleBtn('view', Eye, 'View', 'View: live map of the server', viewVisible)}
+              {toggleBtn('hint', Lightbulb, 'Hint', 'Hint: what to do now', hintVisible, hintDot)}
             </div>
           )}
         {trail}
       </header>
 
-      <div className={grid ? 'grid min-h-0 flex-1 grid-cols-2 grid-rows-[auto_minmax(0,1fr)] gap-2' : `flex min-h-0 flex-1 flex-col ${card}`}>
-        <div id="zone-panel-hint" role={grid ? undefined : 'tabpanel'} aria-labelledby={grid ? undefined : 'zone-tab-hint'} className={panel('hint')}>
-          {title(Lightbulb, 'Hint')}
-          <div className="min-h-0 flex-1 overflow-auto"><StepBar /></div>
-        </div>
-
-        <div id="zone-panel-view" role={grid ? undefined : 'tabpanel'} aria-labelledby={grid ? undefined : 'zone-tab-view'} className={panel('view')}>
-          {title(Eye, 'View')}
-          <div className="min-h-0 flex-1 overflow-auto"><TopologyMap world={sim.world} nodes={def.spec.topology.nodes} /></div>
-        </div>
-
-        <div id="zone-panel-term" role={grid ? undefined : 'tabpanel'} aria-labelledby={grid ? undefined : 'zone-tab-term'} className={panel('term')}>
-          {title(SquareTerminal, 'Terminal')}
+      <div className={grid ? 'grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-2' : `flex min-h-0 flex-1 flex-col ${card}`}>
+        {/* Terminal zone: View + Hint share a collapsible strip on top, the terminal sits below */}
+        <div id="zone-panel-term" role={grid ? undefined : 'tabpanel'} aria-labelledby={grid ? undefined : 'zone-tab-term'} className={zoneCls(showTerm)}>
+          <div className={`${viewOpen || hintOpen ? 'flex' : 'hidden'} max-h-[46vh] shrink-0 flex-col overflow-auto border-b border-slate-200 dark:border-white/10 ${grid ? 'lg:flex-row' : ''}`}>
+            {strip('view', viewOpen, Eye, 'View', () => setViewOpen(false), <div className="[&_svg]:mx-auto [&_svg]:max-h-[22vh] [&_svg]:w-auto [&_svg]:max-w-full"><TopologyMap world={sim.world} nodes={def.spec.topology.nodes} /></div>)}
+            {strip('hint', hintOpen, Lightbulb, 'Hint', () => setHintOpen(false), <StepBar />)}
+          </div>
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
             <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
               {sim.tabs.map((t, i) => <TerminalPane key={t.shell.id} tabId={t.shell.id} visible={termVisible && sim.active === i} />)}
@@ -126,8 +145,7 @@ export default function PracticalZone({ layout, visible, lead, trail }: { layout
           </div>
         </div>
 
-        <div id="zone-panel-ftp" role={grid ? undefined : 'tabpanel'} aria-labelledby={grid ? undefined : 'zone-tab-ftp'} className={panel('ftp')}>
-          {title(FolderSync, 'FileZilla')}
+        <div id="zone-panel-ftp" role={grid ? undefined : 'tabpanel'} aria-labelledby={grid ? undefined : 'zone-tab-ftp'} className={zoneCls(showFtp)}>
           <div className="flex min-h-0 flex-1 flex-col"><FileZillaPane /></div>
         </div>
 
