@@ -27,12 +27,14 @@ export default function PracticalZone({ layout, visible, lead, trail }: { layout
   const grid = layout === 'grid'
   const [saved, setTab] = usePersisted<ZoneTab>('ui:devops:tab', 'term')
   const tab: ZoneTab = saved === 'ftp' ? 'ftp' : 'term'
-  const [viewOpen, setViewOpen] = usePersisted('ui:devops:view', true)
-  const [hintOpen, setHintOpen] = usePersisted('ui:devops:hint', true)
+  // View and Hint share one strip above the terminal and switch like browser tabs; the strip itself can be collapsed
+  const [stripSaved, setStripTab] = usePersisted<'view' | 'hint'>('ui:devops:strip', 'hint')
+  const stripTab: 'view' | 'hint' = stripSaved === 'view' ? 'view' : 'hint'
+  const [stripOpen, setStripOpen] = usePersisted('ui:devops:stripOpen', true)
   const showTerm = grid || tab === 'term'
   const showFtp = grid || tab === 'ftp'
-  const hintVisible = hintOpen && showTerm
-  const viewVisible = viewOpen && showTerm
+  const hintVisible = stripOpen && showTerm && stripTab === 'hint'
+  const viewVisible = stripOpen && showTerm && stripTab === 'view'
 
   // "Type it for me" in the hint puts text in the terminal prompt: bring the terminal forward so it is seen
   const seenDraft = useRef(sim.draftSeq)
@@ -40,17 +42,18 @@ export default function PracticalZone({ layout, visible, lead, trail }: { layout
   // picking a lab or chaos lab in the roadmap loads its first step: show the terminal zone with the hint open
   const focusKey = tracker.p.focus ? `${tracker.p.focus.kind}:${tracker.p.focus.id}` : ''
   const seenFocus = useRef(focusKey)
-  useEffect(() => { if (focusKey !== seenFocus.current) { seenFocus.current = focusKey; setTab('term'); setHintOpen(true) } }, [focusKey, setTab, setHintOpen])
+  useEffect(() => { if (focusKey !== seenFocus.current) { seenFocus.current = focusKey; setTab('term'); setStripTab('hint'); setStripOpen(true) } }, [focusKey, setTab, setStripTab, setStripOpen])
   // a dot on the bulb when a step passed or failed while the hint is out of sight
   const fbAt = tracker.feedback?.at
   const [seenFb, setSeenFb] = useState(fbAt)
   useEffect(() => { if (hintVisible) setSeenFb(fbAt) }, [hintVisible, fbAt])
   const hintDot = !hintVisible && fbAt !== undefined && fbAt !== seenFb
 
+  // header icons: show that tab of the strip; pressing the one already showing collapses the strip
   const toggle = (which: 'view' | 'hint') => {
-    const on = which === 'view' ? viewOpen : hintOpen
-    const set = which === 'view' ? setViewOpen : setHintOpen
-    if (!showTerm) { setTab('term'); set(true) } else set(!on)
+    if (!showTerm) { setTab('term'); setStripTab(which); setStripOpen(true) }
+    else if (stripOpen && stripTab === which) setStripOpen(false)
+    else { setStripTab(which); setStripOpen(true) }
   }
   const label = (i: number) => { const s = sim.tabs[i].shell; return s.rescue ? 'Rescue console' : s.ssh ? `PuTTY ${s.ssh.user}@shop-server` : sim.tabs.length > 1 ? `Laptop ${i + 1}` : 'Laptop' }
   const termVisible = visible && showTerm
@@ -67,15 +70,11 @@ export default function PracticalZone({ layout, visible, lead, trail }: { layout
     </button>
   )
 
-  /** One half of the collapsible strip above the terminal. Stays mounted while hidden so the hint and map keep their state. */
-  const strip = (id: 'view' | 'hint', open: boolean, Icon: LucideIcon, text: string, close: () => void, children: ReactNode) => (
-    <div id={`zone-panel-${id}`} role="region" aria-label={text} className={open ? 'min-w-0 flex-1' : 'hidden'}>
-      <div className="flex h-8 items-center gap-2 bg-slate-200/60 px-3 text-xs font-medium text-slate-600 dark:bg-white/5 dark:text-slate-300">
-        <Icon size={14} aria-hidden /><span className="flex-1">{text}</span>
-        <button type="button" onClick={close} aria-label={`Collapse ${text}`} data-tip={`Collapse ${text}`} data-tip-end="" className="grid h-6 w-6 place-items-center rounded hover:bg-slate-300/70 dark:hover:bg-white/10"><X size={13} aria-hidden /></button>
-      </div>
-      {children}
-    </div>
+  const stripTabBtn = (id: 'view' | 'hint', Icon: LucideIcon, text: string, dot = false) => (
+    <button key={id} role="tab" type="button" aria-selected={stripTab === id} aria-controls={`zone-panel-${id}`} onClick={() => setStripTab(id)} className={`relative inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium ${stripTab === id ? 'bg-white text-slate-900 shadow-sm dark:bg-[#2a2f3b] dark:text-white' : 'text-slate-600 hover:bg-slate-300/50 dark:text-slate-400 dark:hover:bg-white/10'}`}>
+      <Icon size={14} aria-hidden />{text}
+      {dot && stripTab !== id && <span className="h-2 w-2 rounded-full bg-amber-400" aria-label="New feedback" />}
+    </button>
   )
 
   const footer = (
@@ -116,9 +115,20 @@ export default function PracticalZone({ layout, visible, lead, trail }: { layout
       <div className={grid ? 'grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-2' : `flex min-h-0 flex-1 flex-col ${card}`}>
         {/* Terminal zone: View + Hint share a collapsible strip on top, the terminal sits below */}
         <div id="zone-panel-term" role={grid ? undefined : 'tabpanel'} aria-labelledby={grid ? undefined : 'zone-tab-term'} className={zoneCls(showTerm)}>
-          <div className={`${viewOpen || hintOpen ? 'flex' : 'hidden'} max-h-[46vh] shrink-0 flex-col overflow-auto border-b border-slate-200 dark:border-white/10 ${grid ? 'lg:flex-row' : ''}`}>
-            {strip('view', viewOpen, Eye, 'View', () => setViewOpen(false), <div className="[&_svg]:mx-auto [&_svg]:max-h-[22vh] [&_svg]:w-auto [&_svg]:max-w-full"><TopologyMap world={sim.world} nodes={def.spec.topology.nodes} /></div>)}
-            {strip('hint', hintOpen, Lightbulb, 'Hint', () => setHintOpen(false), <StepBar />)}
+          <div className={`${stripOpen ? 'flex' : 'hidden'} max-h-[46vh] shrink-0 flex-col border-b border-slate-200 dark:border-white/10`}>
+            <div role="tablist" aria-label="View and hint" className="flex h-10 shrink-0 items-center gap-1 bg-slate-200/60 px-2 dark:bg-white/5">
+              {stripTabBtn('view', Eye, 'View')}
+              {stripTabBtn('hint', Lightbulb, 'Hint', hintDot)}
+              <span className="flex-1" />
+              <button type="button" onClick={() => setStripOpen(false)} aria-label="Collapse view and hint" data-tip="Collapse" data-tip-end="" className="grid h-8 w-8 place-items-center rounded hover:bg-slate-300/70 dark:hover:bg-white/10"><X size={14} aria-hidden /></button>
+            </div>
+            {/* both stay mounted so the map and the hint keep their state while the other one is in front */}
+            <div className="min-h-0 flex-1 overflow-auto">
+              <div id="zone-panel-view" role="tabpanel" aria-label="View" className={stripTab === 'view' ? '' : 'hidden'}>
+                <div className="[&_svg]:mx-auto [&_svg]:max-h-[30vh] [&_svg]:w-auto [&_svg]:max-w-full"><TopologyMap world={sim.world} nodes={def.spec.topology.nodes} /></div>
+              </div>
+              <div id="zone-panel-hint" role="tabpanel" aria-label="Hint" className={stripTab === 'hint' ? '' : 'hidden'}><StepBar /></div>
+            </div>
           </div>
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
             <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
