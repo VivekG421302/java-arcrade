@@ -56,7 +56,7 @@ engine/             Framework-free simulator (no React)
   sftpGui.ts        FileZilla pane actions on the same filesystems
   verify.ts         headless walkthrough used by `npm run verify:devops`
 runtime.ts          STAGES registry, one Simulator + Tracker per stage, React hooks (useSim/useTracker/useStageDef via StageCtx); wires psql to runSql
-components/ pages/  UI (Playground, TerminalPane, FileZillaPane, TopologyMap, StepBar, LabPanel, ChaosPanel, GatePanel, …)
+components/ pages/  UI (DevOpsChrome = navbar + stage drawer, PracticalZone = FileZilla/Terminal/View/Hint as tabs or a 4-up grid, TerminalPane, FileZillaPane, TopologyMap, StepBar, LabPanel, ChaosPanel, GatePanel, …)
 routes.tsx          lazy-loaded at /devops/*
 ```
 
