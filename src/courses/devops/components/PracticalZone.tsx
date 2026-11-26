@@ -4,6 +4,7 @@ import { usePersisted } from '../../../hooks/usePersisted'
 import { useSim, useStageDef, useTracker } from '../runtime'
 import FileZillaPane from './FileZillaPane'
 import StepBar from './StepBar'
+import Splitter from './Splitter'
 import TerminalPane from './TerminalPane'
 import TopologyMap from './TopologyMap'
 
@@ -31,6 +32,11 @@ export default function PracticalZone({ layout, visible, lead, trail }: { layout
   const [stripSaved, setStripTab] = usePersisted<'view' | 'hint'>('ui:devops:strip', 'hint')
   const stripTab: 'view' | 'hint' = stripSaved === 'view' ? 'view' : 'hint'
   const [stripOpen, setStripOpen] = usePersisted('ui:devops:stripOpen', true)
+  // sizes are fixed once set (they do not follow the tab) and adjustable by dragging, like the panels in an IDE; 0 = automatic
+  const [stripH, setStripH] = usePersisted('ui:devops:stripH', 300)
+  const [termW, setTermW] = usePersisted('ui:devops:termW', 0)
+  const termRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
   const showTerm = grid || tab === 'term'
   const showFtp = grid || tab === 'ftp'
   const hintVisible = stripOpen && showTerm && stripTab === 'hint'
@@ -112,10 +118,10 @@ export default function PracticalZone({ layout, visible, lead, trail }: { layout
         {trail}
       </header>
 
-      <div className={grid ? 'grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-2' : `flex min-h-0 flex-1 flex-col ${card}`}>
+      <div ref={gridRef} style={grid ? { gridTemplateColumns: `${termW ? `${termW}px` : 'minmax(0,1.15fr)'} 8px minmax(0,1fr)` } : undefined} className={grid ? 'grid min-h-0 flex-1' : `flex min-h-0 flex-1 flex-col ${card}`}>
         {/* Terminal zone: View + Hint share a collapsible strip on top, the terminal sits below */}
-        <div id="zone-panel-term" role={grid ? undefined : 'tabpanel'} aria-labelledby={grid ? undefined : 'zone-tab-term'} className={zoneCls(showTerm)}>
-          <div className={`${stripOpen ? 'flex' : 'hidden'} max-h-[46vh] shrink-0 flex-col border-b border-slate-200 dark:border-white/10`}>
+        <div key="term" ref={termRef} id="zone-panel-term" role={grid ? undefined : 'tabpanel'} aria-labelledby={grid ? undefined : 'zone-tab-term'} className={zoneCls(showTerm)}>
+          <div key="strip" style={{ height: stripH }} className={`${stripOpen ? 'flex' : 'hidden'} max-h-[55vh] min-h-[96px] shrink-0 flex-col`}>
             <div role="tablist" aria-label="View and hint" className="flex h-10 shrink-0 items-center gap-1 bg-slate-200/60 px-2 dark:bg-white/5">
               {stripTabBtn('view', Eye, 'View')}
               {stripTabBtn('hint', Lightbulb, 'Hint', hintDot)}
@@ -125,12 +131,13 @@ export default function PracticalZone({ layout, visible, lead, trail }: { layout
             {/* both stay mounted so the map and the hint keep their state while the other one is in front */}
             <div className="min-h-0 flex-1 overflow-auto">
               <div id="zone-panel-view" role="tabpanel" aria-label="View" className={stripTab === 'view' ? '' : 'hidden'}>
-                <div className="[&_svg]:mx-auto [&_svg]:max-h-[30vh] [&_svg]:w-auto [&_svg]:max-w-full"><TopologyMap world={sim.world} nodes={def.spec.topology.nodes} /></div>
+                <div><TopologyMap world={sim.world} nodes={def.spec.topology.nodes} /></div>
               </div>
               <div id="zone-panel-hint" role="tabpanel" aria-label="Hint" className={stripTab === 'hint' ? '' : 'hidden'}><StepBar /></div>
             </div>
           </div>
-          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          {stripOpen && <Splitter key="strip-split" label="Resize view and hint" getValue={() => stripH} onChange={setStripH} onReset={() => setStripH(300)} min={96} max={() => Math.round(window.innerHeight * 0.55)} />}
+          <div key="terms" className="flex min-h-0 flex-1 flex-col md:flex-row">
             <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
               {sim.tabs.map((t, i) => <TerminalPane key={t.shell.id} tabId={t.shell.id} visible={termVisible && sim.active === i} />)}
             </div>
@@ -155,11 +162,12 @@ export default function PracticalZone({ layout, visible, lead, trail }: { layout
           </div>
         </div>
 
-        <div id="zone-panel-ftp" role={grid ? undefined : 'tabpanel'} aria-labelledby={grid ? undefined : 'zone-tab-ftp'} className={zoneCls(showFtp)}>
+        {grid && <Splitter key="grid-split" vertical label="Resize terminal and FileZilla" getValue={() => termRef.current?.offsetWidth ?? 600} onChange={setTermW} onReset={() => setTermW(0)} min={360} max={() => (gridRef.current?.clientWidth ?? 1200) - 360} />}
+        <div key="ftp" id="zone-panel-ftp" role={grid ? undefined : 'tabpanel'} aria-labelledby={grid ? undefined : 'zone-tab-ftp'} className={zoneCls(showFtp)}>
           <div className="flex min-h-0 flex-1 flex-col"><FileZillaPane /></div>
         </div>
 
-        {!grid && footer}
+        {!grid && <div key="footer">{footer}</div>}
       </div>
       {grid && footer}
     </section>

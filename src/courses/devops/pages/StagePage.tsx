@@ -11,6 +11,7 @@ import GatePanel from '../components/GatePanel'
 import ImagineCard from '../components/ImagineCard'
 import LabPanel from '../components/LabPanel'
 import PracticalZone from '../components/PracticalZone'
+import Splitter from '../components/Splitter'
 import { STAGES, StageCtx, useTracker } from '../runtime'
 
 /** From this width the roadmap and the practical zone sit side by side; below it they take turns on screen. */
@@ -32,6 +33,8 @@ function StageBody({ no }: { no: number }) {
   // Wide screens remember which sides are open (never both closed). Small screens show one side at a time.
   const [leftSaved, setLeft] = usePersisted('ui:devops:left', true)
   const [rightSaved, setRight] = usePersisted('ui:devops:right', true)
+  const [zoneW, setZoneW] = usePersisted('ui:devops:zoneW', 0) // 0 = automatic width
+  const zoneRef = useRef<HTMLDivElement>(null)
   const [side, setSide] = useState<'left' | 'right'>('left')
   const stage = t.stage
   const read = t.p.imagineRead
@@ -119,15 +122,18 @@ function StageBody({ no }: { no: number }) {
     </div>
   )
 
+  const maxZone = () => window.innerWidth - 420
   return (
     <div className="flex h-full min-h-0 w-full">
-      <div className={showLeft ? 'flex h-full min-h-0 min-w-0 flex-1 flex-col' : 'hidden'}>
+      <div key="roadmap" className={showLeft ? 'flex h-full min-h-0 min-w-0 flex-1 flex-col' : 'hidden'}>
         <DevOpsChrome extra={leftExtra}>
           <div className="h-full overflow-y-auto overscroll-contain">{roadmap}</div>
         </DevOpsChrome>
       </div>
+      {both && wide && <Splitter key="split" vertical invert label="Resize roadmap and practical zone" getValue={() => zoneRef.current?.offsetWidth ?? 560} onChange={setZoneW} onReset={() => setZoneW(0)} min={380} max={maxZone} />}
       {hasZone && (
-        <div className={!showRight ? 'hidden' : both ? 'h-full min-h-0 w-[clamp(440px,46vw,640px)] shrink-0' : 'h-full min-h-0 min-w-0 flex-1'}>
+        <div key="zone" ref={zoneRef} style={both && zoneW ? { width: zoneW } : undefined}
+          className={!showRight ? 'hidden' : both ? `h-full min-h-0 shrink-0 min-w-[380px] max-w-[calc(100vw-420px)] ${zoneW ? '' : 'w-[clamp(440px,46vw,640px)]'}` : 'h-full min-h-0 min-w-0 flex-1'}>
           <PracticalZone layout={showLeft || !wide ? 'tabs' : 'grid'} visible={showRight} lead={zoneLead} trail={zoneTrail} />
         </div>
       )}
