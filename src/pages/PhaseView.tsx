@@ -42,7 +42,7 @@ export default function PhaseView() {
       </header>
       {phase.sections.map((s, i) => (
         <Fragment key={s.id}>
-        <section id={s.id} className="scroll-mt-20 py-6">
+        <section id={s.id} className="scroll-mt-20 py-10 [&:not(:first-of-type)]:border-t [&:not(:first-of-type)]:border-slate-200/70 [&:not(:first-of-type)]:dark:border-white/10">
           <h2 className="text-2xl font-semibold">{s.title}</h2>
           <Markdown md={s.md} />
           <button type="button" aria-pressed={isRead(s.id)} onClick={() => toggleRead(s.id)}

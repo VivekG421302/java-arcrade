@@ -36,7 +36,7 @@ export function CodeBlock({ code, lang = 'text', accent }: { code: string; lang?
   const lines = code.split('\n').length
   const ring = accent === 'bad' ? 'border-l-4 border-l-red-500' : accent === 'good' ? 'border-l-4 border-l-emerald-500' : ''
   return (
-    <div className={`dark-surface my-5 overflow-hidden rounded-lg border border-white/10 bg-[#1e1e1e] text-[13px] text-[#d4d4d4] shadow-sm ${ring}`}>
+    <div className={`dark-surface my-7 overflow-hidden rounded-lg border border-white/10 bg-[#1e1e1e] text-[13px] text-[#d4d4d4] shadow-sm ${ring}`}>
       <div className="flex items-center justify-between border-b border-white/10 pl-3 pr-1 font-sans text-xs uppercase tracking-wide text-slate-400">
         <span>{lang}</span>
         <button type="button" aria-label="Copy code to clipboard" data-tip="Copy code" data-tip-end=""
@@ -65,24 +65,24 @@ const components: Components = {
     if (m && (m[1] === 'diagram' || m[1] === 'sequence')) return <Diagram kind={m[1]} spec={txt} />
     return m || txt.includes('\n') ? <CodeBlock code={txt} lang={m?.[1]} /> : <InlineCode>{children}</InlineCode>
   },
-  p: ({ children }) => <p className="my-3 max-w-[72ch] leading-7">{children}</p>,
-  ul: ({ children }) => <ul className="my-2 list-disc space-y-1.5 pl-6">{children}</ul>,
-  ol: ({ children }) => <ol className="my-2 list-decimal space-y-1.5 pl-6">{children}</ol>,
-  li: ({ children }) => <li className="max-w-[72ch] leading-7">{children}</li>,
+  p: ({ children }) => <p className="my-4 max-w-[72ch] leading-8">{children}</p>,
+  ul: ({ children }) => <ul className="my-4 list-disc space-y-2.5 pl-6">{children}</ul>,
+  ol: ({ children }) => <ol className="my-4 list-decimal space-y-2.5 pl-6">{children}</ol>,
+  li: ({ children }) => <li className="max-w-[72ch] leading-8">{children}</li>,
   strong: ({ children }) => <strong className="font-sans font-semibold">{children}</strong>,
-  h3: ({ children }) => <h3 className="mb-2 mt-6 font-sans text-lg font-semibold">{children}</h3>,
-  h4: ({ children }) => <h4 className="mb-2 mt-5 font-sans font-semibold">{children}</h4>,
+  h3: ({ children }) => <h3 className="mb-3 mt-10 font-sans text-lg font-semibold">{children}</h3>,
+  h4: ({ children }) => <h4 className="mb-3 mt-12 border-t border-slate-200/60 pt-8 font-sans font-semibold first:mt-4 first:border-0 first:pt-0 dark:border-white/10">{children}</h4>,
   a: ({ href, children }) => <a href={href} className="text-sky-500 underline" target="_blank" rel="noreferrer">{children}</a>,
-  blockquote: ({ children }) => <blockquote className="my-4 border-l-4 border-sky-500 bg-sky-500/5 px-4 py-1">{children}</blockquote>,
+  blockquote: ({ children }) => <blockquote className="my-6 border-l-4 border-sky-500 bg-sky-500/5 px-5 py-3">{children}</blockquote>,
   table: ({ children }) => (
-    <div className="my-5 overflow-x-auto">
+    <div className="my-7 overflow-x-auto">
       <table className="w-full border-collapse border-y-2 border-slate-700 font-sans text-sm dark:border-slate-300">{children}</table>
     </div>
   ),
   thead: ({ children }) => <thead className="border-b border-slate-700 dark:border-slate-300">{children}</thead>,
   tr: ({ children }) => <tr className="even:bg-slate-100 dark:even:bg-white/5">{children}</tr>,
-  th: ({ children }) => <th className="px-3 py-2 text-left font-semibold">{children}</th>,
-  td: ({ children }) => <td className="px-3 py-2 align-top">{children}</td>,
+  th: ({ children }) => <th className="px-4 py-3 text-left font-semibold">{children}</th>,
+  td: ({ children }) => <td className="px-4 py-3 align-top">{children}</td>,
 }
 
 export function Markdown({ md }: { md: string }) {
