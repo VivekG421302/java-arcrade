@@ -9,6 +9,7 @@ Guidance for working in this repo (`VivekG421302/java-arcrade`): a React 18 + Vi
 - Match existing conventions: Tailwind slate/sky palette, `dark:` variants with `bg-[#0f1115]` family surfaces, lucide icons, 44px minimum touch targets, `data-tip` tooltips, visible focus, no all-caps eyebrow labels.
 - Never commit secrets. Do not paste or store access tokens in files or memory.
 - **Push verified work to `main`** after each increment (the owner asked for this habit). Before pushing: `git fetch` and rebase onto `origin/main` (the owner also pushes content commits), then `npm run build` and `npm run verify:devops` must pass. Never force-push. Pass any token inline for the one command; never write it into `.git/config` or a file.
+- **Any `lazy()` element rendered outside `<Layout>` needs its own `<Suspense>`** (Layout holds the app's only boundary). The DevOps module does this in `src/courses/devops/Entry.tsx`; without it the first client-side navigation shows a blank page until reload.
 - When scripting edits (python `str.replace`), **assert the old text is present**: a non-matching replace fails silently and the bug only shows up later.
 
 ## Commands
@@ -59,6 +60,8 @@ runtime.ts          STAGES registry, one Simulator + Tracker per stage, React ho
 components/ pages/  UI (DevOpsChrome = navbar + stage drawer, PracticalZone = FileZilla/Terminal/View/Hint as tabs or a 4-up grid, TerminalPane, FileZillaPane, TopologyMap, StepBar, LabPanel, ChaosPanel, GatePanel, …)
 routes.tsx          lazy-loaded at /devops/*
 ```
+
+Docs: `docs/devops/fullstack-devops-mastery-spec.md` is the curriculum source of truth (copy of the owner's spec); `docs/devops/HANDOFF.md` is the session-handoff file (state, next steps, lessons, test recipes).
 
 ### Rules for this module
 
