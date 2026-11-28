@@ -4,7 +4,7 @@ Paste this whole file into a new chat, together with the repo link and a tempora
 
 - Repo: https://github.com/VivekG421302/java-arcrade (branch `main`)
 - The owner (Vivek, "GIMIK") is a Java backend engineer who prefers direct communication, complete working deliverables, and surgical fixes over broad rewrites.
-- State at the time of writing: Phases 1 and 2 are done and pushed. The blank-page fix is commit `9cb0d38`. **The owner then pushed 5 commits that rework the DevOps page layout** (roadmap | practical-zone split with tabs, collapsible sides, a shared navbar, constant-size View/Hint strip, IDE-style drag-resizable panes): see `components/DevOpsChrome.tsx`, `PracticalZone.tsx`, `Splitter.tsx`, `pages/StagePage.tsx`, `pages/DevOpsShell.tsx`. **Run `git log --oneline -15` first and trust the code over this file for anything about the UI layout** (the sticky-playground description in older notes no longer applies). Build and `npm run verify:devops` (208 checks) passed on `f3664dc`.
+- State at the time of writing: Phases 1 and 2 are done and pushed. **Phase 3a (Stage 3 engine primitives: symlink-aware paths + script runner) is built, verified and committed locally but was NOT pushed (that session had no token). Push it first (section 4).** The blank-page fix is commit `9cb0d38`. **The owner then pushed 5 commits that rework the DevOps page layout** (roadmap | practical-zone split with tabs, collapsible sides, a shared navbar, constant-size View/Hint strip, IDE-style drag-resizable panes): see `components/DevOpsChrome.tsx`, `PracticalZone.tsx`, `Splitter.tsx`, `pages/StagePage.tsx`, `pages/DevOpsShell.tsx`. **Run `git log --oneline -15` first and trust the code over this file for anything about the UI layout** (the sticky-playground description in older notes no longer applies). Build and `npm run verify:devops` passed on `f3664dc` (208 checks); with Phase 3a the verifier runs **228 checks**.
 
 ## 0. First five minutes (do these before anything else)
 
@@ -12,7 +12,7 @@ Paste this whole file into a new chat, together with the repo link and a tempora
    `git clone https://x-access-token:$TOKEN@github.com/VivekG421302/java-arcrade.git && cd java-arcrade && git remote set-url origin https://github.com/VivekG421302/java-arcrade.git`
 2. `npm install` (about 10 s). If you need the UI smoke test, `npm i --no-save jsdom` (do not add it to package.json).
 3. Read `CLAUDE.md` in the repo root. It has the architecture, rules for this module, how to add a stage, and the decisions already taken.
-4. Run `npm run build` and `npm run verify:devops`. Expect: build passes, "All 208 checks passed".
+4. Run `npm run build` and `npm run verify:devops`. Expect: build passes, "All 228 checks passed" (208 if Phase 3a is missing).
 5. The curriculum spec is in the repo at `docs/devops/fullstack-devops-mastery-spec.md` (about 1,780 lines, 139 KB). If it is missing, ask the owner to attach `fullstack-devops-mastery-spec.md`. Do not invent curriculum.
 
 ## 1. The project in one paragraph
@@ -32,15 +32,18 @@ A new course module, "Full-Stack Deployment & DevOps Mastery: Spring Boot + Post
 - **Phase 1, Stage 1** (Manual VPS, PuTTY and FileZilla): 6 labs, 4 chaos labs, quiz, gate. PostgreSQL track only.
 - **Phase 2, Stage 2** (systemd + Nginx hardening): 3 labs, 3 chaos labs (502 wrong upstream, UFW lockout with a rescue console, restart loop from a missing EnvironmentFile), quiz, gate. Stage 2 is locked until Stage 1's gate is complete.
 - **Bug fix just shipped:** the `/devops` page was blank on the first client-side navigation and fixed by a reload. Root cause: the DevOps routes are a `lazy()` chunk placed outside `<Layout>`, and the app's only `<Suspense>` lives inside Layout, so React 18 threw "A component suspended while responding to synchronous input" and unmounted everything. Fix: `src/courses/devops/Entry.tsx` (statically imported by `App.tsx`) owns the Suspense boundary and an error boundary, and reloads once automatically on stale-chunk errors after a deploy. **Rule: any `lazy()` element outside Layout needs its own Suspense.**
+- **Phase 3a (engine only, no UI or content change, Stage 3 is still `live: false`):** symlinks now work in the middle of a path (`/opt/myapp/current/app.jar`); `ln` (`-s -f -n -T`, stores the target text as typed, relative targets resolve from the link's folder), `readlink` (`-f -e -m`), `mv` (`-T -f -n -v`, and `mv x current` now moves INTO the folder a link points at, the classic trap), `ls` (opens a link to a folder unless `-l`; `link/` always opens; links print cyan, dangling links red), `cd` through links, `> file` writes through a link; the script runner `engine/script.ts` (`bash file`, `bash -c`, `./file` with the x-bit check and a `chmod +x` hint, `sudo ./file`); the `[[ ]]`, `[ ]`, `test` builtin; `$?` now carries the previous line's status (also inside one line: `a; echo $?`). `bash` and `sh` are gated by `LOCKED` until Stage 3. 20 new verifier checks cover all of it (end of `engine/verify.ts`).
 - Engine, content and UI layout are documented in `CLAUDE.md`. Existing app files touched (small): `src/App.tsx`, `src/components/CourseSwitcher.tsx`, `src/hooks/useIde.tsx`, `src/pages/Landing.tsx`.
 
 ## 4. What to do next: Phase 3, Stage 3 ("Shell Scripting & Zero-Downtime Artifact Automation")
 
 Spec map (line numbers in `docs/devops/fullstack-devops-mastery-spec.md`): Stage 3 is lines 360-496 (imagine card 362, layout 372, lab 396, chaos labs 463, pain points 486). Stages 4 to 8 follow at 497, 620, 742, 837, 972. Reference sections: command encyclopedia 1136, 50 break-fix scenarios 1300, capstones 1358, **TypeScript schema 1490, per-stage terminal command unlock list 1714, rendering rules 1727**, glossary 1739, validation checklist 1770.
 
-Engine work Stage 3 needs (nothing of this exists yet):
-- Release folders and an atomic symlink swap: `ln -sfn`, `mv -T`, `readlink`, `rsync` (currently locked until stage 3 in `shell.ts` `LOCKED`; implement and unlock), plus systemd `ExecStart` pointing at `/opt/myapp/current/app.jar`.
-- A script runner: `bash script.sh` / `./deploy.sh` with `set -e`, variables, `$?`, `if`, simple `for`, functions; and `chmod +x`. Extend `parse.ts`/`shell.ts` carefully (current parser handles one line: quotes, `&& || ; | &`, redirects).
+**First action next session: push Phase 3a.** Clone, `git log --oneline -3` (the top commit is "Phase 3a"); if the commit is missing because the work only existed in the previous sandbox, redo it from section 3 (it is about 450 lines: `engine/script.ts`, edits to `fs.ts`, `corecmds.ts`, `shell.ts`, `shellTypes.ts`, `verify.ts`). Then `git fetch`, `git rebase FETCH_HEAD`, build, verify, push.
+
+Done in Phase 3a: symlink-aware paths, `ln -sfn`, `readlink`, `mv -T`, script runner (`set -euo pipefail`, variables, `$?`, `$1`, `${1:?msg}`, `${V:-x}`, `$(cmd)`, `$((n))`, `if/elif/else`, `for`, functions, `cmd || { ...; }`, `cmd || exit N`), `[[ ]]`. Still to do for Stage 3:
+- `rsync` (`-av`, local to local copy with the `sending incremental file list` summary; `No space left on device` when the disk is full), still in `LOCKED` for stage 3. systemd must (a) check that the jar in `ExecStart` exists after following symlinks and fail like java does (`Unable to access jarfile /opt/myapp/current/app.jar`, exit status 1) for Chaos 3.2; today `attempt()` in `systemd.ts` never checks it, and `ExecStart` still points at `/opt/myapp/app.jar`.
+- Script gaps found while building 3a: no here-doc (`cat > f <<'EOF'`), no `printf`, `$(...)` output is not word-split when unquoted (a `for` list is), no `while`/`case`/`trap`/`read`, `[[ a && b ]]` is not supported. Add what the Stage 3 scripts need (the spec scripts use none of these except `date +%Y%m%d-%H%M%S`, `gzip`, `find -mtime -delete`, `sudo`, `pg_dump`).
 - `crontab -e` (editor flow), `crontab -l`, a cron scheduler tied to the simulated clock; `logrotate` (`-d`, `-f`) with `/etc/logrotate.d/shop`; `pg_dump | gzip > /backups/...`; `df -h`/`du` to show disk effects.
 - Chaos labs for Stage 3 per the spec (read lines 463-485), plus badges/edges if new states are needed.
 - Then: `data/stage3.ts`, `enterStage3` in `engine/`, register in `runtime.ts` `STAGES`, flip `live: true` in `data/catalog.ts`, extend `engine/verify.ts` with a Stage 3 walkthrough, update `CLAUDE.md`.
@@ -57,6 +60,8 @@ After Stage 3: Stages 4 to 8 (Docker, Compose, cloud, CI/CD, Kubernetes) need ne
 - Accessibility pass (focus order, live regions) beyond the basics has not been done.
 
 ## 6. Lessons learned (avoid repeating these)
+
+- **Phase 3a notes.** `c.emit(line)` keeps a script's stdout/stderr in order on screen; with a redirect the lines are split into stdout/stderr like any command. `c.runLine(text, env)` runs one line as if typed (as `c.user`, so `sudo ./deploy.sh` works) and ticks the clock 2 s, so state changes between script lines. `$?` is a placeholder (`\u0000Q`) that `runList` fills per command; scripts pass real numbers through `env['?']`. In real `ln`, `ln -s X link` where `link` is a link to a folder creates the link INSIDE that folder unless `-n`/`-T` is given: the engine does the same on purpose (Lab 3.1 uses `ln -sfn`). The verifier helper `text2` now strips ANSI because `ls` colours links.
 
 - **Scripted edits can fail silently.** Python `str.replace` returns the original text when nothing matches. Always `assert old in text` first. This hid a whole block of Stage 2 wiring until the verifier caught it.
 - **Never run `pkill -f <pattern>` where the pattern also appears in your own command line**: it kills your own shell.
@@ -76,4 +81,4 @@ After Stage 3: Stages 4 to 8 (Docker, Compose, cloud, CI/CD, Kubernetes) need ne
 
 ## 8. Prompt to start the next chat
 
-"Continue the DevOps Mastery module. Repo: https://github.com/VivekG421302/java-arcrade. Temporary token: <paste>. Read docs/devops/HANDOFF.md and CLAUDE.md first, run the build and `npm run verify:devops`, then build Phase 3 (Stage 3). Push verified work to main as you go."
+"Continue the DevOps Mastery module. Repo: https://github.com/VivekG421302/java-arcrade. Temporary token: <paste>. Read docs/devops/HANDOFF.md and CLAUDE.md first, run the build and `npm run verify:devops`, push Phase 3a if it is not on main yet, then build Phase 3b (rsync, systemd jar check, releases world, `enterStage3`). Push verified work to main as you go."

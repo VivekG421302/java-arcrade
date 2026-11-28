@@ -6,7 +6,7 @@ import { enterStage2, ENV_FILE, SITE_FILE, UNIT_FILE } from './stage2world'
 import { deriveBadges } from './badges'
 import { Simulator } from './session'
 import { keyChoices, sftpConnect, sftpRename, sftpTransfer } from './sftpGui'
-import { sqlBridge } from './shellTypes'
+import { sqlBridge, stripAnsi } from './shellTypes'
 import { Tracker } from './tracker'
 
 const store = new Map<string, string>()
@@ -188,7 +188,7 @@ ok(tr.isComplete() && tr.p.stageComplete, 'stage complete after everything', () 
 // =====================================================================================================================
 const sim2 = new Simulator(PLAYGROUND_STAGE2, { stage: 2, key: 'devops:v1:sim:stage-2', init: enterStage2 })
 const tr2 = new Tracker(STAGE_2, sim2)
-const text2 = (id: number, n = 14) => sim2.tab(id)!.lines.slice(-n).map((l) => (l.t === 'cmd' ? `${l.prompt}${l.s}` : l.s)).join('\n')
+const text2 = (id: number, n = 14) => stripAnsi(sim2.tab(id)!.lines.slice(-n).map((l) => (l.t === 'cmd' ? `${l.prompt}${l.s}` : l.s)).join('\n'))
 const where2 = () => { const c = tr2.current(); return c ? `   at ${c.ref.id} step ${c.index + 1}/${c.total}: ${c.step.instruction}\n   last output:\n${text2(sim2.current.shell.id, 18)}` : '   (no active step)' }
 async function go(id: number, line: string, expectAdvance = true) {
   const before = tr2.current(); const idx = before?.index
@@ -371,6 +371,53 @@ ok(!tr2.isComplete(), 'stage 2 incomplete before the quiz')
 ok(!tr2.submitQuiz([0, 0, 0, 0, 0]).passed, 'stage 2 wrong answers fail')
 ok(tr2.submitQuiz(STAGE_2.unlockGate.quiz.questions.map((q) => q.answerIndex)).passed, 'stage 2 right answers pass')
 ok(tr2.isComplete() && tr2.p.stageComplete, 'stage 2 complete', () => JSON.stringify(tr2.gateItems().filter((i) => !i.done)))
+
+// =====================================================================================================================
+// STAGE 3 ENGINE PRIMITIVES (Phase 3a): symlinks in paths, readlink / ln -sfn / mv -T, and the script runner. No Stage 3 content yet.
+// =====================================================================================================================
+{
+  const s3 = new Simulator(PLAYGROUND_STAGE2, { stage: 2, key: 'devops:v1:sim:stage-3-engine', init: enterStage2 })
+  s3.world.state.stage = 3
+  const R = s3.openRescue()!
+  const put = (path: string, content: string, mode = '755') => { s3.world.fs.remote[path] = { type: 'file', mode, owner: 'ubuntu', size: content.length, content, mtime: s3.world.clock } }
+  const out = async (line: string) => {
+    await s3.run(R, line)
+    const ls = s3.tab(R)!.lines
+    const i = [...ls].reverse().findIndex((l) => l.t === 'cmd')
+    return stripAnsi(ls.slice(ls.length - i).map((l) => l.s).join('\n'))
+  }
+  put('/opt/myapp/deploy.sh', [
+    '#!/usr/bin/env bash', 'set -euo pipefail', 'APP=/opt/myapp', 'VERSION=${1:?usage: deploy.sh <version>}',
+    'mkdir -p "$APP/releases/$VERSION"', 'cp "$APP/app.jar" "$APP/releases/$VERSION/app.jar"', 'ln -sfn "$APP/releases/$VERSION" "$APP/current"',
+    'if [[ "$(readlink "$APP/current")" == *"$VERSION"* ]]; then echo "DEPLOY OK: $VERSION"; else echo BAD; fi', 'false', 'echo NOT-REACHED', '',
+  ].join('\n'))
+  put('/opt/myapp/plain.sh', 'echo hi\n', '644')
+  put('/opt/myapp/fn.sh', ['set -e', 'f() { echo "in f $1"; return 3; }', 'f x || echo "f gave $?"', 'for n in a b; do echo "n=$n"; done', 'T=$((2 + 3 * 4))', 'echo "t=$T"', 'grep -q zzz /etc/hostname || exit 7', 'echo NOT-REACHED', ''].join('\n'))
+  put('/opt/myapp/unset.sh', 'set -u\necho "v=$NOPE"\necho NOT-REACHED\n')
+
+  let o = await out('cd /opt/myapp && ./deploy.sh')
+  ok(/deploy\.sh: line 4: 1: usage: deploy\.sh <version>/.test(o), 'script: ${1:?msg} prints the usage error with a line number', () => o)
+  o = await out('./deploy.sh v2'); ok(/DEPLOY OK: v2/.test(o) && !/NOT-REACHED/.test(o), 'script: runs, and set -e stops at the failing command', () => o)
+  o = await out('echo "rc=$?"'); ok(/rc=1/.test(o), '$? carries the previous line status', () => o)
+  o = await out('./deploy.sh v2 >/dev/null; echo "rc=$?"'); ok(/rc=1/.test(o), '$? sees a status inside the same line', () => o)
+  o = await out('./plain.sh'); ok(/Permission denied/.test(o) && /chmod \+x/.test(o), './script without the x bit: Permission denied plus a chmod hint', () => o)
+  o = await out('bash plain.sh'); ok(/^hi$/m.test(o), 'bash script.sh does not need the x bit', () => o)
+  o = await out('bash fn.sh; echo "rc=$?"'); ok(/in f x/.test(o) && /f gave 3/.test(o) && /n=a/.test(o) && /n=b/.test(o) && /t=14/.test(o) && /rc=7/.test(o) && !/NOT-REACHED/.test(o), 'script: functions, return codes, for, arithmetic, `|| exit`', () => o)
+  o = await out('bash unset.sh'); ok(/NOPE: unbound variable/.test(o) && !/NOT-REACHED/.test(o), 'script: set -u stops on an unset variable', () => o)
+  o = await out('sudo ./deploy.sh v3 > /tmp/out.log 2>&1; head -1 /tmp/out.log; ls -ld /opt/myapp/releases/v3')
+  ok(/DEPLOY OK: v3/.test(o) && /root/.test(o), 'script: sudo ./script runs as root and honours redirects', () => o)
+  o = await out('readlink /opt/myapp/current'); ok(o.trim() === '/opt/myapp/releases/v3', 'readlink prints the link text', () => o)
+  o = await out('ls /opt/myapp/current/'); ok(/app\.jar/.test(o), 'a link to a folder is followed in the middle of a path and by `ls link/`', () => o)
+  o = await out('cat /opt/myapp/current/app.jar | head -c 0; ls -l /opt/myapp/current'); ok(/current -> \/opt\/myapp\/releases\/v3/.test(o), 'ls -l shows the link itself', () => o)
+  o = await out('cd releases && ln -s v2 cur && ls -l cur/ && readlink -f cur && cd ..'); ok(/app\.jar/.test(o) && /\/opt\/myapp\/releases\/v2/.test(o), 'relative symlinks resolve from the link folder', () => o)
+  o = await out('rm -rf /opt/myapp/releases/v3; ls -l /opt/myapp/current; ls /opt/myapp/current'); ok(/current -> \/opt\/myapp\/releases\/v3/.test(o) && /cannot access/.test(o), 'a dangling link: ls -l shows it, ls link fails', () => o)
+  o = await out('mkdir /tmp/a /tmp/b; ln -s /tmp/a /tmp/ptr; mv /tmp/b /tmp/ptr; ls /tmp/a'); ok(/^b$/m.test(o), 'mv onto a link to a folder moves INTO the folder (the classic trap)', () => o)
+  o = await out('mkdir /tmp/c; ln -s /tmp/c /tmp/cur; ln -sfn /tmp/a /tmp/tmpl; mv -T /tmp/tmpl /tmp/cur; readlink /tmp/cur'); ok(o.trim() === '/tmp/a', 'mv -T replaces the link itself in one step', () => o)
+  o = await out('touch /tmp/f; ln -s /tmp/c /tmp/f'); ok(/File exists/.test(o), 'ln -s without -f refuses to overwrite a file', () => o)
+  o = await out('ln -s /tmp/c /tmp/ptr; ls /tmp/a'); ok(/\bb\s+c\b/.test(o), 'ln -s onto a link to a folder (no -n) creates the link inside the folder', () => o)
+  o = await out('ln -sfn /tmp/b /tmp/cur; readlink /tmp/cur; ls /tmp/c'); ok(/^\/tmp\/b$/m.test(o), 'ln -sfn replaces the link (and does not create a link inside the old target)', () => o)
+  o = await out('[[ -L /tmp/ptr ]] && echo is-link; [ -d /tmp/ptr ] && echo is-dir; test -f /tmp/ptr || echo not-file'); ok(/is-link/.test(o) && /is-dir/.test(o) && /not-file/.test(o), 'test builtin: -L -d -f', () => o)
+}
 
 console.log(failures ? `\n${failures} of ${checks} checks FAILED` : `All ${checks} checks passed ✓`)
 if (failures) throw new Error(`${failures} verification check(s) failed`)

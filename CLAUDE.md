@@ -44,6 +44,7 @@ engine/             Framework-free simulator (no React)
   world.ts          World = fs + process table + hidden state; syncWorld() derives SimulatedServerState
   parse.ts          bash-subset parser (quotes, && || ; | &, > >> 2>&1, ~ and $VAR)
   shell.ts          executor, prompts, REPLs, Ctrl+C, Tab completion
+  script.ts         bash-subset script runner (if/for/functions, set -euo pipefail, $(cmd)) and the [[ ]] / [ ] / test builtin
   corecmds.ts / netcmds.ts / svccmds.ts / app.ts   commands (core, ssh/scp/curl/ss, apt/java/mvn/psql/nano) and the app + HTTP model
   stage2cmds.ts     systemctl (all verbs), journalctl, nginx, ufw, certbot, reboot
   systemd.ts        unit parsing, EnvironmentFile, Restart= loops, journal, enable/disable, reboot; registers the syncWorld hooks
@@ -101,4 +102,5 @@ Docs: `docs/devops/fullstack-devops-mastery-spec.md` is the curriculum source of
   - `reboot` kills every SSH session, restarts enabled units, and SSH is refused for about 18 simulated seconds (`sleep 20` passes the time).
   - The rescue console tab is a remote shell that does not use the network, so UFW cannot block it.
   - The simplified nano accepts pasted text; steps that need a file show a `snippet` with a Copy button.
-- **Next:** Phase 3, Stage 3 (shell automation: deploy script, versioned releases with an atomic symlink swap, logrotate, backups, cron). It needs `ln -sfn`/`readlink`/`mv -T`, `crontab`, `logrotate`, `pg_dump`, a script runner (`bash script.sh` with `set -e`) and an editor-friendly way to write multi-line scripts.
+- **Phase 3a (done, engine only):** symlink-aware paths (`fs.ts` `realpath`/`linkAbs`/`isDangling`; `c.abs` follows links in the middle of a path), `ln -sfn`, `readlink`, `mv -T`, `ls`/`cd` through links, `engine/script.ts` (script runner + `[[ ]]`/`[`/`test`), `$?` per command. `bash`/`sh` unlock in Stage 3 (`LOCKED`). Stage 3 content is not started and the stage is still `live: false`.
+- **Next:** Phase 3b: `rsync`, systemd jar-existence check (Chaos 3.2), `enterStage3` world with releases, then `crontab`, `logrotate`, `pg_dump`/`gzip`, `df`/`du`, labs, chaos labs, `data/stage3.ts`. Known script-runner gaps: no here-doc, `printf`, `while`, `case`, `trap`, `read`.

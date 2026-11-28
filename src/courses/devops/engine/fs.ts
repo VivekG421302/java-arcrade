@@ -149,9 +149,46 @@ export function glob(fs: Fs, pattern: string, cwd: string, home: string): string
   return walk(dir, 0, shown0).sort()
 }
 
-/** Follow symlinks (up to 8 hops) like the kernel does when a program opens a path. */
+/** Where a symlink at `linkPath` points, as an absolute path (relative targets are read from the link's own folder, like the kernel does). */
+export function linkAbs(fs: Fs, linkPath: string): string {
+  const e = fs[linkPath]
+  const t = e?.link ?? ''
+  return resolvePath(t, parent(linkPath), '/')
+}
+
+/**
+ * Resolve every symlink on the way to `p` (all components when `last` is true, otherwise every component except the final one).
+ * Returns the real path, or null for a loop. A dangling link resolves to the path it points at, which simply does not exist.
+ */
+export function realpath(fs: Fs, p: string, last = true): string | null {
+  let hops = 0
+  let cur = p
+  outer: for (;;) {
+    const segs = cur.split('/').filter(Boolean)
+    let acc = ''
+    for (let i = 0; i < segs.length; i++) {
+      acc += '/' + segs[i]
+      const e = fs[acc]
+      const isLast = i === segs.length - 1
+      if (e?.link && (!isLast || last)) {
+        if (++hops > 40) return null
+        const rest = segs.slice(i + 1).join('/')
+        const tgt = linkAbs(fs, acc)
+        cur = rest ? join(tgt, rest) : tgt
+        continue outer
+      }
+    }
+    return acc || '/'
+  }
+}
+
+/** Follow symlinks like the kernel does when a program opens a path (including links in the middle of the path). */
 export function resolveLink(fs: Fs, p: string): FsEntry | undefined {
-  let e = fs[p]
-  for (let i = 0; e?.link && i < 8; i++) e = fs[e.link]
-  return e
+  const r = realpath(fs, p, true)
+  return r ? fs[r] : undefined
+}
+
+/** True when `p` is a symlink whose target does not exist (what `ls --color` paints red). */
+export function isDangling(fs: Fs, p: string): boolean {
+  return !!fs[p]?.link && !resolveLink(fs, p)
 }

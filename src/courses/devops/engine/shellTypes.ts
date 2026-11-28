@@ -15,6 +15,8 @@ export interface Shell {
   localHistory: string[]
   ssh: SshCtx | null
   repl: Repl | null
+  /** Exit status of the previous typed line, so `echo $?` works. */
+  last?: number
   /** Provider rescue console: a login that does not travel over the network, so it works even when the firewall blocks port 22. */
   rescue?: boolean
 }
@@ -64,6 +66,10 @@ export interface CmdCtx {
   /** A line printed by the shell itself (job notices like `[1] 2317`): never captured by `>` redirects. */
   note: (s: string, when?: 'pre' | 'post') => void
   exec: (sh: Shell, line: string) => Promise<ExecResult>
+  /** Script runner: one line of output with its stream kept in order (so errors stay between the echoes around them, and `>` / `2>&1` still work). */
+  emit: (l: OutLine) => void
+  /** Script runner: parse and run one line exactly as if typed, as the user running this command. `env` adds script variables. */
+  runLine: (text: string, env: Record<string, string>, o?: { pipefail?: boolean }) => Promise<{ out: OutLine[]; exit: number; ok: boolean; ranLast: boolean }>
   /** Run another command in this same context (used by sudo / nohup / setsid wrappers). */
   run: (argv: string[], patch?: Partial<CmdCtx>) => Promise<number>
 }

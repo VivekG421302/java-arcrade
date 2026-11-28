@@ -1,8 +1,8 @@
 // Core Linux commands for the simulated terminal. Each handler prints what the real command prints, including real error text.
-import { base, can, humanSize, join, listDir, mkdirp, modeString, parent, removeTree, copyTree, moveTree, resolveLink, writeFile, type FsEntry } from './fs'
+import { base, can, humanSize, isDangling, join, listDir, mkdirp, modeString, parent, realpath, removeTree, copyTree, moveTree, resolveLink, writeFile, type FsEntry } from './fs'
 import { glob } from './fs'
 import { appProc, hhmm, killProc, lsDate, longDate, pad, PUBLIC_IP, HOSTNAME, tick, type Proc } from './world'
-import type { CmdCtx, CmdFn } from './shellTypes'
+import { ANSI, type CmdCtx, type CmdFn } from './shellTypes'
 
 /** Split argv into single-letter flags and operands (`-lh` -> l, h). Long options are returned in `long`. */
 export function flagsOf(args: string[], withValue: string[] = []) {
@@ -30,7 +30,8 @@ const pwd: CmdFn = (c) => { c.out(c.cwd); return 0 }
 
 const cd: CmdFn = (c) => {
   const target = c.argv[1] ?? '~'
-  const p = c.abs(target === '-' ? c.home : target)
+  const p0 = c.abs(target === '-' ? c.home : target)
+  const p = realpath(c.fs, p0) ?? p0
   const e = c.fs[p]
   if (!e) { c.err(`bash: cd: ${target}: No such file or directory`); return 1 }
   if (e.type !== 'dir') { c.err(`bash: cd: ${target}: Not a directory`); return 1 }
@@ -46,20 +47,33 @@ const ls: CmdFn = (c) => {
   let code = 0
   const files: [string, FsEntry][] = []
   const dirs: [string, string][] = []
+  const where = new Map<string, string>()   // listed name -> absolute path (to tell a dangling link from a good one)
   for (const p of paths) {
-    const ap = c.abs(p), e = c.fs[ap]
+    let ap = c.abs(p), e: FsEntry | undefined = c.fs[ap]
+    // like GNU ls: a link to a folder is opened unless -l (or -d) asks about the link itself; `link/` always opens it
+    if (e?.link && !dirOnly && (!long || p.endsWith('/'))) {
+      const rp = realpath(c.fs, ap)
+      if (rp && c.fs[rp]) { ap = rp; e = c.fs[rp] } else if (!long) e = undefined
+    }
     if (!e) {
       c.err(`ls: cannot access '${p}': No such file or directory`); code = 2
       if (/\.jar/.test(p)) c.tip('Did the build fail above? Run `mvn clean package` on your laptop first, then look again.')
       continue
     }
-    if (e.type === 'dir' && !dirOnly) dirs.push([p, ap]); else files.push([p, e])
+    if (e.type === 'dir' && !dirOnly) dirs.push([p, ap]); else { files.push([p, e]); where.set(p, c.abs(p)) }
   }
   const render = (entries: [string, FsEntry][]) => {
     if (!long) { wrapNames(entries.map(([n]) => n)).forEach((l) => c.out(l)); return }
     const rows = entries.map(([n, e]) => {
       const subdirs = e.type === 'dir' ? Object.keys(c.fs).filter((k) => parent(k) === (n === '.' || n === '..' ? c.abs(n) : c.abs(n)) && c.fs[k].type === 'dir' && k !== '/').length : 0
-      return [modeString(e), String(e.type === 'dir' ? 2 + subdirs : 1), e.owner, e.owner, human ? humanSize(e.size) : String(e.size), lsDate(e.mtime), e.link ? `${n} -> ${e.link}` : n]
+      const col = !c.redir.stdout && !c.pipeNext
+      const lp = e.link ? where.get(n) : undefined
+      let label = n
+      if (e.link) {
+        const dead = lp ? isDangling(c.fs, lp) : false
+        label = col ? (dead ? `${ANSI.red}${n}${ANSI.off} -> ${ANSI.red}${e.link}${ANSI.off}` : `\x1b[1;36m${n}${ANSI.off} -> ${e.link}`) : `${n} -> ${e.link}`
+      }
+      return [modeString(e), String(e.type === 'dir' ? 2 + subdirs : 1), e.owner, e.owner, human ? humanSize(e.size) : String(e.size), lsDate(e.mtime), label]
     })
     const wid = [1, 2, 3, 4].map((i) => Math.max(...rows.map((r) => r[i].length)))
     for (const r of rows) c.out(`${r[0]} ${r[1].padStart(wid[0])} ${r[2].padEnd(wid[1])} ${r[3].padEnd(wid[2])} ${r[4].padStart(wid[3])} ${r[5]} ${r[6]}`)
@@ -71,6 +85,7 @@ const ls: CmdFn = (c) => {
     if (!can(dirEntry, c.user, 'r')) { c.err(`ls: cannot open directory '${p}': Permission denied`); code = 2; return }
     let names = listDir(c.fs, ap)
     if (!all && !almost) names = names.filter((n) => !n.startsWith('.'))
+    names.forEach((n) => where.set(n, join(ap, n)))
     const entries: [string, FsEntry][] = names.map((n) => [n, c.fs[join(ap, n)]])
     if (all) entries.unshift(['.', dirEntry], ['..', c.fs[parent(ap)] ?? dirEntry])
     if (long) c.out(`total ${entries.reduce((s, [, e]) => s + Math.max(4, Math.ceil(e.size / 4096) * 4), 0)}`)
@@ -134,21 +149,46 @@ const mkdir: CmdFn = (c) => {
 
 const ln: CmdFn = (c) => {
   const { flags, operands } = flagsOf(c.argv.slice(1))
+  const sym = flags.has('s'), kind = sym ? 'symbolic link' : 'hard link'
   if (operands.length < 2) { c.err(`ln: missing file operand${operands.length ? ` after '${operands[0]}'` : ''}`); return 1 }
   const [src, dst] = operands
-  const target = c.abs(src)
+  const srcAbs = c.abs(src)
+  // -n / -T: if the name is already a link to a folder, replace the link itself instead of creating a new link inside the folder
+  const noDeref = flags.has('n') || flags.has('T')
   const dp = c.abs(dst)
-  const to = c.fs[dp]?.type === 'dir' ? join(dp, base(target)) : dp
+  const dEntry = noDeref ? undefined : resolveLink(c.fs, dp)
+  const to = dEntry?.type === 'dir' ? join(realpath(c.fs, dp) ?? dp, base(srcAbs)) : dp
   if (c.fs[to]) {
-    if (!flags.has('f')) { c.err(`ln: failed to create ${flags.has('s') ? 'symbolic ' : ''}link '${dst}': File exists`); return 1 }
-    delete c.fs[to]
+    if (!flags.has('f')) { c.err(`ln: failed to create ${kind} '${dst}': File exists`); return 1 }
+    if (c.fs[to].type === 'dir') { c.err(`ln: ${to}: cannot overwrite directory`); return 1 }
   }
   const par = c.fs[parent(to)]
-  if (!par) { c.err(`ln: failed to create symbolic link '${dst}': No such file or directory`); return 1 }
-  if (!can(par, c.user, 'w')) { c.err(`ln: failed to create ${flags.has('s') ? 'symbolic ' : ''}link '${dst}': Permission denied`); return 1 }
-  if (!flags.has('s')) { copyTree(c.fs, target, to, c.user, c.w.clock); return c.fs[target] ? 0 : (c.err(`ln: failed to access '${src}': No such file or directory`), 1) }
-  c.fs[to] = { type: 'file', mode: '777', owner: c.user, size: target.length, mtime: c.w.clock, link: target }
+  if (!par) { c.err(`ln: failed to create ${kind} '${dst}': No such file or directory`); return 1 }
+  if (!can(par, c.user, 'w')) { c.err(`ln: failed to create ${kind} '${dst}': Permission denied`); return 1 }
+  if (!sym) {
+    if (!c.fs[srcAbs]) { c.err(`ln: failed to access '${src}': No such file or directory`); return 1 }
+    if (c.fs[srcAbs].type === 'dir') { c.err(`ln: ${src}: hard link not allowed for directory`); return 1 }
+    delete c.fs[to]; copyTree(c.fs, srcAbs, to, c.user, c.w.clock); return 0
+  }
+  // a symbolic link stores the text exactly as typed (relative targets are read from the link's own folder)
+  c.fs[to] = { type: 'file', mode: '777', owner: c.user, size: src.length, mtime: c.w.clock, link: src.startsWith('~') ? srcAbs : src }
   return 0
+}
+
+const readlink: CmdFn = (c) => {
+  const { flags, operands } = flagsOf(c.argv.slice(1))
+  if (!operands.length) { c.err("readlink: missing operand"); return 1 }
+  let code = 0
+  for (const f of operands) {
+    const ap = c.abs(f), e = c.fs[ap]
+    if (flags.has('f') || flags.has('e') || flags.has('m')) {
+      const r = realpath(c.fs, ap)
+      if (!r || (flags.has('e') && !c.fs[r]) || (flags.has('f') && !c.fs[parent(r)])) { code = 1; continue }
+      c.out(r)
+    } else if (e?.link) c.out(e.link)
+    else code = 1   // not a symlink (or missing): readlink prints nothing and exits 1
+  }
+  return code
 }
 
 const touch: CmdFn = (c) => {
@@ -178,9 +218,11 @@ const rm: CmdFn = (c) => {
   return code
 }
 
-function destOf(c: CmdCtx, src: string, dst: string) {
-  const dp = c.abs(dst), de = c.fs[dp]
-  return de?.type === 'dir' ? join(dp, base(c.abs(src))) : dp
+function destOf(c: CmdCtx, src: string, dst: string, noTarget = false) {
+  const dp = c.abs(dst)
+  if (noTarget) return dp
+  const de = resolveLink(c.fs, dp)   // a link to a folder counts as the folder: `mv v3 current` moves v3 INTO the folder current points at
+  return de?.type === 'dir' ? join(realpath(c.fs, dp) ?? dp, base(c.abs(src))) : dp
 }
 
 const cp: CmdFn = (c) => {
@@ -199,15 +241,24 @@ const cp: CmdFn = (c) => {
 }
 
 const mv: CmdFn = (c) => {
-  const ops = c.argv.slice(1).filter((a) => !a.startsWith('-'))
+  const { flags, operands: ops } = flagsOf(c.argv.slice(1))
   if (ops.length < 2) { c.err(`mv: missing destination file operand after '${ops[0] ?? ''}'`); return 1 }
   const [src, dst] = [ops[0], ops[ops.length - 1]]
   const sp = c.abs(src)
   if (!c.fs[sp]) { c.err(`mv: cannot stat '${src}': No such file or directory`); return 1 }
-  const to = destOf(c, src, dst)
+  const to = destOf(c, src, dst, flags.has('T'))
+  if (to === sp) { c.err(`mv: '${src}' and '${dst}' are the same file`); return 1 }
   if (!c.fs[parent(to)]) { c.err(`mv: cannot move '${src}' to '${dst}': No such file or directory`); return 1 }
   if (!can(c.fs[parent(to)], c.user, 'w') || !can(c.fs[parent(sp)], c.user, 'w')) { c.err(`mv: cannot move '${src}' to '${dst}': Permission denied`); return 1 }
+  const te = c.fs[to]
+  if (te && flags.has('n')) return 0
+  if (te?.type === 'dir' && !te.link) {
+    if (c.fs[sp].type !== 'dir') { c.err(`mv: cannot overwrite directory '${dst}' with non-directory`); return 1 }
+    if (Object.keys(c.fs).some((k) => parent(k) === to && k !== to)) { c.err(`mv: cannot move '${src}' to '${dst}': Directory not empty`); return 1 }
+  }
+  if (te && !(te.type === 'dir' && !te.link)) delete c.fs[to]   // a file or a link is replaced in one step (this is what makes `mv -T` atomic)
   moveTree(c.fs, sp, to)
+  if (flags.has('v')) c.out(`renamed '${src}' -> '${to === c.abs(dst) ? dst : to}'`)
   return 0
 }
 
@@ -545,7 +596,7 @@ const noop: CmdFn = (c) => { if (c.argv[0] === 'sleep') tick(c.w, Number(c.argv[
 const clear: CmdFn = (c) => { c.result.clear = true; return 0 }
 
 export const CORE: Record<string, CmdFn> = {
-  pwd, cd, ls, cat, echo, mkdir, ln, touch, rm, cp, mv, chmod, chown, grep, egrep: (c) => grep({ ...c, argv: ['grep', '-E', ...c.argv.slice(1)] }), head: headTail('head'), tail: headTail('tail'), wc, find, sed, tee,
+  pwd, cd, ls, cat, echo, mkdir, ln, readlink, touch, rm, cp, mv, chmod, chown, grep, egrep: (c) => grep({ ...c, argv: ['grep', '-E', ...c.argv.slice(1)] }), head: headTail('head'), tail: headTail('tail'), wc, find, sed, tee,
   ps, kill, pkill, killall: pkill, pgrep, whoami, hostname: hostnameCmd, id, uname, date, uptime, df, free, env, printenv: env, history, jobs, which,
   sleep: noop, true: noop, false: noop, clear,
 }

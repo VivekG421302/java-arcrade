@@ -6,7 +6,8 @@ import { STAGE2 } from './stage2cmds'
 import './systemd'
 import { parse, type ListItem, type SimpleCmd } from './parse'
 import { appendText } from './app'
-import { can, glob, listDir, parent, resolvePath, tilde, writeFile } from './fs'
+import { bashCmd, runFile, testCmd } from './script'
+import { can, glob, listDir, parent, realpath, resolvePath, tilde, writeFile } from './fs'
 import { jdate } from './systemd'
 import { closeSsh, HOME, HOSTNAME, isoMs, killProc, syncWorld, tick, type World } from './world'
 import { stripAnsi, type CmdCtx, type CmdFn, type ExecResult, type Hold, type OutLine, type Shell } from './shellTypes'
@@ -20,7 +21,7 @@ export const newShell = (id: number): Shell => ({ id, localCwd: '/home/learner/s
 // Tools that exist later in the course: they fail like a missing program, with a note saying when they unlock.
 const LOCKED: Record<string, number> = {
   ufw: 2, certbot: 2, journalctl: 2, nginx: 2, reboot: 2, shutdown: 2, rsync: 3, crontab: 3, logrotate: 3, pg_dump: 3, mysqldump: 3, docker: 4,
-  'docker-compose': 5, nc: 6, dig: 6, htop: 6, aws: 6, git: 7, gh: 7, kubectl: 8, helm: 8,
+  bash: 3, sh: 3, 'docker-compose': 5, nc: 6, dig: 6, htop: 6, aws: 6, git: 7, gh: 7, kubectl: 8, helm: 8,
 }
 const APT_HINT: Record<string, string> = { mysql: 'mysql-client-core-8.0', docker: 'docker.io', nginx: 'nginx', git: 'git', rsync: 'rsync', ufw: 'ufw', vim: 'vim', unzip: 'unzip' }
 
@@ -35,7 +36,7 @@ const exitCmd: CmdFn = (c) => {
   return 0
 }
 
-const COMMANDS: Record<string, CmdFn> = { ...CORE, ...NET, ...SVC, ...STAGE2, exit: exitCmd, logout: exitCmd }
+const COMMANDS: Record<string, CmdFn> = { ...CORE, ...NET, ...SVC, ...STAGE2, bash: bashCmd, sh: bashCmd, '[[': testCmd, '[': testCmd, test: testCmd, exit: exitCmd, logout: exitCmd }
 
 export const promptOf = (w: World, sh: Shell): string => {
   const r = sh.repl
@@ -48,7 +49,7 @@ export const promptOf = (w: World, sh: Shell): string => {
 
 const lines = (s: string) => s.split('\n')
 
-interface Frame { w: World; sh: Shell; host: 'local' | 'remote'; user: string; env: Record<string, string>; pre: OutLine[]; post: OutLine[]; tips: OutLine[]; result: Partial<ExecResult> }
+interface Frame { w: World; sh: Shell; host: 'local' | 'remote'; user: string; env: Record<string, string>; pre: OutLine[]; post: OutLine[]; tips: OutLine[]; result: Partial<ExecResult>; mixed?: OutLine[] }
 
 function build(f: Frame, argv: string[], o: Partial<Pick<CmdCtx, 'sudo' | 'immune' | 'bg' | 'redir' | 'pipeNext' | 'stdin' | 'stdout' | 'stderr' | 'user'>>): CmdCtx {
   const { w, sh, host } = f
@@ -62,11 +63,19 @@ function build(f: Frame, argv: string[], o: Partial<Pick<CmdCtx, 'sudo' | 'immun
     redir: o.redir ?? { stdout: false, stderr: false, errToOut: false }, pipeNext: o.pipeNext ?? null,
     get cwd() { return sh.ssh && host === 'remote' ? sh.ssh.cwd : sh.localCwd },
     setCwd: (p) => { if (host === 'remote' && sh.ssh) sh.ssh.cwd = p; else sh.localCwd = p },
-    abs: (p) => resolvePath(p, host === 'remote' && sh.ssh ? sh.ssh.cwd : sh.localCwd, home),
+    // links in the middle of a path (current/app.jar) are followed here; the last name is kept so `ls -l current` still shows the link
+    abs: (p) => { const r = resolvePath(p, host === 'remote' && sh.ssh ? sh.ssh.cwd : sh.localCwd, home); return realpath(fs, r, false) ?? r },
     out: (s) => { for (const l of lines(s)) c.stdout.push(l) },
     err: (s) => { for (const l of lines(s)) c.stderr.push(l) },
     tip: (s) => { f.tips.push({ t: 'sys', s: `💡 ${s}` }) },
     note: (s, when = 'pre') => { (when === 'pre' ? f.pre : f.post).push({ t: 'out', s }) },
+    emit: (l) => { (f.mixed ??= []).push(l) },
+    runLine: async (text, env, o) => {
+      const items = parse(text, { ...f.env, ...env })
+      const r = await runList({ ...f, user: c.user }, items, { pipefail: o?.pipefail, last0: Number(env['?'] ?? 0) || 0 })
+      tick(w, 2); syncWorld(w)   // the world moves on between script lines, like it does between typed lines
+      return { out: r.out, exit: r.exit, ok: r.ok, ranLast: r.ranLast }
+    },
     exec: (s2, line) => exec(w, s2, line),
     run: async (a, patch = {}) => invoke(build(f, a, { sudo: c.sudo, immune: c.immune, bg: c.bg, redir: c.redir, pipeNext: c.pipeNext, stdin: c.stdin, stdout: c.stdout, stderr: c.stderr, user: c.user, ...(patch as object) })),
   } as CmdCtx
@@ -75,6 +84,7 @@ function build(f: Frame, argv: string[], o: Partial<Pick<CmdCtx, 'sudo' | 'immun
 
 async function invoke(c: CmdCtx): Promise<number> {
   const name = c.argv[0]
+  if (name.includes('/')) return runFile(c, name, c.argv.slice(1), true)   // ./deploy.sh or /opt/myapp/deploy.sh
   const fn = COMMANDS[name]
   const needs = LOCKED[name]
   if (!fn || (needs && needs > c.w.state.stage && name !== 'systemctl')) {
@@ -93,7 +103,8 @@ function openRedirect(f: Frame, op: string, rawTarget: string): { path?: string;
   const { w, host } = f
   const fs = w.fs[host]
   const cwd = f.sh.ssh && host === 'remote' ? f.sh.ssh.cwd : f.sh.localCwd
-  const p = resolvePath(rawTarget, cwd, HOME[host])
+  const p0 = resolvePath(rawTarget, cwd, HOME[host])
+  const p = realpath(fs, p0, true) ?? p0   // `> link` writes through the link, like bash
   const e = fs[p]
   if (e?.type === 'dir') return { err: `bash: ${rawTarget}: Is a directory` }
   if (e ? !can(e, f.user, 'w') : !fs[parent(p)] || !can(fs[parent(p)], f.user, 'w')) return { err: `bash: ${rawTarget}: ${fs[parent(p)] ? 'Permission denied' : 'No such file or directory'}` }
@@ -101,23 +112,27 @@ function openRedirect(f: Frame, op: string, rawTarget: string): { path?: string;
   return { path: p }
 }
 
-async function runList(f: Frame, items: ListItem[], extra?: { env?: Record<string, string> }): Promise<{ out: OutLine[]; ok: boolean; exit: number }> {
+async function runList(f: Frame, items: ListItem[], extra?: { env?: Record<string, string>; pipefail?: boolean; last0?: number }): Promise<{ out: OutLine[]; ok: boolean; exit: number; ranLast: boolean }> {
   const { w, host } = f
   const fs = w.fs[host]
   const out: OutLine[] = []
-  let last = 0, lastOk = true
+  let last = extra?.last0 ?? 0, lastOk = true, ranLast = false
+  const fill = (s: string) => (s.includes('\u0000Q') ? s.replace(/\u0000Q/g, String(last)) : s)
   const cwd = () => (f.sh.ssh && host === 'remote' ? f.sh.ssh.cwd : f.sh.localCwd)
-  for (const it of items) {
+  for (let k = 0; k < items.length; k++) {
+    const it = items[k]
     if ((it.before === '&&' && last !== 0) || (it.before === '||' && last === 0)) continue
     const cmds = it.p.cmds
     if (!cmds.length) continue
+    ranLast = k === items.length - 1
     let stdin: string | null = null
+    let pipeBad = 0
     for (let i = 0; i < cmds.length; i++) {
       const sc: SimpleCmd = cmds[i]
       const argv: string[] = []
       for (const wd of sc.words) {
-        if (wd.glob) argv.push(...glob(fs, wd.v, cwd(), HOME[host]))
-        else argv.push(wd.v)
+        if (wd.glob && sc.words[0].v !== '[[') argv.push(...glob(fs, fill(wd.v), cwd(), HOME[host]))
+        else argv.push(fill(wd.v))
       }
       const redir = { stdout: false, stderr: false, errToOut: false }
       const targets: { op: string; path?: string; devnull?: boolean }[] = []
@@ -136,8 +151,15 @@ async function runList(f: Frame, items: ListItem[], extra?: { env?: Record<strin
       const c = build(f, argv, { stdin, redir, pipeNext: next, bg: it.p.bg })
       if (extra?.env) Object.assign(c.env, extra.env)
       f.result.ok = undefined
+      f.mixed = undefined
       const code = await invoke(c)
       last = code
+      if (code !== 0) pipeBad = code
+      if (isLast && extra?.pipefail && pipeBad) last = pipeBad
+      const mx = f.mixed as OutLine[] | undefined
+      // a script's lines keep their order on screen; with a redirect they are split into stdout / stderr like any other command
+      const ordered = !!mx && isLast && !redir.stdout && !redir.stderr && !redir.errToOut
+      if (mx && !ordered) { c.stdout.push(...mx.filter((l) => l.t !== 'err').map((l) => l.s)); c.stderr.push(...mx.filter((l) => l.t === 'err').map((l) => l.s)) }
       lastOk = f.result.ok ?? code === 0
       // route captured output
       const so = c.stdout, se = c.stderr
@@ -149,11 +171,12 @@ async function runList(f: Frame, items: ListItem[], extra?: { env?: Record<strin
       }
       if (redir.errToOut && !redir.stdout) { showOut = true; showErr = false; so.push(...se) }
       if (showErr) se.forEach((s) => out.push({ t: 'err', s }))
+      if (ordered) mx!.forEach((l) => out.push(l))
       if (isLast) { if (showOut) so.forEach((s) => out.push({ t: 'out', s })) }
       stdin = so.length ? so.join('\n') + '\n' : ''
     }
   }
-  return { out, ok: lastOk, exit: last }
+  return { out, ok: lastOk, exit: last, ranLast }
 }
 
 const fail = (s: string): ExecResult => ({ out: [{ t: 'err', s }], ok: false, exit: 2, text: s })
@@ -166,11 +189,13 @@ export async function exec(w: World, sh: Shell, line: string): Promise<ExecResul
   if (sh.ssh) w.remoteHistory.push(t); else sh.localHistory.push(t)
   const host = sh.ssh ? 'remote' : 'local'
   const user = sh.ssh ? sh.ssh.user : 'learner'
-  const env = { HOME: HOME[host], USER: user, PWD: sh.ssh ? sh.ssh.cwd : sh.localCwd, HOSTNAME: host === 'remote' ? HOSTNAME : 'laptop', SHELL: '/bin/bash', '?': '0' }
+  const env = { HOME: HOME[host], USER: user, PWD: sh.ssh ? sh.ssh.cwd : sh.localCwd, HOSTNAME: host === 'remote' ? HOSTNAME : 'laptop', SHELL: '/bin/bash', '?': '\u0000Q' }   // $? is filled in per command by runList, so `a; echo $?` sees a's status
   let items: ListItem[]
   try { items = parse(t, env) } catch (e) { return fail(`bash: ${(e as Error).message}`) }
   const f: Frame = { w, sh, host, user, env, pre: [], post: [], tips: [], result: {} }
-  return finish(w, f, await runList(f, items))
+  const res = await runList(f, items, { last0: sh.last ?? 0 })
+  sh.last = res.exit
+  return finish(w, f, res)
 }
 
 function finish(w: World, f: Frame, r: { out: OutLine[]; ok: boolean; exit: number }): ExecResult {
