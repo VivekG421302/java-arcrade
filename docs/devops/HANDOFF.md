@@ -4,7 +4,7 @@ Paste this whole file into a new chat, together with the repo link and a tempora
 
 - Repo: https://github.com/VivekG421302/java-arcrade (branch `main`)
 - The owner (Vivek, "GIMIK") is a Java backend engineer who prefers direct communication, complete working deliverables, and surgical fixes over broad rewrites.
-- State at the time of writing: `main` at commit `9cb0d38` ("Fix blank /devops page on first client-side navigation"). Phases 1 and 2 are done and pushed.
+- State at the time of writing: Phases 1 and 2 are done and pushed. The blank-page fix is commit `9cb0d38`. **The owner then pushed 5 commits that rework the DevOps page layout** (roadmap | practical-zone split with tabs, collapsible sides, a shared navbar, constant-size View/Hint strip, IDE-style drag-resizable panes): see `components/DevOpsChrome.tsx`, `PracticalZone.tsx`, `Splitter.tsx`, `pages/StagePage.tsx`, `pages/DevOpsShell.tsx`. **Run `git log --oneline -15` first and trust the code over this file for anything about the UI layout** (the sticky-playground description in older notes no longer applies). Build and `npm run verify:devops` (208 checks) passed on `f3664dc`.
 
 ## 0. First five minutes (do these before anything else)
 
